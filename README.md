@@ -7,7 +7,7 @@
 📖 Documentation & Resources:
 
  - 🔗 TBMQ [Documentation](https://thingsboard.io/products/mqtt-broker/)
- - 💻 GitHub [Repository](github.com/thingsboard/tbmq)
+ - 💻 GitHub [Repository](https://github.com/thingsboard/tbmq)
 
 ## Quick Install Guide
 
