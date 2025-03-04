@@ -1,0 +1,43 @@
+  apiVersion: v2
+  appVersion: 2.1.0-SNAPSHOT
+  description: Helm chart for ThingsBoard MQTT broker (TBMQ) cluster.
+  name: tbmq-cluster
+  type: application
+  version: 0.0.1
+  annotations:
+    artifacthub.io/category: streaming-messaging
+    licenses: Apache-2.0
+    artifacthub.io/maintainers: |
+      - name: dshvaika
+        email: dshvaika@thingsboard.io
+      - name: dlandiak
+        email: dlandiak@thingsboard.io
+    artifacthub.io/prerelease: "true"
+    artifacthub.io/logoPath: thingsboard-logo-black.svg
+    artifacthub.io/changes: |
+      - kind: added
+        description: Pre-release of the ThingsBoard MQTT broker (TBMQ) Helm chart.
+        links:
+          - name: GitHub PR
+            url: https://github.com/ShvaykaD/tbmq-helm-chart/pull/1
+  home: https://thingsboard.io/products/mqtt-broker/
+  keywords:
+    - tbmq
+    - mqtt
+    - broker
+    - thingsboard
+    - iot
+  dependencies:
+    - name: common
+      version: 2.x.x
+      repository: oci://registry-1.docker.io/bitnamicharts
+    - name: redis-cluster
+      version: 10.3.0
+      repository: oci://registry-1.docker.io/bitnamicharts
+    - name: postgresql
+      version: 15.5.38
+      repository: oci://registry-1.docker.io/bitnamicharts
+      condition: postgresql.enabled
+    - name: kafka
+      version: 29.3.4
+      repository: oci://registry-1.docker.io/bitnamicharts

@@ -1,0 +1,14 @@
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+{{- $tbmqIe := index .Values "tbmq-ie" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $releaseName }}-tbmq-ie-custom-env
+  namespace: {{ $namespace }}
+  labels:
+    name: {{ $releaseName }}-tbmq-ie-custom-env
+data:
+  {{- range $key, $val := $tbmqIe.customEnv }}
+  {{ $key }}: {{ tpl $val $ | quote }}
+  {{- end }}

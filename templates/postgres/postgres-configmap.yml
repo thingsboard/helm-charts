@@ -1,0 +1,22 @@
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $releaseName }}-postgres-config
+  namespace: {{ $namespace }}
+  labels:
+    name: {{ $releaseName }}-postgres-config
+data:
+  # Database driver for Spring JPA
+  SPRING_DRIVER_CLASS_NAME: "org.postgresql.Driver"
+  # Database connection URL
+  SPRING_DATASOURCE_URL: {{ printf "jdbc:postgresql://%s:%v/%s" (include "tbmq.postgres.host" .) (include "tbmq.postgres.port" .) (include "tbmq.postgres.database" .) | quote }}
+  # Database username
+  SPRING_DATASOURCE_USERNAME: {{ (include "tbmq.postgres.username" .) | quote }}
+  # This property allows the number of connections in the pool to increase as demand increases.
+  # At the same time, the property ensures that the pool doesn't grow to the point of exhausting a system's resources,
+  # which ultimately affects an application's performance and availability
+  SPRING_DATASOURCE_MAXIMUM_POOL_SIZE: "16"
+  # This property controls the max lifetime in milliseconds of a connection. Only when it is closed will it then be removed. Default is 10 minutes
+  SPRING_DATASOURCE_MAX_LIFETIME: "600000"

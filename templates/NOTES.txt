@@ -1,0 +1,4 @@
+Thingsboard MQTT Broker Cluster {{ .Release.Name }} will be deployed in few minutes.
+Info:
+    Namespace: {{ .Release.Namespace }}
+

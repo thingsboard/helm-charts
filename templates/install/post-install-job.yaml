@@ -1,0 +1,56 @@
+{{- $namespace := .Release.Namespace -}}
+{{- $appVersion := .Chart.AppVersion -}}
+{{- $releaseName := .Release.Name }}
+{{- if and .Values.installation.installTBMQ }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ $releaseName }}-install-pod
+  namespace: {{ $namespace }}
+  annotations:
+    {{- if .Values.installation.argocd }}
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    {{- else }}
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+    "helm.sh/hook-timeout": "300s"
+    {{- end }}
+  labels:
+    app: install-job
+spec:
+  imagePullSecrets:
+    - name: regcred
+  volumes:
+    - name: install-config
+      configMap:
+        name: {{ printf "%s-install-config" $releaseName }}
+        items:
+          - key: conf
+            path: thingsboard-mqtt-broker.conf
+          - key: logback
+            path: logback.xml
+    - name: {{ $releaseName }}-tbmq-node-logs
+      emptyDir: { }
+  restartPolicy: OnFailure
+  containers:
+    - name: {{ $releaseName }}-db-setup
+      imagePullPolicy: {{ .Values.tbmq.imagePullPolicy }}
+      image: {{ include "tbmq.node.image" . }}
+      env:
+        - name: TB_SERVICE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: INSTALL_TB
+          value: "true"
+      envFrom:
+        {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
+        {{- include "tbmq.redis.configuration.ref" . | indent 12 }}
+        {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
+      volumeMounts:
+        - mountPath: /config
+          name: install-config
+        - mountPath: /var/log/thingsboard-mqtt-broker
+          name: {{ $releaseName }}-tbmq-node-logs
+{{- end }}

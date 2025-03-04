@@ -1,0 +1,21 @@
+{{- $tbmqIe := index .Values "tbmq-ie" }}
+{{- if empty $tbmqIe.existingConfigMap }}
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-tbmq-ie-default-config" $releaseName }}
+  namespace: {{ $namespace }}
+  labels:
+    name: {{ printf "%s-tbmq-ie-default-config" $releaseName }}
+data:
+  conf: |
+    export JAVA_OPTS="$JAVA_OPTS -Xlog:gc*,heap*,age*,safepoint=debug:file=/var/log/tbmq-integration-executor/gc.log:time,uptime,level,tags:filecount=10,filesize=10M"
+    export JAVA_OPTS="$JAVA_OPTS -XX:+IgnoreUnrecognizedVMOptions -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/log/tbmq-integration-executor/${TB_SERVICE_ID}-heapdump.bin"
+    export JAVA_OPTS="$JAVA_OPTS -XX:+UseTLAB -XX:+ResizeTLAB -XX:+PerfDisableSharedMem -XX:+UseCondCardMark"
+    export JAVA_OPTS="$JAVA_OPTS -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+UseStringDeduplication -XX:+ParallelRefProcEnabled -XX:MaxTenuringThreshold=10"
+    export JAVA_OPTS="$JAVA_OPTS -XX:+ExitOnOutOfMemoryError"
+    export LOG_FILENAME=tbmq-integration-executor.out
+    export LOADER_PATH=/usr/share/tbmq-integration-executor/conf
+{{- end }}
