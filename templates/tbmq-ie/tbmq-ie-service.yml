@@ -1,0 +1,19 @@
+{{- $appVersion := .Chart.AppVersion -}}
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+{{- $tbmqIe := index .Values "tbmq-ie" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tbmq.ie.label" . }}
+  namespace: {{ $namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ include "tbmq.ie.label" . }}
+  ports:
+    {{- range $tbmqIe.ports }}
+    - port: {{ .value }}
+      name: {{ .name }}
+      protocol: {{ .protocol | default "TCP" | toString }}
+    {{- end }}

@@ -1,0 +1,131 @@
+{{- $appVersion := .Chart.AppVersion -}}
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tbmq.node.label" . }}
+  namespace: {{ $namespace }}
+  annotations: {{- .Values.tbmq.statefulSet.annotations | toYaml | nindent 4 }}
+  labels:
+    app: {{ include "tbmq.node.label" . }}
+spec:
+  serviceName: {{ include "tbmq.node.label" . }}
+  replicas: {{ .Values.tbmq.statefulSet.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "tbmq.node.label" . }}
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.tbmq.enableChecksumAnnotations }}
+        checksum/config: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-configmap.yml") . | sha256sum }}
+        checksum/logging: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-logback-configmap.yml") . | sha256sum }}
+        checksum/env: {{ include (print $.Template.BasePath "/tbmq/tbmq-custom-env.yml") . | sha256sum }}
+        checksum/mqtts: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-mqtts-config.yml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres/postgres-configmap.yml") . | sha256sum }}
+        checksum/postgres-secret: {{ include (print $.Template.BasePath "/postgres/postgres-secret.yml") . | sha256sum }}
+        checksum/redis-config: {{ include (print $.Template.BasePath "/redis/redis-configmap.yml") . | sha256sum }}
+        checksum/redis-secret: {{ include (print $.Template.BasePath "/redis/redis-secret.yml") . | sha256sum }}
+        checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.tbmq.annotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        app: {{ include "tbmq.node.label" . }}
+    spec:
+      nodeSelector:
+        {{- .Values.tbmq.nodeSelector | toYaml | nindent 8 }}
+      affinity:
+        {{- .Values.tbmq.affinity | toYaml | nindent 8 }}
+      securityContext:
+        {{- .Values.tbmq.securityContext | toYaml | nindent 8 }}
+      imagePullSecrets:
+        - name: {{ .Values.tbmq.imagePullSecret }}
+      initContainers: {{ include "tbmq.initcontainers" . | indent 8 }}
+      containers:
+        - name: server
+          imagePullPolicy: {{ .Values.tbmq.imagePullPolicy }}
+          image: {{ include "tbmq.node.image" . }}
+          ports:
+            {{- range .Values.tbmq.ports }}
+            - containerPort: {{ .value }}
+              name: {{ .name }}
+              protocol: {{ .protocol | default "TCP" | toString }}
+            {{- end}}
+          env:
+            - name: TB_SERVICE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TB_SERVICE_SINGLETON_MODE
+              value: "false"
+            - name: HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE
+              value: "false"
+            {{- if .Values.awscontroller.mqtt.mutualTls.enabled }}
+            - name: LISTENER_SSL_ENABLED
+              value: "true"
+            - name: LISTENER_SSL_CREDENTIALS_TYPE
+              value: "PEM"
+            - name: LISTENER_SSL_PEM_CERT
+              value: "/ssl-config/server.pem"
+            - name: LISTENER_SSL_PEM_KEY
+              value: "/ssl-config/mqttserver_key.pem"
+            {{- end }}
+          envFrom:
+            {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
+            {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
+            {{- include "tbmq.redis.configuration.ref" . | indent 12 }}
+            - configMapRef:
+                name: {{ $releaseName }}-tbmq-custom-env
+          readinessProbe:
+            {{- .Values.tbmq.readinessProbe | toYaml | nindent 12 }}
+          livenessProbe:
+            {{- .Values.tbmq.livenessProbe | toYaml | nindent 12 }}
+          resources:
+            {{- .Values.tbmq.resources | toYaml | nindent 12 }}
+          volumeMounts:
+            - name: {{ printf "%s-tbmq-node-config" $releaseName }}
+              mountPath: /config/thingsboard-mqtt-broker.conf
+              subPath: thingsboard-mqtt-broker.conf
+            - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
+              mountPath: /config/logback.xml
+              subPath: logback.xml
+            {{- if .Values.awscontroller.mqtt.mutualTls.enabled }}
+            - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
+              mountPath: /ssl-config
+            {{- end }}
+            - name: {{ $releaseName }}-tbmq-node-logs
+              mountPath: /var/log/thingsboard-mqtt-broker
+            - name: {{ $releaseName }}-tbmq-node-data
+              mountPath: /data
+              readOnly: false
+      restartPolicy: {{ .Values.tbmq.restartPolicy }}
+      volumes:
+        - name: {{ printf "%s-tbmq-node-config" $releaseName }}
+          configMap:
+            name: {{ ternary (printf "%s-tbmq-node-default-config" $releaseName) .Values.tbmq.existingConfigMap  (empty .Values.tbmq.existingConfigMap) }}
+            items:
+              - key: conf
+                path: thingsboard-mqtt-broker.conf
+        - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
+          configMap:
+            name: {{ ternary (printf "%s-tbmq-node-default-logback-config" $releaseName) .Values.tbmq.existingLogbackConfigMap  (empty .Values.tbmq.existingLogbackConfigMap) }}
+            items:
+              - key: logback
+                path: logback.xml
+        {{- if .Values.awscontroller.mqtt.mutualTls.enabled }}
+        - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
+          configMap:
+            name: {{ ternary (printf "%s-tbmq-node-default-mqtts-config" $releaseName) .Values.awscontroller.mqtt.mutualTls.existingConfigMap  (empty .Values.awscontroller.mqtt.mutualTls.existingConfigMap) }}
+            items:
+              - key: server.pem
+                path: server.pem
+              - key: mqttserver_key.pem
+                path: mqttserver_key.pem
+        {{- end }}
+        - name: {{ $releaseName }}-tbmq-node-logs
+          emptyDir: { }
+        - name: {{ printf "%s-tbmq-node-data" $releaseName }}
+          emptyDir: { }

@@ -1,0 +1,46 @@
+{{- $tbmqIe := index .Values "tbmq-ie" }}
+{{- if empty $tbmqIe.existingLogbackConfigMap }}
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-tbmq-ie-default-logback-config" $releaseName }}
+  namespace: {{ $namespace }}
+  labels:
+    name: {{ printf "%s-tbmq-ie-default-logback-config" $releaseName }}
+data:
+  logback: |
+    <!DOCTYPE configuration>
+    <configuration scan="true" scanPeriod="10 seconds">
+
+        <appender name="fileLogAppender"
+                  class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>/var/log/tbmq-integration-executor/${TB_SERVICE_ID}/tbmq-integration-executor.log</file>
+            <rollingPolicy
+                    class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>/var/log/tbmq-integration-executor/${TB_SERVICE_ID}/tbmq-integration-executor.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+                <maxFileSize>100MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>3GB</totalSizeCap>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <logger name="org.thingsboard.mqtt.broker.integration" level="INFO"/>
+
+        <root level="INFO">
+            <appender-ref ref="fileLogAppender"/>
+            <appender-ref ref="STDOUT"/>
+        </root>
+
+    </configuration>
+{{- end }}

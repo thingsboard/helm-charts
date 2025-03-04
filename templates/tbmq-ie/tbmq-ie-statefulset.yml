@@ -1,0 +1,100 @@
+{{- $appVersion := .Chart.AppVersion -}}
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+{{- $tbmqIe := index .Values "tbmq-ie" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tbmq.ie.label" . }}
+  namespace: {{ $namespace }}
+  annotations: {{- $tbmqIe.statefulSet.annotations | toYaml | nindent 4 }}
+  labels:
+    app: {{ include "tbmq.ie.label" . }}
+spec:
+  serviceName: {{ include "tbmq.ie.label" . }}
+  replicas: {{ $tbmqIe.statefulSet.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "tbmq.ie.label" . }}
+  template:
+    metadata:
+      annotations:
+        {{- if $tbmqIe.enableChecksumAnnotations }}
+        checksum/config: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-default-configmap.yml") . | sha256sum }}
+        checksum/logging: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-default-logback-configmap.yml") . | sha256sum }}
+        checksum/env: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-custom-env.yml") . | sha256sum }}
+        checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yml") . | sha256sum }}
+        {{- end }}
+        {{- with $tbmqIe.annotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        app: {{ include "tbmq.ie.label" . }}
+    spec:
+      nodeSelector:
+        {{- $tbmqIe.nodeSelector | toYaml | nindent 8 }}
+      affinity:
+        {{- $tbmqIe.affinity | toYaml | nindent 8 }}
+      securityContext:
+        {{- $tbmqIe.securityContext | toYaml | nindent 8 }}
+      imagePullSecrets:
+        - name: {{ $tbmqIe.imagePullSecret }}
+      containers:
+        - name: server
+          imagePullPolicy: {{ $tbmqIe.imagePullPolicy }}
+          image: {{ include "tbmq.ie.image" . }}
+          ports:
+            {{- range $tbmqIe.ports }}
+            - containerPort: {{ .value }}
+              name: {{ .name }}
+              protocol: {{ .protocol | default "TCP" | toString }}
+            {{- end}}
+          env:
+            - name: TB_SERVICE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TB_SERVICE_INTEGRATIONS_SUPPORTED
+              value: "ALL"
+            - name: TB_SERVICE_INTEGRATIONS_EXCLUDED
+              value: "NONE"
+          envFrom:
+            {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
+            - configMapRef:
+                name: {{ $releaseName }}-tbmq-ie-custom-env
+          readinessProbe:
+            {{- $tbmqIe.readinessProbe | toYaml | nindent 12 }}
+          livenessProbe:
+            {{- $tbmqIe.livenessProbe | toYaml | nindent 12 }}
+          resources:
+            {{- $tbmqIe.resources | toYaml | nindent 12 }}
+          volumeMounts:
+            - name: {{ printf "%s-tbmq-ie-config" $releaseName }}
+              mountPath: /config/tbmq-integration-executor.conf
+              subPath: tbmq-integration-executor.conf
+            - name: {{ printf "%s-tbmq-ie-logback-config" $releaseName }}
+              mountPath: /config/logback.xml
+              subPath: logback.xml
+            - name: {{ $releaseName }}-tbmq-ie-logs
+              mountPath: /var/log/tbmq-integration-executor
+            - name: {{ $releaseName }}-tbmq-ie-data
+              mountPath: /data
+              readOnly: false
+      restartPolicy: {{ $tbmqIe.restartPolicy }}
+      volumes:
+        - name: {{ printf "%s-tbmq-ie-config" $releaseName }}
+          configMap:
+            name: {{ ternary (printf "%s-tbmq-ie-default-config" $releaseName) $tbmqIe.existingConfigMap  (empty $tbmqIe.existingConfigMap) }}
+            items:
+              - key: conf
+                path: tbmq-integration-executor.conf
+        - name: {{ printf "%s-tbmq-ie-logback-config" $releaseName }}
+          configMap:
+            name: {{ ternary (printf "%s-tbmq-ie-default-logback-config" $releaseName) $tbmqIe.existingLogbackConfigMap  (empty $tbmqIe.existingLogbackConfigMap) }}
+            items:
+              - key: logback
+                path: logback.xml
+        - name: {{ $releaseName }}-tbmq-ie-logs
+          emptyDir: { }
+        - name: {{ printf "%s-tbmq-ie-data" $releaseName }}
+          emptyDir: { }

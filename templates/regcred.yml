@@ -1,0 +1,9 @@
+{{- $namespace := .Release.Namespace -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.tbmq.imagePullSecret }}
+  namespace: {{ $namespace }}
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: {{ template "tbmq.imagePullSecret" . }}

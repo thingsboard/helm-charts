@@ -1,0 +1,688 @@
+# Default values for TBMQ.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Credentials that will use for getting images. By default, all images in this chart are open. But in the case of using custom
+# code images, this auth will be used.
+dockerAuth:
+  registry: https://index.docker.io/v1/
+  username: ""
+  password: ""
+
+# Installation section
+installation:
+  # This field is responsible for the installation process of TBMQ.
+  # The installation process will create a PostgreSQL database schema
+  installTBMQ: false
+  # When this chart installing via ArgoCd
+  argocd: false
+
+
+## Section to configure ThingsBoard MQTT Broker (TBMQ) service.
+tbmq:
+  # Image that will use for tbmq service.
+  image:
+    repository: thingsboard/tbmq-node
+    tag: 2.1.0-SNAPSHOT
+  # Pull secret that will be used to get docker tbmq images.
+  imagePullSecret: regcred
+  imagePullPolicy: Always
+  # Statefulset option for tbmq service
+  statefulSet:
+    # Replica count for tbmq services
+    replicas: 1
+    annotations: { }
+  # List of ports for tbmq service
+  ports:
+    - name: http
+      value: 8083
+    - name: https
+      value: 443
+    - name: mqtt
+      value: 1883
+    - name: mqtts
+      value: 8883
+    - name: mqtt-ws
+      value: 8084
+    - name: mqtt-wss
+      value: 8085
+  # Node selector for choosing nodes for scheduling pods.
+  # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
+  # Usually it is Map type. Example:
+  # nodeSelector:
+  #    disktype: ssd
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details
+  nodeSelector: { }
+  # Affinity for choosing nodes for scheduling pods.
+  # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
+  # Example:
+  # affinity:
+  #    nodeAffinity:
+  #      requiredDuringSchedulingIgnoredDuringExecution:
+  #        nodeSelectorTerms:
+  #        - matchExpressions:
+  #          - key: topology.kubernetes.io/zone
+  #            operator: In
+  #            values:
+  #            - antarctica-east1
+  #            - antarctica-west1
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details
+  affinity: { }
+  # A Map for custom environment variable for tbmq service.
+  # If not empty, all env vars will be added to a config map and will path to pods. Useful while custom developing.
+  # Example:
+  # customEnv:
+  #   TEST: test
+  customEnv: { }
+  # Name of an existing TBMQ config map. Used mostly for JVM options. In the config map, key conf is expected.
+  existingConfigMap: ""
+  # Name of an existing TBMQ logback config map. Used mostly for JVM options. In the config map, key logback is expected.
+  existingLogbackConfigMap: ""
+  # Set this parameter to false to disable automatic pod restarts on configMap or secrets updates
+  enableChecksumAnnotations: true
+  annotations: { }
+  # Default readiness probe for tbmq service
+  readinessProbe:
+    tcpSocket:
+      port: 1883
+    timeoutSeconds: 10
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    successThreshold: 1
+    failureThreshold: 5
+  # Default liveness probe for tbmq service
+  livenessProbe:
+    tcpSocket:
+      port: 1883
+    timeoutSeconds: 10
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 10
+  # Default pod restart policy
+  restartPolicy: Always
+  securityContext:
+    runAsUser: 799
+    runAsNonRoot: true
+    fsGroup: 799
+  # Default resources for tbmq pods.
+  ## Example:
+  ## resources:
+  ##   limits:
+  ##     cpu: "1.5"
+  ##     memory: 3Gi
+  ##   # Default requests for CPU and Memory that pods will try to use
+  ##   requests:
+  ##     cpu: "1.5"
+  ##     memory: 3Gi
+  resources: { }
+
+## Section to configure TBMQ Integration executor service.
+tbmq-ie:
+  # Image that will use for tbmq-ie service.
+  image:
+    repository: thingsboard/tbmq-integration-executor
+    tag: 2.1.0-SNAPSHOT
+  # Pull secret that will be used to get docker tbmq-ie images.
+  imagePullSecret: regcred
+  imagePullPolicy: Always
+  # Statefulset option for tbmq-ie service
+  statefulSet:
+    # Replica count for tbmq-ie services
+    replicas: 1
+    annotations: { }
+  # List of ports for tbmq-ie service
+  ports:
+    - name: http
+      value: 8082
+  # Node selector for choosing nodes for scheduling pods.
+  # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
+  # Usually it is Map type. Example:
+  # nodeSelector:
+  #    disktype: ssd
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details
+  nodeSelector: { }
+  # Affinity for choosing nodes for scheduling pods.
+  # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
+  # Example:
+  # affinity:
+  #    nodeAffinity:
+  #      requiredDuringSchedulingIgnoredDuringExecution:
+  #        nodeSelectorTerms:
+  #        - matchExpressions:
+  #          - key: topology.kubernetes.io/zone
+  #            operator: In
+  #            values:
+  #            - antarctica-east1
+  #            - antarctica-west1
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details
+  affinity: { }
+  # A Map for custom environment variable for tbmq-ie service.
+  # If not empty, all env vars will be added to a config map and will path to pods. Useful while custom developing.
+  # Example:
+  # customEnv:
+  #   TEST: test
+  customEnv: {}
+  # Name of an existing TBMQ config map. Used mostly for JVM options. In the config map, key conf is expected.
+  existingConfigMap: ""
+  # Name of an existing TBMQ logback config map. Used mostly for JVM options. In the config map, key logback is expected.
+  existingLogbackConfigMap: ""
+  # Set this parameter to false to disable automatic pod restarts on configMap updates
+  enableChecksumAnnotations: true
+  annotations: { }
+  # Default readiness probe for tbmq-ie service
+  readinessProbe:
+    periodSeconds: 20
+    tcpSocket:
+      port: http
+  # Default liveness probe for tbmq-ie service
+  livenessProbe:
+    initialDelaySeconds: 120
+    periodSeconds: 20
+    tcpSocket:
+      port: http
+  # Default pod restart policy
+  restartPolicy: Always
+  securityContext:
+    runAsUser: 799
+    runAsNonRoot: true
+    fsGroup: 799
+  # Default resources for tbmq-ie pods.
+  ## Example:
+  ## resources:
+  ##   limits:
+  ##     cpu: "1.5"
+  ##     memory: 3Gi
+  ##   # Default requests for CPU and Memory that pods will try to use
+  ##   requests:
+  ##     cpu: "1.5"
+  ##     memory: 3Gi
+  resources: { }
+
+# This section will bring bitnami/redis-cluster (https://artifacthub.io/packages/helm/bitnami/redis-cluster) into this chart.
+# If you want to add some extra configuration parameters, you can put them with key redis-cluster, and they will be passed to bitnami/redis-cluster chart.
+redis-cluster:
+  # Default name override for bitnami/redis-cluster
+  nameOverride: "redis"
+  # Enable or disable bitnami/redis-cluster auth
+  usePassword: true
+  # Default redis password (change for production)
+  password: "myredispassword"
+  ## Pod Disruption Budget configuration
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+  ##
+  pdb:
+    ## @param pdb.create Created a PodDisruptionBudget
+    ##
+    create: false
+    ## @param pdb.maxUnavailable Max number of pods that can be unavailable after the eviction.
+    ## You can specify an integer or a percentage by setting the value to a string representation of a percentage (e.g. "50%"). It will be disabled if set to 0
+    ##
+    maxUnavailable: 1
+  ## @section Redis&reg; statefulset parameters
+  ##
+  redis:
+    ## @param redis.useAOFPersistence Whether to use AOF Persistence mode or not
+    ## It is strongly recommended to use this type when dealing with clusters
+    ## ref: https://redis.io/topics/persistence#append-only-file
+    ## ref: https://redis.io/topics/cluster-tutorial#creating-and-using-a-redis-cluster
+    ##
+    useAOFPersistence: "yes"
+    ## @param redis.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
+    ## Example:
+    ## resources:
+    ##   requests:
+    ##     cpu: 2
+    ##     memory: 512Mi
+    ##   limits:
+    ##     cpu: 3
+    ##     memory: 1024Mi
+    ##
+    resources: { }
+    ## @param redis.podAntiAffinityPreset Redis&reg; pod anti-affinity preset. Ignored if `redis.affinity` is set. Allowed values: `soft` or `hard`
+    ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+    ##
+    podAntiAffinityPreset: soft
+    ## @param redis.nodeSelector Node labels for Redis&reg; pods assignment
+    ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+    ##
+    ## @param redis.affinity Affinity settings for Redis&reg; pod assignment
+    ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+    ## Note: redis.podAffinityPreset, redis.podAntiAffinityPreset, and redis.nodeAffinityPreset will be ignored when it's set
+    ##
+    ## Redis&reg; node affinity preset
+    ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
+    ##
+    nodeAffinityPreset:
+      ## @param redis.nodeAffinityPreset.type Redis&reg; node affinity preset type. Ignored if `redis.affinity` is set. Allowed values: `soft` or `hard`
+      ##
+      type: ""
+      ## @param redis.nodeAffinityPreset.key Redis&reg; node label key to match Ignored if `redis.affinity` is set.
+      ## E.g.
+      ## key: "kubernetes.io/e2e-az-name"
+      ##
+      key: ""
+      ## @param redis.nodeAffinityPreset.values Redis&reg; node label values to match. Ignored if `redis.affinity` is set.
+      ## E.g.
+      ## values:
+      ##   - e2e-az1
+      ##   - e2e-az2
+      ##
+      values: [ ]
+    affinity: { }
+    ## @param redis.nodeSelector Node labels for Redis&reg; pods assignment
+    ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+    ##
+    nodeSelector: { }
+  ## Enable persistence using Persistent Volume Claims
+  ## ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+  ##
+  persistence:
+    ## @param persistence.storageClass Storage class of backing PVC
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    storageClass: ""
+    ## @param persistence.accessModes Persistent Volume Access Modes
+    ##
+    accessModes:
+      - ReadWriteOnce
+    ## @param persistence.size Size of data volume
+    ##
+    size: 8Gi
+  ## persistentVolumeClaimRetentionPolicy
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention
+  ## @param persistentVolumeClaimRetentionPolicy.enabled Controls if and how PVCs are deleted during the lifecycle of a StatefulSet
+  ## @param persistentVolumeClaimRetentionPolicy.whenScaled Volume retention behavior when the replica count of the StatefulSet is reduced
+  ## @param persistentVolumeClaimRetentionPolicy.whenDeleted Volume retention behavior that applies when the StatefulSet is deleted
+  persistentVolumeClaimRetentionPolicy:
+    enabled: false
+    whenScaled: Retain
+    whenDeleted: Retain
+  ## Redis&reg; Cluster settings
+  ##
+  cluster:
+    ## Number of Redis&reg; nodes to be deployed
+    ##
+    ## Note:
+    ## This is total number of nodes including the replicas. Meaning there will be 3 master and 3 replica
+    ## nodes (as replica count is set to 1 by default, there will be 1 replica per master node).
+    ## Hence, nodes = numberOfMasterNodes + numberOfMasterNodes * replicas
+    ##
+    ## @param cluster.nodes The number of master nodes should always be >= 3, otherwise cluster creation will fail
+    ##
+    nodes: 6
+    ## @param cluster.replicas Number of replicas for every master in the cluster
+    ## Parameter to be passed as --cluster-replicas to the redis-cli --cluster create
+    ## 1 means that we want a replica for every master created
+    ##
+    replicas: 1
+    ## This section allows to update the Redis&reg; cluster nodes.
+    ##
+    update:
+      ## @param cluster.update.addNodes Boolean to specify if you want to add nodes after the upgrade
+      ## Setting this to true a hook will add nodes to the Redis&reg; cluster after the upgrade. currentNumberOfNodes and currentNumberOfReplicas is required
+      ##
+      addNodes: false
+      ## @param cluster.update.currentNumberOfNodes Number of currently deployed Redis&reg; nodes
+      ##
+      currentNumberOfNodes: 6
+      ## @param cluster.update.currentNumberOfReplicas Number of currently deployed Redis&reg; replicas
+      ##
+      currentNumberOfReplicas: 1
+      ## @param cluster.update.newExternalIPs External IPs obtained from the services for the new nodes to add to the cluster
+      ##
+      newExternalIPs: [ ]
+  ## Prometheus Exporter / Metrics
+  ##
+  metrics:
+    ## @param metrics.enabled Start a side-car prometheus exporter
+    ##
+    enabled: false
+    ## @param metrics.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
+    ## Example:
+    ## resources:
+    ##   requests:
+    ##     cpu: 2
+    ##     memory: 512Mi
+    ##   limits:
+    ##     cpu: 3
+    ##     memory: 1024Mi
+    ## ref: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+    ##
+    resources: { }
+
+# If you're deploying PostgreSQL externally, configure this section
+externalPostgresql:
+  # @param host - External PostgreSQL server host
+  host: ""
+  # @param port - External PostgreSQL server port
+  ##
+  port: 5432
+  # @param password - PostgreSQL user
+  ##
+  username: "postgres"
+  # @param password - PostgreSQL user password
+  ##
+  password: "postgres"
+  # @param database - PostgreSQL database name for TBMQ
+  ##
+  database: "thingsboard_mqtt_broker"
+
+# This section will bring bitnami/postgresql (https://artifacthub.io/packages/helm/bitnami/postgresql) into this chart.
+#  If you want to add some extra configuration parameters, you can put them with key postgresql, and they will be passed to bitnami/postgresql chart
+postgresql:
+  # @param enabled If enabled is set to true, externalPostgresql configuration will be ignored
+  enabled: true
+  ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
+  ##
+  nameOverride: "postgresql"
+  ## Authentication parameters
+  ## ref: https://github.com/bitnami/containers/tree/main/bitnami/postgresql#setting-the-root-password-on-first-run
+  ## ref: https://github.com/bitnami/containers/tree/main/bitnami/postgresql#creating-a-database-on-first-run
+  ## ref: https://github.com/bitnami/containers/tree/main/bitnami/postgresql#creating-a-database-user-on-first-run
+  ##
+  auth:
+    ## @param auth.username Name for a custom user to create
+    ##
+    username: "postgres"
+    ## @param auth.password Password for the custom user to create. Ignored if `auth.existingSecret` is provided
+    ##
+    password: "postgres"
+    ## @param auth.database Name for a TBMQ database to create
+    ##
+    database: "thingsboard_mqtt_broker"
+  ## @section PostgreSQL Primary parameters
+  ##
+  primary:
+    ## @param primary.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
+    ## Example:
+    ## resources:
+    ##   requests:
+    ##     cpu: 2
+    ##     memory: 512Mi
+    ##   limits:
+    ##     cpu: 3
+    ##     memory: 1024Mi
+    ##
+    resources: { }
+    ## @param primary.nodeSelector Node labels for PostgreSQL primary pods assignment
+    ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+    ##
+    nodeSelector: { }
+    ## PostgreSQL Primary persistence configuration
+    ##
+    persistence:
+      ## @param primary.persistence.storageClass PVC Storage Class for PostgreSQL Primary data volume
+      ## If defined, storageClassName: <storageClass>
+      ## If set to "-", storageClassName: "", which disables dynamic provisioning
+      ## If undefined (the default) or set to null, no storageClassName spec is
+      ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+      ##   GKE, AWS & OpenStack)
+      ##
+      storageClass: ""
+      ## @param primary.persistence.accessModes PVC Access Mode for PostgreSQL volume
+      ##
+      accessModes:
+        - ReadWriteOnce
+      ## @param primary.persistence.size PVC Storage Request for PostgreSQL volume
+      ##
+      size: 8Gi
+  ## @section Backup parameters
+  ## This section implements a trivial logical dump cronjob of the database.
+  ## This only comes with the consistency guarantees of the dump program.
+  ## This is not a snapshot based roll forward/backward recovery backup.
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+  backup:
+    ## @param backup.enabled Enable the logical dump of the database "regularly"
+    enabled: false
+    cronjob:
+      ## @param backup.cronjob.schedule Set the cronjob parameter schedule
+      schedule: "@daily"
+      ## @param backup.cronjob.nodeSelector Node labels for PostgreSQL backup CronJob pod assignment
+      ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/assign-pods-nodes/
+      ##
+      nodeSelector: { }
+      ## @param backup.cronjob.resources Set container requests and limits for different resources like CPU or memory
+      ## Example:
+      resources: { }
+      storage:
+        ## @param backup.cronjob.storage.size PVC Storage Request for the backup data volume
+        ##
+        size: 8Gi
+  ## @section Metrics Parameters
+  ##
+  metrics:
+    ## @param metrics.enabled Start a prometheus exporter
+    ##
+    enabled: false
+    ## @param metrics.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
+    ## Example:
+    ## resources:
+    ##   requests:
+    ##     cpu: 2
+    ##     memory: 512Mi
+    ##   limits:
+    ##     cpu: 3
+    ##     memory: 1024Mi
+    ##
+    resources: { }
+    ## Service configuration
+    ##
+    service:
+      ## @param metrics.service.ports.metrics PostgreSQL Prometheus Exporter service port
+      ##
+      ports:
+        metrics: 9187
+
+
+
+# This section will bring bitnami/kafka (https://artifacthub.io/packages/helm/bitnami/kafka) into this chart.
+# If you want to add some extra configuration parameters, you can put them with key kafka, and they will be passed to bitnami/kafka chart
+kafka:
+  # Default name override for bitnami/kafka
+  nameOverride: "kafka"
+  ## @param extraConfig Additional configuration to be appended at the end of the generated Kafka configuration file.
+  ##
+  extraConfig: |
+    auto.create.topics.enable=false
+    default.replication.factor=2
+    offsets.topic.replication.factor=3
+    transaction.state.log.replication.factor=3
+    transaction.state.log.min.isr=2
+  ## @param heapOpts Kafka Java Heap size
+  ##
+  heapOpts: -Xmx1024m -Xms1024m
+  ## Kafka listeners configuration
+  ##
+  listeners:
+    ## @param listeners.client.name Name for the Kafka client listener
+    ## @param listeners.client.containerPort Port for the Kafka client listener
+    ## @param listeners.client.protocol Security protocol for the Kafka client listener. Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
+    ## @param listeners.client.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.authType for this listener. Allowed values are 'none', 'requested' and 'required'
+    client:
+      protocol: PLAINTEXT
+    ## @param listeners.controller.name Name for the Kafka controller listener
+    ## @param listeners.controller.containerPort Port for the Kafka controller listener
+    ## @param listeners.controller.protocol Security protocol for the Kafka controller listener. Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
+    ## @param listeners.controller.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.authType for this listener. Allowed values are 'none', 'requested' and 'required'
+    ## Ref: https://cwiki.apache.org/confluence/display/KAFKA/KIP-684+-+Support+mutual+TLS+authentication+on+SASL_SSL+listeners
+    controller:
+      protocol: PLAINTEXT
+    ## @param listeners.external.containerPort Port for the Kafka external listener
+    ## @param listeners.external.protocol Security protocol for the Kafka external listener. . Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
+    ## @param listeners.external.name Name for the Kafka external listener
+    ## @param listeners.external.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.sslClientAuth for this listener. Allowed values are 'none', 'requested' and 'required'
+    interbroker:
+      protocol: PLAINTEXT
+    ## @param listeners.external.containerPort Port for the Kafka external listener
+    ## @param listeners.external.protocol Security protocol for the Kafka external listener. . Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
+    ## @param listeners.external.name Name for the Kafka external listener
+    ## @param listeners.external.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.sslClientAuth for this listener. Allowed values are 'none', 'requested' and 'required'
+    external:
+      protocol: PLAINTEXT
+  ## @section Controller-eligible statefulset parameters
+  ##
+  controller:
+    ## @param controller.replicaCount Number of Kafka controller-eligible nodes
+    ## Ignore this section if running in Zookeeper mode.
+    ##
+    replicaCount: 3
+    ## @param controller.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
+    ## Example:
+    ## resources:
+    ##   requests:
+    ##     cpu: 2
+    ##     memory: 512Mi
+    ##   limits:
+    ##     cpu: 3
+    ##     memory: 1024Mi
+    ##
+    resources: { }
+    ## @param controller.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+    ## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+    ##
+    podAntiAffinityPreset: soft
+    ## Node affinity preset
+    ## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
+    ##
+    nodeAffinityPreset:
+      ## @param controller.nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+      ##
+      type: ""
+      ## @param controller.nodeAffinityPreset.key Node label key to match Ignored if `affinity` is set.
+      ## E.g.
+      ## key: "kubernetes.io/e2e-az-name"
+      ##
+      key: ""
+      ## @param controller.nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set.
+      ## E.g.
+      ## values:
+      ##   - e2e-az1
+      ##   - e2e-az2
+      ##
+      values: [ ]
+    ## @param controller.affinity Affinity for pod assignment
+    ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+    ## Note: podAffinityPreset, podAntiAffinityPreset, and  nodeAffinityPreset will be ignored when it's set
+    ##
+    affinity: { }
+    ## @param controller.nodeSelector Node labels for pod assignment
+    ## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+    ##
+    nodeSelector: { }
+    ## Kafka Pod Disruption Budget
+    ## ref: https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+    ## @param controller.pdb.create Deploy a pdb object for the Kafka pod
+    ## @param controller.pdb.minAvailable Maximum number/percentage of unavailable Kafka replicas
+    ## @param controller.pdb.maxUnavailable Maximum number/percentage of unavailable Kafka replicas
+    ##
+    pdb:
+      create: false
+      maxUnavailable: 1
+    ## Enable persistence using Persistent Volume Claims
+    ## ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+    ##
+    persistence:
+      ## @param controller.persistence.existingClaim A manually managed Persistent Volume and Claim
+      ## If defined, PVC must be created manually before volume will be bound
+      ## The value is evaluated as a template
+      ##
+      existingClaim: ""
+      ## @param controller.persistence.storageClass PVC Storage Class for Kafka data volume
+      ## If defined, storageClassName: <storageClass>
+      ## If set to "-", storageClassName: "", which disables dynamic provisioning
+      ## If undefined (the default) or set to null, no storageClassName spec is
+      ## set, choosing the default provisioner.
+      ##
+      storageClass: ""
+      ## @param controller.persistence.accessModes Persistent Volume Access Modes
+      ##
+      accessModes:
+        - ReadWriteOnce
+      ## @param controller.persistence.size PVC Storage Request for Kafka data volume
+      ##
+      size: 8Gi
+  ## Prometheus Exporters / Metrics
+  ##
+  metrics:
+    ## Prometheus JMX exporter: exposes the majority of Kafka metrics
+    ##
+    jmx:
+      ## @param metrics.jmx.enabled Whether or not to expose JMX metrics to Prometheus
+      ##
+      enabled: false
+      ## @param metrics.jmx.kafkaJmxPort JMX port where the exporter will collect metrics, exposed in the Kafka container.
+      ##
+      kafkaJmxPort: 5555
+      ## @param metrics.kafka.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
+      ## Example:
+      ## resources:
+      ##   requests:
+      ##     cpu: 2
+      ##     memory: 512Mi
+      ##   limits:
+      ##     cpu: 3
+      ##     memory: 1024Mi
+      ##
+      resources: { }
+
+# AWS Load Balancer Controller Configuration
+# This section configures AWS-specific load balancers for TBMQ.
+# It includes support for:
+# - **Application Load Balancer (ALB)** for HTTP/HTTPS traffic.
+# - **Network Load Balancer (NLB)** for MQTT traffic.
+#
+# If you are using AWS controller, enable the relevant sections below.
+awscontroller:
+  # HTTP(S) Load Balancer (ALB)
+  http:
+    enabled: false
+    ssl:
+      # Set to true to enable HTTPS (requires ACM Certificate)
+      enabled: false
+      # AWS ACM certificate ARN for HTTPS
+      certificateARN: ""
+  # MQTT Load Balancer (NLB)
+  mqtt:
+    enabled: false
+    # Two-Way TLS (Mutual TLS on the TBMQ service side)
+    mutualTls:
+      # Set to true to enable two-way TLS (mutual authentication). If enabled, tlsTermination option will be ignored.
+      # Requires server certificate and private key.
+      enabled: false
+      # Optional: Use an existing ConfigMap instead of creating one.
+      # If specified, the ConfigMap must contain the following keys:
+      # - `server.pem`: The server certificate.
+      # - `mqttserver_key.pem`: The private key.
+      # Example of a valid ConfigMap:
+      # ---
+      # apiVersion: v1
+      # kind: ConfigMap
+      # metadata:
+      #   name: <config_map_name>
+      # data:
+      #   server.pem: |-
+      #     <Your PEM Certificate Content>
+      #   mqttserver_key.pem: |-
+      #     <Your PEM Private Key Content>
+      # ---
+      # To create this ConfigMap, use:
+      # kubectl create configmap <config_map_name> \
+      #   --from-file=server.pem=YOUR_PEM_FILENAME \
+      #   --from-file=mqttserver_key.pem=YOUR_PEM_KEY_FILENAME \
+      #   -o yaml --dry-run=client | kubectl apply -f -
+      existingConfigMap: ""
+      # Path to the server certificate (server.pem). Required only if @param existingConfigMap is empty.
+      serverCertificate: ""
+      # Path to mqttserver_key.pem file (required only if @param existingConfigMap is empty)
+      privateKey: ""
+    # One-Way TLS (TLS Termination on load balancer side)
+    tlsTermination:
+      # Set to true to enable one-way TLS (requires ACM Certificate). Will be ignored if @param mutualTls.enabled is set to true
+      enabled: false
+      # AWS ACM certificate ARN for TLS Termination
+      certificateARN: ""

@@ -1,0 +1,15 @@
+# Ignore Helm-specific files
+charts/
+Chart.lock
+*.tgz  # Helm packaged charts
+test_values.yaml  # Local test values
+
+# Ignore IDE-specific files (only if they appear)
+.idea/
+.vscode/
+
+# Ignore OS-generated files
+.DS_Store
+Thumbs.db
+*.swp
+*~

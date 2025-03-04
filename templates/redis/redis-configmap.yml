@@ -1,0 +1,55 @@
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+{{- $redisName := index .Values "redis-cluster" "nameOverride" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $releaseName }}-redis-config
+  namespace: {{ $namespace }}
+  labels:
+    name: {{ $releaseName }}-redis-config
+data:
+  REDIS_CONNECTION_TYPE: "cluster"
+  REDIS_NODES: {{ include "tbmq.redis.nodes" . | quote }}
+  # Maximum number of redirects to follow when executing commands across the cluster
+  REDIS_MAX_REDIRECTS: "12"
+  # If set false will be used pool config build from values of the pool config section
+  REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG: "true"
+
+  # The common prefix for all cache keys. Defaults to empty string meaning no prefix is added
+  CACHE_PREFIX: ""
+  # Cache TTL in minutes. Defaults to 1 day
+  CACHE_SPECS_MQTT_CLIENT_CREDENTIALS_TTL: "1440"
+  # Cache TTL in minutes. It is recommended to set this TTL as a small value to not store them for a long time (e.g., 1-5 minutes)
+  CACHE_SPECS_BASIC_CREDENTIALS_PASSWORD_TTL: "1"
+  # Cache TTL in minutes. Defaults to 1 day
+  CACHE_SPECS_SSL_REGEX_BASED_CREDENTIALS_TTL: "1440"
+  # Cache TTL in minutes. Defaults to 0 meaning the cache is eternal
+  CACHE_SPECS_CLIENT_SESSION_CREDENTIALS_TTL: "0"
+  # Cache TTL in minutes. Defaults to 0 meaning the cache is eternal
+  CACHE_SPECS_CLIENT_MQTT_VERSION_TTL: "0"
+
+
+  # Enable/disable auto-flush. If disabled, commands are buffered and flushed based on cmd count or time interval
+  REDIS_LETTUCE_CMDS_AUTO_FLUSH_ENABLED: "true"
+  # Number of buffered commands before flush is triggered. Used when auto-flush is disabled
+  REDIS_LETTUCE_BUFFERED_CMDS_COUNT: "5"
+  # Maximum time in milliseconds to buffer commands before flushing, regardless of cmd count
+  REDIS_LETTUCE_FLUSH_INTERVAL_MS: "5"
+  # The shutdown quiet period for lettuce client set in seconds
+  REDIS_LETTUCE_SHUTDOWN_QUIET_PERIOD_SEC: "1"
+  # The shutdown timeout for lettuce client set in seconds
+  REDIS_LETTUCE_SHUTDOWN_TIMEOUT_SEC: "10"
+  # Enables or disables periodic cluster topology updates.
+  # Useful for Redis Cluster setup to handle topology changes,
+  # such as node failover, restarts, or IP address changes
+  REDIS_LETTUCE_CLUSTER_TOPOLOGY_REFRESH_ENABLED: "true"
+  # Specifies the interval (in seconds) for periodic cluster topology updates
+  REDIS_LETTUCE_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC: "60"
+
+  # Enables or disables periodic cluster topology updates.
+  # Useful for Redis cluster setup to handle topology changes,
+  # such as node failover, restarts, or IP address changes
+  REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED: "true"
+  # Specifies the interval (in seconds) for periodic cluster topology updates
+  REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC: "60"
