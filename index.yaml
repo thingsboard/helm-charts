@@ -19,7 +19,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-03-04T15:17:54.825769442+02:00"
+    created: "2025-03-04T15:46:35.63833274+02:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -35,7 +35,7 @@ entries:
       repository: oci://registry-1.docker.io/bitnamicharts
       version: 29.3.4
     description: Helm chart for ThingsBoard MQTT broker (TBMQ) cluster.
-    digest: 68155661cc62a179e15a0aec85f05b179adaeaabd1031c37c11abb511c80ed00
+    digest: 42b1c04bfa2ed3cba562d7727d819fba892e485efd0882f0170ea4072525cf7c
     home: https://thingsboard.io/products/mqtt-broker/
     keywords:
     - tbmq
@@ -48,4 +48,4 @@ entries:
     urls:
     - https://shvaykad.github.io/tbmq-helm-chart/tbmq-cluster-0.0.1.tgz
     version: 0.0.1
-generated: "2025-03-04T15:17:54.811247354+02:00"
+generated: "2025-03-04T15:46:35.624314679+02:00"
