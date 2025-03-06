@@ -1,0 +1,26 @@
+{{- if and (eq .Values.loadbalancer.provider "azure") .Values.loadbalancer.mqtt.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-mqtt-lb
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "false"
+spec:
+  type: LoadBalancer
+  selector:
+    app: {{ include "tbmq.node.label" . }}
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: 1883
+    - name: mqtt-ws
+      port: 8084
+      targetPort: 8084
+    - name: mqtts
+      port: 8883
+      targetPort: 8883
+    - name: mqtt-wss
+      port: 8085
+      targetPort: 8085
+{{- end }}
