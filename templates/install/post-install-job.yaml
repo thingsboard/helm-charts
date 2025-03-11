@@ -1,7 +1,7 @@
 {{- $namespace := .Release.Namespace -}}
 {{- $appVersion := .Chart.AppVersion -}}
 {{- $releaseName := .Release.Name }}
-{{- if and .Values.installation.installTBMQ }}
+{{- if and .Values.installation.installDbSchema }}
 apiVersion: v1
 kind: Pod
 metadata:

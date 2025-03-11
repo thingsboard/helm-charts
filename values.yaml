@@ -11,9 +11,8 @@ dockerAuth:
 
 # Installation section
 installation:
-  # This field is responsible for the installation process of TBMQ.
-  # The installation process will create a PostgreSQL database schema
-  installTBMQ: false
+  # This field is responsible for the installation process of TBMQ PostgreSQL database schema
+  installDbSchema: false
   # When this chart installing via ArgoCd
   argocd: false
 

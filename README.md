@@ -22,7 +22,7 @@ helm dependency build
 ### 2. Install TBMQ
 
 ```shell
-helm install tbmq ./ --set installation.installTBMQ=true --namespace tbmq --create-namespace --debug
+helm install tbmq ./ --set installation.installDbSchema=true --namespace tbmq --create-namespace --debug
 ```
 
 ### 3. Set Kubernetes Context
