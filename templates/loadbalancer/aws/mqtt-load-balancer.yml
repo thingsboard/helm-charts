@@ -18,6 +18,7 @@ metadata:
     {{- end }}
 spec:
   type: LoadBalancer
+  externalTrafficPolicy: Local
   selector:
     app: {{ include "tbmq.node.label" . }}
   ports:

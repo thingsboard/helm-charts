@@ -635,8 +635,9 @@ kafka:
 # Supported providers:
 # - AWS: Uses Application Load Balancer (ALB) for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT traffic.
 # - Azure: Uses Application Gateway for HTTP(S) traffic and Azure Load Balancer for MQTT traffic.
+# - GCP: Uses HTTPS Load Balancer for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT traffic.
 loadbalancer:
-  # Cloud provider for the load balancer. Supported values: "aws", "azure"
+  # Cloud provider for the load balancer. Supported values: "aws", "azure", "gcp"
   provider: "aws"
   # HTTP(S) Load Balancer Configuration (Application Layer - L7)
   # This load balancer is used for HTTP/HTTPS traffic, such as REST APIs.
@@ -649,7 +650,17 @@ loadbalancer:
       # Certificate reference:
       # - AWS: The ACM certificate ARN for ALB.
       # - Azure: The `appgw-ssl-certificate` value in Application Gateway.
+      # - GCP: The name of the ManagedCertificate resource
       certificateRef: ""
+      # List of domains for HTTPS traffic.
+      # - AWS: Not used in Ingress. Domains are part of the ACM certificate specified in `certificateRef`.
+      # - Azure: Not used in Ingress. Domains are managed directly in Application Gateway.
+      # - GCP: Required in Ingress. Domains must be listed for GCP ManagedCertificate to issue an SSL certificate.
+      domains:
+        - www.example.com
+      # Static IP address for the GCP HTTP(S) load balancer.
+      # Required for GCP. Ignored for AWS/Azure.
+      staticIP: "tbmq-http-lb-address"
   # MQTT Load Balancer Configuration (Transport Layer - L4)
   # This load balancer is used for MQTT traffic (TCP).
   mqtt:
@@ -691,10 +702,12 @@ loadbalancer:
     # This option allows the load balancer to terminate TLS and pass decrypted traffic to TBMQ.
     # - AWS: TLS termination is supported via Network Load Balancer (NLB) with an ACM certificate.
     # - Azure: TLS termination is NOT supported at the Azure Load Balancer level.
+    # - GCP: TLS termination is NOT supported at the GCP Network Load Balancer level.
     tlsTermination:
       # Set to true to enable TLS termination at the load balancer. Will be ignored if @param mutualTls.enabled is set to true
       enabled: false
       # Certificate reference for TLS termination:
       # - AWS: The ACM certificate ARN for NLB.
       # - Azure: Not applicable (this option will be ignored).
+      # - GCP: Not applicable (this option will be ignored).
       certificateRef: ""
