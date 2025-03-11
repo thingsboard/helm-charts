@@ -630,29 +630,36 @@ kafka:
       ##
       resources: { }
 
-# AWS Load Balancer Controller Configuration
-# This section configures AWS-specific load balancers for TBMQ.
-# It includes support for:
-# - **Application Load Balancer (ALB)** for HTTP/HTTPS traffic.
-# - **Network Load Balancer (NLB)** for MQTT traffic.
-#
-# If you are using AWS controller, enable the relevant sections below.
-awscontroller:
-  # HTTP(S) Load Balancer (ALB)
+# Load Balancer Configuration
+# This section defines the load balancer settings for TBMQ.
+# Supported providers:
+# - AWS: Uses Application Load Balancer (ALB) for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT traffic.
+# - Azure: Uses Application Gateway for HTTP(S) traffic and Azure Load Balancer for MQTT traffic.
+loadbalancer:
+  # Cloud provider for the load balancer. Supported values: "aws", "azure"
+  provider: "aws"
+  # HTTP(S) Load Balancer Configuration (Application Layer - L7)
+  # This load balancer is used for HTTP/HTTPS traffic, such as REST APIs.
   http:
+    # Set to true to enable the HTTP load balancer.
     enabled: false
     ssl:
-      # Set to true to enable HTTPS (requires ACM Certificate)
+      # Enables HTTPS termination at the load balancer level.
       enabled: false
-      # AWS ACM certificate ARN for HTTPS
-      certificateARN: ""
-  # MQTT Load Balancer (NLB)
+      # Certificate reference:
+      # - AWS: The ACM certificate ARN for ALB.
+      # - Azure: The `appgw-ssl-certificate` value in Application Gateway.
+      certificateRef: ""
+  # MQTT Load Balancer Configuration (Transport Layer - L4)
+  # This load balancer is used for MQTT traffic (TCP).
   mqtt:
+    # Set to true to enable the MQTT load balancer.
     enabled: false
-    # Two-Way TLS (Mutual TLS on the TBMQ service side)
+    # Two-Way TLS (Mutual TLS or mTLS) - Handled at the TBMQ application level.
+    # This ensures that both the client and the server authenticate each other.
     mutualTls:
-      # Set to true to enable two-way TLS (mutual authentication). If enabled, tlsTermination option will be ignored.
-      # Requires server certificate and private key.
+      # Set to true to enable mutual TLS (mTLS) authentication. Requires server certificate and private key.
+      # TLS Termination (see below) will be ignored if this is enabled.
       enabled: false
       # Optional: Use an existing ConfigMap instead of creating one.
       # If specified, the ConfigMap must contain the following keys:
@@ -680,9 +687,14 @@ awscontroller:
       serverCertificate: ""
       # Path to mqttserver_key.pem file (required only if @param existingConfigMap is empty)
       privateKey: ""
-    # One-Way TLS (TLS Termination on load balancer side)
+    # One-Way TLS Termination (Handled at Load Balancer Level - L4)
+    # This option allows the load balancer to terminate TLS and pass decrypted traffic to TBMQ.
+    # - AWS: TLS termination is supported via Network Load Balancer (NLB) with an ACM certificate.
+    # - Azure: TLS termination is NOT supported at the Azure Load Balancer level.
     tlsTermination:
-      # Set to true to enable one-way TLS (requires ACM Certificate). Will be ignored if @param mutualTls.enabled is set to true
+      # Set to true to enable TLS termination at the load balancer. Will be ignored if @param mutualTls.enabled is set to true
       enabled: false
-      # AWS ACM certificate ARN for TLS Termination
-      certificateARN: ""
+      # Certificate reference for TLS termination:
+      # - AWS: The ACM certificate ARN for NLB.
+      # - Azure: Not applicable (this option will be ignored).
+      certificateRef: ""

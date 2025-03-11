@@ -1,20 +1,4 @@
-#
-# Copyright © 2016-2024 The Thingsboard Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
-{{- if .Values.awscontroller.mqtt.enabled }}
+{{- if and (eq .Values.loadbalancer.provider "aws") .Values.loadbalancer.mqtt.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -27,15 +11,15 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
     service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: stickiness.enabled=true,stickiness.type=source_ip
     service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: TBMQClusterELB=TBMQMqtt
-    {{- if and (not .Values.awscontroller.mqtt.mutualTls.enabled) .Values.awscontroller.mqtt.tlsTermination.enabled }}
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: {{ .Values.awscontroller.mqtt.tlsTermination.certificateARN }}
+    {{- if and (not .Values.loadbalancer.mqtt.mutualTls.enabled) .Values.loadbalancer.mqtt.tlsTermination.enabled }}
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: {{ .Values.loadbalancer.mqtt.tlsTermination.certificateRef }}
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
     service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "mqtts,mqtt-wss"
     {{- end }}
 spec:
   type: LoadBalancer
   selector:
-    app: {{ include "tbmq.node.host" . }}
+    app: {{ include "tbmq.node.label" . }}
   ports:
     - name: mqtt
       port: 1883
@@ -43,7 +27,7 @@ spec:
     - name: mqtt-ws
       port: 8084
       targetPort: 8084
-    {{- if and (not .Values.awscontroller.mqtt.mutualTls.enabled) .Values.awscontroller.mqtt.tlsTermination.enabled }}
+    {{- if and (not .Values.loadbalancer.mqtt.mutualTls.enabled) .Values.loadbalancer.mqtt.tlsTermination.enabled }}
     # This way NLB acts as an TLS termination point and forwards decrypted traffic to 1883 port of the TBMQ.
     - name: mqtts
       port: 8883

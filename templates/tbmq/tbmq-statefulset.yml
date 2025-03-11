@@ -63,7 +63,7 @@ spec:
               value: "false"
             - name: HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE
               value: "false"
-            {{- if .Values.awscontroller.mqtt.mutualTls.enabled }}
+            {{- if .Values.loadbalancer.mqtt.mutualTls.enabled }}
             - name: LISTENER_SSL_ENABLED
               value: "true"
             - name: LISTENER_SSL_CREDENTIALS_TYPE
@@ -92,7 +92,7 @@ spec:
             - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
               mountPath: /config/logback.xml
               subPath: logback.xml
-            {{- if .Values.awscontroller.mqtt.mutualTls.enabled }}
+            {{- if .Values.loadbalancer.mqtt.mutualTls.enabled }}
             - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
               mountPath: /ssl-config
             {{- end }}
@@ -115,10 +115,10 @@ spec:
             items:
               - key: logback
                 path: logback.xml
-        {{- if .Values.awscontroller.mqtt.mutualTls.enabled }}
+        {{- if .Values.loadbalancer.mqtt.mutualTls.enabled }}
         - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
           configMap:
-            name: {{ ternary (printf "%s-tbmq-node-default-mqtts-config" $releaseName) .Values.awscontroller.mqtt.mutualTls.existingConfigMap  (empty .Values.awscontroller.mqtt.mutualTls.existingConfigMap) }}
+            name: {{ ternary (printf "%s-tbmq-node-default-mqtts-config" $releaseName) .Values.loadbalancer.mqtt.mutualTls.existingConfigMap  (empty .Values.loadbalancer.mqtt.mutualTls.existingConfigMap) }}
             items:
               - key: server.pem
                 path: server.pem

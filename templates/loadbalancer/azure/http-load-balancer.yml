@@ -1,17 +1,16 @@
-{{- if and (eq .Values.loadbalancer.provider "aws") .Values.loadbalancer.http.enabled }}
+{{- if and (eq .Values.loadbalancer.provider "azure") .Values.loadbalancer.http.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
   annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
+    appgw.ingress.kubernetes.io/use-regex: 'true'
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/request-timeout: "300"
     {{- if .Values.loadbalancer.http.ssl.enabled }}
-    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.loadbalancer.http.ssl.certificateRef }}
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    appgw.ingress.kubernetes.io/appgw-ssl-certificate: {{ .Values.loadbalancer.http.ssl.certificateRef }}
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
     {{- end }}
 spec:
   rules:

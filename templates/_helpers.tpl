@@ -3,11 +3,6 @@
 {{ printf "%s-tbmq-node" .Release.Name }}
 {{- end }}
 
-{{/*Return a tbmq node host*/}}
-{{- define "tbmq.node.host" }}
-{{- printf "%s-tbmq-node" .Release.Name}}
-{{- end}}
-
 {{/*Return a tbmq node image*/}}
 {{- define "tbmq.node.image" -}}
 {{- $repository := .Values.tbmq.image.repository | default "thingsboard/tbmq-node" }}
@@ -31,7 +26,6 @@
 {{- $appversion := index .Values "tbmq-ie" "image" "tag" | default (printf "%s" .Chart.AppVersion) }}
 {{- printf "%s:%s" $repository $appversion }}
 {{- end }}
-
 
 {{/*Return redis cluster configurations environment variables for tbmq services*/}}
 {{- define "tbmq.redis.configuration.ref"}}
@@ -112,12 +106,10 @@
 {{- end }}
 {{- end }}
 
-
 {{/*Return tbmq image pull secret*/}}
 {{- define "tbmq.imagePullSecret" }}
 {{- printf "{\"auths\": {\"%s\": {\"auth\": \"%s\"}}}" .Values.dockerAuth.registry (printf "%s:%s" .Values.dockerAuth.username .Values.dockerAuth.password | b64enc) | b64enc }}
 {{- end }}
-
 
 {{/*Init container that will slow deployment and let Service deploy after all scripts in the container exit successfully or timeout.*/}}
 {{- define "tbmq.initcontainers" }}
