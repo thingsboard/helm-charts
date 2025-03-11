@@ -20,7 +20,6 @@ spec:
       annotations:
         {{- if .Values.tbmq.enableChecksumAnnotations }}
         checksum/config: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-configmap.yml") . | sha256sum }}
-        checksum/logging: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-logback-configmap.yml") . | sha256sum }}
         checksum/env: {{ include (print $.Template.BasePath "/tbmq/tbmq-custom-env.yml") . | sha256sum }}
         checksum/mqtts: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-mqtts-config.yml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres/postgres-configmap.yml") . | sha256sum }}
