@@ -1,4 +1,4 @@
-{{- if and (eq .Values.loadbalancer.provider "azure") .Values.loadbalancer.http.enabled }}
+{{- if and (eq .Values.loadbalancer.type "azure") .Values.loadbalancer.http.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
