@@ -1,4 +1,4 @@
-{{- if and (eq .Values.loadbalancer.provider "gcp") .Values.loadbalancer.http.enabled }}
+{{- if and (eq .Values.loadbalancer.type "gcp") .Values.loadbalancer.http.enabled }}
 {{- if .Values.loadbalancer.http.ssl.enabled }}
 apiVersion: networking.gke.io/v1
 kind: ManagedCertificate

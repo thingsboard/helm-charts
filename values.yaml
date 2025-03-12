@@ -71,8 +71,10 @@ tbmq:
   # If not empty, all env vars will be added to a config map and will path to pods. Useful while custom developing.
   # Example:
   # customEnv:
-  #   TEST: test
-  customEnv: { }
+  #   SECURITY_MQTT_SSL_ENABLED: "true"
+  customEnv: {
+    SECURITY_MQTT_BASIC_ENABLED: "true"
+  }
   # Name of an existing TBMQ config map. Used mostly for JVM options. In the config map, key conf is expected.
   existingConfigMap: ""
   # Name of an existing TBMQ logback config map. Used mostly for JVM options. In the config map, key logback is expected.
@@ -631,13 +633,14 @@ kafka:
 
 # Load Balancer Configuration
 # This section defines the load balancer settings for TBMQ.
-# Supported providers:
+# Supported types:
 # - AWS: Uses Application Load Balancer (ALB) for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT traffic.
 # - Azure: Uses Application Gateway for HTTP(S) traffic and Azure Load Balancer for MQTT traffic.
 # - GCP: Uses HTTPS Load Balancer for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT traffic.
+# - Nginx: Use basic Kubernetes Ingress for HTTP and a LoadBalancer service for MQTT without cloud-specific integrations.
 loadbalancer:
-  # Cloud provider for the load balancer. Supported values: "aws", "azure", "gcp"
-  provider: "aws"
+  # Load balancer type. Supported values: "nginx", "aws", "azure", "gcp".
+  type: "nginx"
   # HTTP(S) Load Balancer Configuration (Application Layer - L7)
   # This load balancer is used for HTTP/HTTPS traffic, such as REST APIs.
   http:
@@ -650,11 +653,13 @@ loadbalancer:
       # - AWS: The ACM certificate ARN for ALB.
       # - Azure: The `appgw-ssl-certificate` value in Application Gateway.
       # - GCP: The name of the ManagedCertificate resource
+      # - Nginx: Not implemented.
       certificateRef: ""
       # List of domains for HTTPS traffic.
       # - AWS: Not used in Ingress. Domains are part of the ACM certificate specified in `certificateRef`.
       # - Azure: Not used in Ingress. Domains are managed directly in Application Gateway.
       # - GCP: Required in Ingress. Domains must be listed for GCP ManagedCertificate to issue an SSL certificate.
+      # - Nginx: Not implemented.
       domains:
         - www.example.com
       # Static IP address for the GCP HTTP(S) load balancer.
@@ -702,6 +707,7 @@ loadbalancer:
     # - AWS: TLS termination is supported via Network Load Balancer (NLB) with an ACM certificate.
     # - Azure: TLS termination is NOT supported at the Azure Load Balancer level.
     # - GCP: TLS termination is NOT supported at the GCP Network Load Balancer level.
+    # - Nginx: Not implemented.
     tlsTermination:
       # Set to true to enable TLS termination at the load balancer. Will be ignored if @param mutualTls.enabled is set to true
       enabled: false
@@ -709,4 +715,5 @@ loadbalancer:
       # - AWS: The ACM certificate ARN for NLB.
       # - Azure: Not applicable (this option will be ignored).
       # - GCP: Not applicable (this option will be ignored).
+      # - Nginx: Not implemented (this option will be ignored).
       certificateRef: ""
