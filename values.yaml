@@ -71,8 +71,10 @@ tbmq:
   # If not empty, all env vars will be added to a config map and will path to pods. Useful while custom developing.
   # Example:
   # customEnv:
-  #   TEST: test
-  customEnv: { }
+  #   SECURITY_MQTT_SSL_ENABLED: "true"
+  customEnv: {
+    SECURITY_MQTT_BASIC_ENABLED: "true"
+  }
   # Name of an existing TBMQ config map. Used mostly for JVM options. In the config map, key conf is expected.
   existingConfigMap: ""
   # Name of an existing TBMQ logback config map. Used mostly for JVM options. In the config map, key logback is expected.
