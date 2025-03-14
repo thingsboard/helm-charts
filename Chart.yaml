@@ -3,7 +3,7 @@ appVersion: 2.1.0-SNAPSHOT
 description: Helm chart for ThingsBoard MQTT broker (TBMQ) cluster.
 name: tbmq-cluster
 type: application
-version: 0.0.3
+version: 0.0.4
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -15,10 +15,10 @@ annotations:
   artifacthub.io/prerelease: "true"
   artifacthub.io/changes: |
     - kind: added
-      description: Added Nginx as default load balancer type.
+      description: Added ability to specify privateKeyPasswordSecret for the MQTTs
       links:
         - name: GitHub PR
-          url: https://github.com/ShvaykaD/tbmq-helm-chart/pull/4
+          url: https://github.com/ShvaykaD/tbmq-helm-chart/pull/5
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
