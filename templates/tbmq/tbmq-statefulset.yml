@@ -21,7 +21,6 @@ spec:
         {{- if .Values.tbmq.enableChecksumAnnotations }}
         checksum/config: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-configmap.yml") . | sha256sum }}
         checksum/env: {{ include (print $.Template.BasePath "/tbmq/tbmq-custom-env.yml") . | sha256sum }}
-        checksum/mqtts: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-mqtts-config.yml") . | sha256sum }}
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres/postgres-configmap.yml") . | sha256sum }}
         checksum/postgres-secret: {{ include (print $.Template.BasePath "/postgres/postgres-secret.yml") . | sha256sum }}
         checksum/redis-config: {{ include (print $.Template.BasePath "/redis/redis-configmap.yml") . | sha256sum }}
@@ -62,7 +61,7 @@ spec:
               value: "false"
             - name: HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE
               value: "false"
-            {{- if .Values.loadbalancer.mqtt.mutualTls.enabled }}
+            {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
             - name: LISTENER_SSL_ENABLED
               value: "true"
             - name: LISTENER_SSL_CREDENTIALS_TYPE
@@ -71,6 +70,13 @@ spec:
               value: "/ssl-config/server.pem"
             - name: LISTENER_SSL_PEM_KEY
               value: "/ssl-config/mqttserver_key.pem"
+            {{- if .Values.loadbalancer.mqtt.mutualTls.privateKeyPasswordSecret }}
+            - name: LISTENER_SSL_PEM_KEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.loadbalancer.mqtt.mutualTls.privateKeyPasswordSecret }}
+                  key: {{ .Values.loadbalancer.mqtt.mutualTls.privateKeyPasswordSecretKey }}
+            {{- end }}
             {{- end }}
           envFrom:
             {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
@@ -91,7 +97,7 @@ spec:
             - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
               mountPath: /config/logback.xml
               subPath: logback.xml
-            {{- if .Values.loadbalancer.mqtt.mutualTls.enabled }}
+            {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
             - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
               mountPath: /ssl-config
             {{- end }}
@@ -114,10 +120,10 @@ spec:
             items:
               - key: logback
                 path: logback.xml
-        {{- if .Values.loadbalancer.mqtt.mutualTls.enabled }}
+        {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
         - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
           configMap:
-            name: {{ ternary (printf "%s-tbmq-node-default-mqtts-config" $releaseName) .Values.loadbalancer.mqtt.mutualTls.existingConfigMap  (empty .Values.loadbalancer.mqtt.mutualTls.existingConfigMap) }}
+            name: {{ .Values.loadbalancer.mqtt.mutualTls.configMapName }}
             items:
               - key: server.pem
                 path: server.pem
