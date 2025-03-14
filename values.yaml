@@ -676,8 +676,8 @@ loadbalancer:
       # Set to true to enable mutual TLS (mTLS) authentication. Requires server certificate and private key.
       # TLS Termination (see below) will be ignored if this is enabled.
       enabled: false
-      # Optional: Use an existing ConfigMap instead of creating one.
-      # If specified, the ConfigMap must contain the following keys:
+      # Required: Use an existing ConfigMap instead or create a new one.
+      # The ConfigMap must contain the following keys:
       # - `server.pem`: The server certificate.
       # - `mqttserver_key.pem`: The private key.
       # Example of a valid ConfigMap:
@@ -697,11 +697,29 @@ loadbalancer:
       #   --from-file=server.pem=YOUR_PEM_FILENAME \
       #   --from-file=mqttserver_key.pem=YOUR_PEM_KEY_FILENAME \
       #   -o yaml --dry-run=client | kubectl apply -f -
-      existingConfigMap: ""
-      # Path to the server certificate (server.pem). Required only if @param existingConfigMap is empty.
-      serverCertificate: ""
-      # Path to mqttserver_key.pem file (required only if @param existingConfigMap is empty)
-      privateKey: ""
+      #
+      configMapName: "tbmq-node-mqtts-config"
+      # Optional: Use an existing Secret to provide the private key password.
+      # The Secret must contain a key that matches the value of `privateKeyPasswordSecretKey`.
+      # By default, named as `key_password`, but this can be overridden.
+      # Example of a valid Secret:
+      # ---
+      # apiVersion: v1
+      # kind: Secret
+      # metadata:
+      #   name: <secret_name>
+      # type: Opaque
+      # data:
+      #   <privateKeyPasswordSecretKey>: <Base64-encoded password>
+      # ---
+      # To create this Secret, use:
+      # kubectl create secret generic <secret_name> \
+      #   --from-literal=<secretKey>="YOUR_KEY_PASSWORD" \
+      #   -o yaml --dry-run=client | kubectl apply -f -
+      #
+      privateKeyPasswordSecret: ""
+      # The key inside the Kubernetes Secret <privateKeyPasswordSecret> that contains the value of the private key password.
+      privateKeyPasswordSecretKey: "key_password"
     # One-Way TLS Termination (Handled at Load Balancer Level - L4)
     # This option allows the load balancer to terminate TLS and pass decrypted traffic to TBMQ.
     # - AWS: TLS termination is supported via Network Load Balancer (NLB) with an ACM certificate.
