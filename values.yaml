@@ -244,13 +244,6 @@ redis-cluster:
     ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
     ##
     podAntiAffinityPreset: soft
-    ## @param redis.nodeSelector Node labels for Redis&reg; pods assignment
-    ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
-    ##
-    ## @param redis.affinity Affinity settings for Redis&reg; pod assignment
-    ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
-    ## Note: redis.podAffinityPreset, redis.podAntiAffinityPreset, and redis.nodeAffinityPreset will be ignored when it's set
-    ##
     ## Redis&reg; node affinity preset
     ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
     ##
@@ -513,10 +506,10 @@ kafka:
     ## Ref: https://cwiki.apache.org/confluence/display/KAFKA/KIP-684+-+Support+mutual+TLS+authentication+on+SASL_SSL+listeners
     controller:
       protocol: PLAINTEXT
-    ## @param listeners.external.containerPort Port for the Kafka external listener
-    ## @param listeners.external.protocol Security protocol for the Kafka external listener. . Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
-    ## @param listeners.external.name Name for the Kafka external listener
-    ## @param listeners.external.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.sslClientAuth for this listener. Allowed values are 'none', 'requested' and 'required'
+    ## @param listeners.interbroker.name Name for the Kafka inter-broker listener
+    ## @param listeners.interbroker.containerPort Port for the Kafka inter-broker listener
+    ## @param listeners.interbroker.protocol Security protocol for the Kafka inter-broker listener. Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
+    ## @param listeners.interbroker.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.authType for this listener. Allowed values are 'none', 'requested' and 'required'
     interbroker:
       protocol: PLAINTEXT
     ## @param listeners.external.containerPort Port for the Kafka external listener
@@ -652,7 +645,7 @@ loadbalancer:
       # Certificate reference:
       # - AWS: The ACM certificate ARN for ALB.
       # - Azure: The `appgw-ssl-certificate` value in Application Gateway.
-      # - GCP: The name of the ManagedCertificate resource
+      # - GCP: The name of the ManagedCertificate resource.
       # - Nginx: Not implemented.
       certificateRef: ""
       # List of domains for HTTPS traffic.
@@ -663,7 +656,7 @@ loadbalancer:
       domains:
         - www.example.com
       # Static IP address for the GCP HTTP(S) load balancer.
-      # Required for GCP. Ignored for AWS/Azure.
+      # Required for GCP. Ignored for other types.
       staticIP: "tbmq-http-lb-address"
   # MQTT Load Balancer Configuration (Transport Layer - L4)
   # This load balancer is used for MQTT traffic (TCP).
