@@ -19,6 +19,11 @@ annotations:
       links:
         - name: GitHub PR
           url: https://github.com/ShvaykaD/tbmq-helm-chart/pull/5
+    - kind: added
+      description: README.md update
+      links:
+        - name: GitHub PR
+          url: https://github.com/ShvaykaD/tbmq-helm-chart/pull/6
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
