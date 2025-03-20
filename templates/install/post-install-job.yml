@@ -44,6 +44,18 @@ spec:
               fieldPath: metadata.name
         - name: INSTALL_TB
           value: "true"
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "tbmq.postgres.secretName" . }}
+              key: {{ include "tbmq.postgres.secretKey" . }}
+        {{- if index .Values "redis-cluster" "usePassword" }}
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "tbmq.redis.secretName" . }}
+              key: {{ include "tbmq.redis.secretKey" . }}
+        {{- end }}
       envFrom:
         {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
         {{- include "tbmq.redis.configuration.ref" . | indent 12 }}

@@ -1,6 +1,6 @@
 apiVersion: v2
 appVersion: 2.1.0-SNAPSHOT
-description: Helm chart for ThingsBoard MQTT broker (TBMQ) cluster.
+description: Helm chart for TBMQ cluster.
 name: tbmq-cluster
 type: application
 version: 0.0.4

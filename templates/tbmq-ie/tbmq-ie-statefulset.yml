@@ -84,13 +84,13 @@ spec:
       volumes:
         - name: {{ printf "%s-tbmq-ie-config" $releaseName }}
           configMap:
-            name: {{ ternary (printf "%s-tbmq-ie-default-config" $releaseName) $tbmqIe.existingConfigMap  (empty $tbmqIe.existingConfigMap) }}
+            name: {{ include "tbmq-ie.configMapName" . }}
             items:
               - key: conf
                 path: tbmq-integration-executor.conf
         - name: {{ printf "%s-tbmq-ie-logback-config" $releaseName }}
           configMap:
-            name: {{ ternary (printf "%s-tbmq-ie-default-logback-config" $releaseName) $tbmqIe.existingLogbackConfigMap  (empty $tbmqIe.existingLogbackConfigMap) }}
+            name: {{ include "tbmq-ie.logbackConfigMapName" . }}
             items:
               - key: logback
                 path: logback.xml

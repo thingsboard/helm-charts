@@ -1,5 +1,5 @@
 {{- $tbmqIe := index .Values "tbmq-ie" }}
-{{- if empty $tbmqIe.existingConfigMap }}
+{{- if empty $tbmqIe.existingJavaOptsConfigMap }}
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
 apiVersion: v1

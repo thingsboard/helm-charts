@@ -2,36 +2,43 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# Credentials that will use for getting images. By default, all images in this chart are open. But in the case of using custom
-# code images, this auth will be used.
+# Configures authentication for pulling images from a private Docker registry.
+# By default, TBMQ images are publicly available, but authentication settings can be provided if using a private registry.
 dockerAuth:
+  # Docker registry for TBMQ images.
   registry: https://index.docker.io/v1/
+  # Docker username on which pull secret will be created.
   username: ""
+  # Docker user password on which pull secret will be created.
   password: ""
 
-# Installation section
+# Controls the installation options, including database schema initialization and ArgoCD support.
 installation:
-  # This field is responsible for the installation process of TBMQ PostgreSQL database schema
+  # This field is responsible for the installation process of TBMQ PostgreSQL database schema.
   installDbSchema: false
-  # When this chart installing via ArgoCd
+  # When this chart installing via ArgoCd.
   argocd: false
 
-
-## Section to configure ThingsBoard MQTT Broker (TBMQ) service.
+# Section to configure TBMQ service.
 tbmq:
-  # Image that will use for tbmq service.
+  # Docker image configuration.
   image:
+    # Docker image repository for TBMQ node.
     repository: thingsboard/tbmq-node
+    # Image tag/version.
     tag: 2.1.0-SNAPSHOT
-  # Pull secret that will be used to get docker tbmq images.
+  # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
+  # Image pull policy.
   imagePullPolicy: Always
-  # Statefulset option for tbmq service
+  # Statefulset option for TBMQ service.
   statefulSet:
-    # Replica count for tbmq services
+    # Replica count for TBMQ services.
     replicas: 1
+    # Custom annotations applied to the StatefulSet resource (metadata.annotations).
+    # These are useful for CI/CD tools, Helm diff, audit tracking, etc.
     annotations: { }
-  # List of ports for tbmq service
+  # List of ports for TBMQ service.
   ports:
     - name: http
       value: 8083
@@ -49,8 +56,8 @@ tbmq:
   # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
   # Usually it is Map type. Example:
   # nodeSelector:
-  #    disktype: ssd
-  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details
+  #    role: tbmq-node
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
   nodeSelector: { }
   # Affinity for choosing nodes for scheduling pods.
   # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
@@ -65,74 +72,160 @@ tbmq:
   #            values:
   #            - antarctica-east1
   #            - antarctica-west1
-  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
   affinity: { }
-  # A Map for custom environment variable for tbmq service.
-  # If not empty, all env vars will be added to a config map and will path to pods. Useful while custom developing.
-  # Example:
+  # Custom environment variables that are always applied, regardless of configuration source.
+  # These variables will be appended to the container environment and will override any conflicting
+  # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
+  #
+  # Example usage:
+  #
   # customEnv:
   #   SECURITY_MQTT_SSL_ENABLED: "true"
+  #
+  # Even if `existingConfigMap` or `existingJavaOptsConfigMap` define `SECURITY_MQTT_SSL_ENABLED`,
+  # the value from `customEnv` will take precedence.
   customEnv: {
     SECURITY_MQTT_BASIC_ENABLED: "true"
   }
-  # Name of an existing TBMQ config map. Used mostly for JVM options. In the config map, key conf is expected.
+  # Name of an existing ConfigMap that will override TBMQ Java and Logback configurations.
+  # If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).
+  #
+  # This has the highest priority and will ignore `existingJavaOptsConfigMap` and `existingLogbackConfigMap`
+  # but does NOT override environment variables set via `customEnv` or `envFrom` sources (e.g., PostgreSQL, Kafka, Redis configurations).
+  #
+  # If not set, TBMQ will fall back to `existingJavaOptsConfigMap` and `existingLogbackConfigMap`.
+  # If none are provided, default configurations will be used.
+  #
+  # For examples of the expected structure, see `existingJavaOptsConfigMap` and `existingLogbackConfigMap`.
   existingConfigMap: ""
-  # Name of an existing TBMQ logback config map. Used mostly for JVM options. In the config map, key logback is expected.
+  # Name of an existing TBMQ Java options config map.
+  # This ConfigMap should contain a key named `conf` with Java options.
+  #
+  # Custom ConfigMap example:
+  #
+  # apiVersion: v1
+  # kind: ConfigMap
+  # metadata:
+  #   name: my-tbmq-java-opts-config
+  # data:
+  #   conf: |
+  #     export JAVA_OPTS="$JAVA_OPTS -Dplatform=deb -Dinstall.data_dir=/usr/share/thingsboard-mqtt-broker/data"
+  #     export JAVA_OPTS="$JAVA_OPTS -Xlog:gc*,heap*,age*,safepoint=debug:file=/var/log/thingsboard-mqtt-broker/${TB_SERVICE_ID}-gc.log:time,uptime,level,tags:filecount=10,filesize=10M"
+  #     ...
+  #     export LOG_FILENAME=thingsboard-mqtt-broker.out
+  #     export LOADER_PATH=/usr/share/thingsboard-mqtt-broker/conf"
+  #     ...
+  #
+  # The following file contains an example of values that should be placed under the `conf` key:
+  # https://github.com/thingsboard/tbmq/blob/main/docker/tb-mqtt-broker/conf/thingsboard-mqtt-broker.conf
+  existingJavaOptsConfigMap: ""
+  # Name of an existing TBMQ logback config map.
+  # This ConfigMap should contain a key named `logback` with the logging configuration.
+  #
+  # Custom ConfigMap example:
+  #
+  # apiVersion: v1
+  # kind: ConfigMap
+  # metadata:
+  #   name: my-tbmq-logging-config
+  # data:
+  #   logback: |
+  #     <!DOCTYPE configuration>
+  #     <configuration scan="true" scanPeriod="10 seconds">
+  #         <appender name="fileLogAppender"
+  #                   class="ch.qos.logback.core.rolling.RollingFileAppender">
+  #             <file>/var/log/thingsboard-mqtt-broker/${TB_SERVICE_ID}/thingsboard-mqtt-broker.log</file>
+  #             <rollingPolicy
+  #                     class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+  #                 <fileNamePattern>/var/log/thingsboard-mqtt-broker/${TB_SERVICE_ID}/thingsboard-mqtt-broker.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+  #                 <maxFileSize>100MB</maxFileSize>
+  #                 <maxHistory>30</maxHistory>
+  #                 <totalSizeCap>3GB</totalSizeCap>
+  #             </rollingPolicy>
+  #         </appender>
+  #         ...
+  #
+  # The following file contains an example of values that should be placed under the `logback` key:
+  # https://github.com/thingsboard/tbmq/blob/main/docker/tb-mqtt-broker/conf/logback.xml
   existingLogbackConfigMap: ""
-  # Set this parameter to false to disable automatic pod restarts on configMap or secrets updates
+  # Set this parameter to false to disable automatic pod restarts on configMap or secrets updates.
   enableChecksumAnnotations: true
+  # Custom annotations applied to the TBMQ pods (spec.template.metadata.annotations).
+  # These are commonly used for service discovery (e.g., Prometheus scraping) or logging agents.
   annotations: { }
-  # Default readiness probe for tbmq service
+  # Default readiness probe for TBMQ service.
   readinessProbe:
     tcpSocket:
+      # Port checked to determine readiness.
       port: 1883
+    # Maximum time to wait before considering the check failed.
     timeoutSeconds: 10
+    # Delay before the first readiness probe.
     initialDelaySeconds: 30
+    # Interval between probe executions.
     periodSeconds: 20
+    # Minimum number of successes before marking pod as "ready".
     successThreshold: 1
+    # Number of failures before the pod is removed from service endpoints.
     failureThreshold: 5
-  # Default liveness probe for tbmq service
+  # Default liveness probe for TBMQ service.
   livenessProbe:
     tcpSocket:
+      # Port checked to determine liveness.
       port: 1883
+    # Maximum time to wait before considering the check failed.
     timeoutSeconds: 10
+    # Delay before the first liveness probe.
     initialDelaySeconds: 60
+    # Interval between probe executions.
     periodSeconds: 10
+    # Minimum number of successes before marking pod as "alive".
     successThreshold: 1
+    # Number of consecutive failures before restarting the pod.
     failureThreshold: 10
-  # Default pod restart policy
+  # Defines the restart policy for TBMQ pods.
   restartPolicy: Always
   securityContext:
+    # User ID to run the container.
     runAsUser: 799
+    # Enforces non-root execution.
     runAsNonRoot: true
+    # File system group ID for permissions.
     fsGroup: 799
-  # Default resources for tbmq pods.
-  ## Example:
-  ## resources:
-  ##   limits:
-  ##     cpu: "1.5"
-  ##     memory: 3Gi
-  ##   # Default requests for CPU and Memory that pods will try to use
-  ##   requests:
-  ##     cpu: "1.5"
-  ##     memory: 3Gi
+  # Defines CPU/memory requests & limits.
+  # Example:
+  # resources:
+  #   limits:
+  #     cpu: "1.5"
+  #     memory: 3Gi
+  #   # Default requests for CPU and Memory that pods will try to use.
+  #   requests:
+  #     cpu: "1.5"
+  #     memory: 3Gi
+  # See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#pod-level-resource-specification for more details.
   resources: { }
 
 ## Section to configure TBMQ Integration executor service.
 tbmq-ie:
-  # Image that will use for tbmq-ie service.
+  # Docker image configuration.
   image:
+    # Docker image repository for TBMQ-IE node.
     repository: thingsboard/tbmq-integration-executor
+    # Image tag/version.
     tag: 2.1.0-SNAPSHOT
-  # Pull secret that will be used to get docker tbmq-ie images.
+  # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
+  # Image pull policy.
   imagePullPolicy: Always
-  # Statefulset option for tbmq-ie service
+  # Statefulset option for TBMQ-IE service.
   statefulSet:
-    # Replica count for tbmq-ie services
+    # Replica count for TBMQ-IE services.
     replicas: 1
+    # Custom annotations applied to the StatefulSet resource (metadata.annotations).
+    # These are useful for CI/CD tools, Helm diff, audit tracking, etc.
     annotations: { }
-  # List of ports for tbmq-ie service
+  # List of ports for TBMQ-IE service.
   ports:
     - name: http
       value: 8082
@@ -140,8 +233,8 @@ tbmq-ie:
   # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
   # Usually it is Map type. Example:
   # nodeSelector:
-  #    disktype: ssd
-  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details
+  #    role: tbmq-ie
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
   nodeSelector: { }
   # Affinity for choosing nodes for scheduling pods.
   # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
@@ -156,59 +249,141 @@ tbmq-ie:
   #            values:
   #            - antarctica-east1
   #            - antarctica-west1
-  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
   affinity: { }
-  # A Map for custom environment variable for tbmq-ie service.
-  # If not empty, all env vars will be added to a config map and will path to pods. Useful while custom developing.
-  # Example:
+  # Custom environment variables that are always applied, regardless of configuration source.
+  # These variables will be appended to the container environment and will override any conflicting
+  # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
+  #
+  # Example usage:
+  #
   # customEnv:
-  #   TEST: test
-  customEnv: {}
-  # Name of an existing TBMQ config map. Used mostly for JVM options. In the config map, key conf is expected.
+  #   TB_SERVICE_INTEGRATIONS_EXCLUDED: "HTTP"
+  #
+  # Even if `existingConfigMap` or `existingJavaOptsConfigMap` define `TB_SERVICE_INTEGRATIONS_EXCLUDED`,
+  # the value from `customEnv` will take precedence.
+  customEnv: { }
+  # Name of an existing ConfigMap that will override TBMQ-IE Java and Logback configurations.
+  # If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).
+  #
+  # This has the highest priority and will ignore `existingJavaOptsConfigMap` and `existingLogbackConfigMap`
+  # but does NOT override environment variables set via `customEnv` or `envFrom` sources (e.g., PostgreSQL, Kafka, Redis configurations).
+  #
+  # If not set, TBMQ will fall back to `existingJavaOptsConfigMap` and `existingLogbackConfigMap`.
+  # If none are provided, default configurations will be used.
+  #
+  # For examples of the expected structure, see `existingJavaOptsConfigMap` and `existingLogbackConfigMap`.
   existingConfigMap: ""
-  # Name of an existing TBMQ logback config map. Used mostly for JVM options. In the config map, key logback is expected.
+  # Name of an existing TBMQ-IE Java options config map.
+  # This ConfigMap should contain a key named `conf` with Java options.
+  #
+  # Custom ConfigMap example:
+  #
+  # apiVersion: v1
+  # kind: ConfigMap
+  # metadata:
+  #   name: my-tbmq-ie-java-opts-config
+  # data:
+  #   conf: |
+  #     export JAVA_OPTS="$JAVA_OPTS -Xlog:gc*,heap*,age*,safepoint=debug:file=/var/log/tbmq-integration-executor/${TB_SERVICE_ID}-gc.log:time,uptime,level,tags:filecount=10,filesize=10M"
+  #     export JAVA_OPTS="$JAVA_OPTS -XX:+IgnoreUnrecognizedVMOptions -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/log/tbmq-integration-executor/${TB_SERVICE_ID}-heapdump.bin"
+  #     ...
+  #     export LOG_FILENAME=tbmq-integration-executor.out
+  #     export LOADER_PATH=/usr/share/tbmq-integration-executor/conf
+  #     ...
+  #
+  # The following file contains an example of values that should be placed under the `conf` key:
+  # https://github.com/thingsboard/tbmq/blob/main/docker/tbmq-integration-executor/conf/tbmq-integration-executor.conf
+  existingJavaOptsConfigMap: ""
+  # Name of an existing TBMQ-IE logback config map.
+  # This ConfigMap should contain a key named `logback` with the logging configuration.
+  #
+  # Custom ConfigMap example:
+  #
+  # apiVersion: v1
+  # kind: ConfigMap
+  # metadata:
+  #   name: my-tbmq-logging-config
+  # data:
+  #   logback: |
+  #     <!DOCTYPE configuration>
+  #     <configuration scan="true" scanPeriod="10 seconds">
+  #         <appender name="fileLogAppender"
+  #                   class="ch.qos.logback.core.rolling.RollingFileAppender">
+  #             <file>/var/log/thingsboard-mqtt-broker/${TB_SERVICE_ID}/thingsboard-mqtt-broker.log</file>
+  #             <rollingPolicy
+  #                     class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+  #                 <fileNamePattern>/var/log/thingsboard-mqtt-broker/${TB_SERVICE_ID}/thingsboard-mqtt-broker.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+  #                 <maxFileSize>100MB</maxFileSize>
+  #                 <maxHistory>30</maxHistory>
+  #                 <totalSizeCap>3GB</totalSizeCap>
+  #             </rollingPolicy>
+  #         </appender>
+  #         ...
+  #
+  # The following file contains an example of values that should be placed under the `logback` key:
+  # https://github.com/thingsboard/tbmq/blob/main/docker/tbmq-integration-executor/conf/logback.xml
   existingLogbackConfigMap: ""
-  # Set this parameter to false to disable automatic pod restarts on configMap updates
+  # Controls whether Helm automatically restarts TBMQ pods when ConfigMaps or Secrets change.
   enableChecksumAnnotations: true
+  # Custom annotations applied to the TBMQ-IE pods (spec.template.metadata.annotations).
+  # These are commonly used for service discovery (e.g., Prometheus scraping) or logging agents.
   annotations: { }
-  # Default readiness probe for tbmq-ie service
+  # Default readiness probe for TBMQ-IE service.
   readinessProbe:
+    # Interval between probe executions.
     periodSeconds: 20
     tcpSocket:
+      # Port checked to determine readiness.
       port: http
-  # Default liveness probe for tbmq-ie service
+  # Default liveness probe for TBMQ-IE service.
   livenessProbe:
+    # Delay before the first liveness probe.
     initialDelaySeconds: 120
+    # Interval between probe executions.
     periodSeconds: 20
     tcpSocket:
+      # Port checked to determine liveness.
       port: http
-  # Default pod restart policy
+  # Defines the restart policy for TBMQ-IE pods.
   restartPolicy: Always
   securityContext:
+    # User ID to run the container.
     runAsUser: 799
+    # Enforces non-root execution.
     runAsNonRoot: true
+    # File system group ID for permissions.
     fsGroup: 799
-  # Default resources for tbmq-ie pods.
-  ## Example:
-  ## resources:
-  ##   limits:
-  ##     cpu: "1.5"
-  ##     memory: 3Gi
-  ##   # Default requests for CPU and Memory that pods will try to use
-  ##   requests:
-  ##     cpu: "1.5"
-  ##     memory: 3Gi
+  # Defines CPU/memory requests & limits.
+  # Example:
+  # resources:
+  #   limits:
+  #     cpu: "1.5"
+  #     memory: 3Gi
+  #   # Default requests for CPU and Memory that pods will try to use
+  #   requests:
+  #     cpu: "1.5"
+  #     memory: 3Gi
+  # See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#pod-level-resource-specification for more details.
   resources: { }
 
 # This section will bring bitnami/redis-cluster (https://artifacthub.io/packages/helm/bitnami/redis-cluster) into this chart.
-# If you want to add some extra configuration parameters, you can put them with key redis-cluster, and they will be passed to bitnami/redis-cluster chart.
+# If you want to add some extra configuration parameters, you can put them under the `redis-cluster` key, and they will be passed to bitnami/redis-cluster chart.
 redis-cluster:
-  # Default name override for bitnami/redis-cluster
+  ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
+  ##
   nameOverride: "redis"
-  # Enable or disable bitnami/redis-cluster auth
-  usePassword: true
-  # Default redis password (change for production)
+  ## @param password Redis&reg; password (ignored if existingSecret set)
+  ## Defaults to a random 10-character alphanumeric string if not set and usePassword is true
+  ## ref: https://github.com/bitnami/containers/tree/main/bitnami/redis#setting-the-server-password-on-first-run
+  ##
   password: "myredispassword"
+  ## @param existingSecret Name of existing secret object (for password authentication)
+  ##
+  existingSecret: ""
+  ## @param existingSecretPasswordKey Name of key containing password to be retrieved from the existing secret
+  ##
+  existingSecretPasswordKey: ""
   ## Pod Disruption Budget configuration
   ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
   ##
@@ -367,7 +542,7 @@ externalPostgresql:
   database: "thingsboard_mqtt_broker"
 
 # This section will bring bitnami/postgresql (https://artifacthub.io/packages/helm/bitnami/postgresql) into this chart.
-#  If you want to add some extra configuration parameters, you can put them with key postgresql, and they will be passed to bitnami/postgresql chart
+#  If you want to add some extra configuration parameters, you can put them under the `postgresql` key, and they will be passed to bitnami/postgresql chart
 postgresql:
   # @param enabled If enabled is set to true, externalPostgresql configuration will be ignored
   enabled: true
@@ -380,15 +555,29 @@ postgresql:
   ## ref: https://github.com/bitnami/containers/tree/main/bitnami/postgresql#creating-a-database-user-on-first-run
   ##
   auth:
+    ## @param auth.enablePostgresUser Assign a password to the "postgres" admin user. Otherwise, remote access will be blocked for this user
+    ##
+    enablePostgresUser: true
+    ## @param auth.postgresPassword Password for the "postgres" admin user. Ignored if `auth.existingSecret` is provided
+    ##
+    postgresPassword: ""
     ## @param auth.username Name for a custom user to create
     ##
-    username: "postgres"
+    username: ""
     ## @param auth.password Password for the custom user to create. Ignored if `auth.existingSecret` is provided
     ##
-    password: "postgres"
-    ## @param auth.database Name for a TBMQ database to create
+    password: ""
+    ## @param auth.database PostgreSQL database name for TBMQ.
     ##
     database: "thingsboard_mqtt_broker"
+    ## @param auth.existingSecret Name of existing secret to use for PostgreSQL credentials. `auth.postgresPassword`, `auth.password`, and `auth.replicationPassword` will be ignored and picked up from this secret. The secret might also contains the key `ldap-password` if LDAP is enabled. `ldap.bind_password` will be ignored and picked from this secret in this case.
+    ##
+    existingSecret: ""
+    ## @param auth.secretKeys.adminPasswordKey Name of key in existing secret to use for PostgreSQL credentials. Only used when `auth.existingSecret` is set.
+    ## @param auth.secretKeys.userPasswordKey Name of key in existing secret to use for PostgreSQL credentials. Only used when `auth.existingSecret` is set.
+    secretKeys:
+      adminPasswordKey: postgres-password
+      userPasswordKey: password
   ## @section PostgreSQL Primary parameters
   ##
   primary:
@@ -475,7 +664,7 @@ postgresql:
 
 
 # This section will bring bitnami/kafka (https://artifacthub.io/packages/helm/bitnami/kafka) into this chart.
-# If you want to add some extra configuration parameters, you can put them with key kafka, and they will be passed to bitnami/kafka chart
+# If you want to add some extra configuration parameters, you can put them under the `kafka` key, and they will be passed to bitnami/kafka chart
 kafka:
   # Default name override for bitnami/kafka
   nameOverride: "kafka"
@@ -627,9 +816,9 @@ kafka:
 # Load Balancer Configuration
 # This section defines the load balancer settings for TBMQ.
 # Supported types:
-# - AWS: Uses Application Load Balancer (ALB) for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT traffic.
-# - Azure: Uses Application Gateway for HTTP(S) traffic and Azure Load Balancer for MQTT traffic.
-# - GCP: Uses HTTPS Load Balancer for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT traffic.
+# - AWS: Uses Application Load Balancer (ALB) for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT(S) traffic.
+# - Azure: Uses Application Gateway for HTTP(S) traffic and Azure Load Balancer for MQTT(S) traffic.
+# - GCP: Uses HTTPS Load Balancer for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT(S) traffic.
 # - Nginx: Use basic Kubernetes Ingress for HTTP and a LoadBalancer service for MQTT without cloud-specific integrations.
 loadbalancer:
   # Load balancer type. Supported values: "nginx", "aws", "azure", "gcp".

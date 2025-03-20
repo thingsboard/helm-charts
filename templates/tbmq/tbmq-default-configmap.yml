@@ -1,4 +1,4 @@
-{{- if empty .Values.tbmq.existingConfigMap }}
+{{- if empty .Values.tbmq.existingJavaOptsConfigMap }}
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
 apiVersion: v1
