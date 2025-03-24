@@ -24,7 +24,6 @@ spec:
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres/postgres-configmap.yml") . | sha256sum }}
         checksum/postgres-secret: {{ include (print $.Template.BasePath "/postgres/postgres-secret.yml") . | sha256sum }}
         checksum/redis-config: {{ include (print $.Template.BasePath "/redis/redis-configmap.yml") . | sha256sum }}
-        checksum/redis-secret: {{ include (print $.Template.BasePath "/redis/redis-secret.yml") . | sha256sum }}
         checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yml") . | sha256sum }}
         {{- end }}
         {{- with .Values.tbmq.annotations }}
@@ -51,14 +50,14 @@ spec:
             - containerPort: {{ .value }}
               name: {{ .name }}
               protocol: {{ .protocol | default "TCP" | toString }}
-            {{- end}}
+            {{- end }}
           env:
             - name: TB_SERVICE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
             - name: TB_SERVICE_SINGLETON_MODE
-              value: "false"
+              value: {{ if gt (int .Values.tbmq.statefulSet.replicas) 1 }}"false"{{ else }}"true"{{ end }}
             - name: HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE
               value: "false"
             {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
@@ -77,6 +76,18 @@ spec:
                   name: {{ .Values.loadbalancer.mqtt.mutualTls.privateKeyPasswordSecret }}
                   key: {{ .Values.loadbalancer.mqtt.mutualTls.privateKeyPasswordSecretKey }}
             {{- end }}
+            {{- end }}
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tbmq.postgres.secretName" . }}
+                  key: {{ include "tbmq.postgres.secretKey" . }}
+            {{- if index .Values "redis-cluster" "usePassword" }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tbmq.redis.secretName" . }}
+                  key: {{ include "tbmq.redis.secretKey" . }}
             {{- end }}
           envFrom:
             {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
@@ -110,13 +121,13 @@ spec:
       volumes:
         - name: {{ printf "%s-tbmq-node-config" $releaseName }}
           configMap:
-            name: {{ ternary (printf "%s-tbmq-node-default-config" $releaseName) .Values.tbmq.existingConfigMap  (empty .Values.tbmq.existingConfigMap) }}
+            name: {{ include "tbmq.configMapName" . }}
             items:
               - key: conf
                 path: thingsboard-mqtt-broker.conf
         - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
           configMap:
-            name: {{ ternary (printf "%s-tbmq-node-default-logback-config" $releaseName) .Values.tbmq.existingLogbackConfigMap  (empty .Values.tbmq.existingLogbackConfigMap) }}
+            name: {{ include "tbmq.logbackConfigMapName" . }}
             items:
               - key: logback
                 path: logback.xml

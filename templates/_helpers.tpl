@@ -10,6 +10,28 @@
 {{- printf "%s:%s" $repository $appversion }}
 {{- end }}
 
+{{/*Return tbmq config map name*/}}
+{{- define "tbmq.configMapName" -}}
+{{- if .Values.tbmq.existingConfigMap -}}
+{{ .Values.tbmq.existingConfigMap }}
+{{- else if .Values.tbmq.existingJavaOptsConfigMap -}}
+{{ .Values.tbmq.existingJavaOptsConfigMap }}
+{{- else -}}
+{{ printf "%s-tbmq-node-default-config" .Release.Name }}
+{{- end -}}
+{{- end }}
+
+{{/*Return tbmq logback config map name*/}}
+{{- define "tbmq.logbackConfigMapName" -}}
+{{- if .Values.tbmq.existingConfigMap -}}
+{{ .Values.tbmq.existingConfigMap }}
+{{- else if .Values.tbmq.existingLogbackConfigMap -}}
+{{ .Values.tbmq.existingLogbackConfigMap }}
+{{- else -}}
+{{ printf "%s-tbmq-node-default-logback-config" .Release.Name }}
+{{- end -}}
+{{- end }}
+
 {{/*Return a tbmq ie label*/}}
 {{- define "tbmq.ie.label" -}}
 {{ printf "%s-tbmq-ie" .Release.Name }}
@@ -27,20 +49,70 @@
 {{- printf "%s:%s" $repository $appversion }}
 {{- end }}
 
+{{/*Return tbmq-ie config map name*/}}
+{{- define "tbmq-ie.configMapName" -}}
+{{- $tbmqIe := index .Values "tbmq-ie" }}
+{{- if $tbmqIe.existingConfigMap -}}
+{{ $tbmqIe.existingConfigMap }}
+{{- else if $tbmqIe.existingJavaOptsConfigMap -}}
+{{ $tbmqIe.existingJavaOptsConfigMap }}
+{{- else -}}
+{{ printf "%s-tbmq-ie-default-config" .Release.Name }}
+{{- end -}}
+{{- end }}
+
+{{/*Return tbmq-ie logback config map name*/}}
+{{- define "tbmq-ie.logbackConfigMapName" -}}
+{{- $tbmqIe := index .Values "tbmq-ie" }}
+{{- if $tbmqIe.existingConfigMap -}}
+{{ $tbmqIe.existingConfigMap }}
+{{- else if $tbmqIe.existingLogbackConfigMap -}}
+{{ $tbmqIe.existingLogbackConfigMap }}
+{{- else -}}
+{{ printf "%s-tbmq-ie-default-logback-config" .Release.Name }}
+{{- end -}}
+{{- end }}
+
 {{/*Return redis cluster configurations environment variables for tbmq services*/}}
 {{- define "tbmq.redis.configuration.ref"}}
 - configMapRef:
     name: {{ .Release.Name }}-redis-config
-- secretRef:
-    name: {{ .Release.Name }}-redis-secret
 {{- end}}
+
+{{/*Returns redis cluster secret name*/}}
+{{- define "tbmq.redis.secretName" -}}
+{{- $redis := index .Values "redis-cluster" }}
+{{- if $redis.existingSecret }}
+{{- $redis.existingSecret }}
+{{- else if $redis.fullnameOverride }}
+{{- $redis.fullnameOverride }}
+{{- else if $redis.nameOverride }}
+{{- printf "%s-%s" .Release.Name $redis.nameOverride }}
+{{- else }}
+{{- printf "%s-redis-cluster" .Release.Name }}
+{{- end }}
+{{- end }}
+
+{{/*Returns redis cluster secret key*/}}
+{{- define "tbmq.redis.secretKey" -}}
+{{- $redis := index .Values "redis-cluster" }}
+{{- if $redis.existingSecret -}}
+{{ $redis.existingSecretPasswordKey | default "REDIS_PASSWORD" }}
+{{- else -}}
+redis-password
+{{- end -}}
+{{- end }}
+
+
 
 {{/*Return redis cluster nodes*/}}
 {{- define "tbmq.redis.nodes" -}}
 {{- if index .Values "redis-cluster" "fullnameOverride" }}
   {{- printf "%s-headless:6379" (index .Values "redis-cluster" "fullnameOverride") -}}
-{{- else }}
+{{- else if index .Values "redis-cluster" "nameOverride" }}
   {{- printf "%s-%s-headless:6379" .Release.Name (index .Values "redis-cluster" "nameOverride") -}}
+{{- else }}
+  {{- printf "%s-redis-cluster-headless:6379" .Release.Name -}}
 {{- end }}
 {{- end }}
 
@@ -48,17 +120,51 @@
 {{- define "tbmq.postgres.configuration.ref"}}
 - configMapRef:
     name: {{ .Release.Name }}-postgres-config
-- secretRef:
-    name: {{ .Release.Name }}-postgres-secret
 {{- end}}
+
+{{/*Return postgresql secret name*/}}
+{{- define "tbmq.postgres.secretName" -}}
+{{- if not .Values.postgresql.enabled }}
+{{- printf "%s-postgres-external" .Release.Name }}
+{{- else if .Values.postgresql.auth.existingSecret }}
+{{- .Values.postgresql.auth.existingSecret }}
+{{- else if .Values.postgresql.fullnameOverride }}
+{{- .Values.postgresql.fullnameOverride }}
+{{- else if .Values.postgresql.nameOverride }}
+{{- printf "%s-%s" .Release.Name .Values.postgresql.nameOverride }}
+{{- else }}
+{{- printf "%s-postgresql" .Release.Name }}
+{{- end }}
+{{- end }}
+
+{{/*Return postgresql secret key*/}}
+{{- define "tbmq.postgres.secretKey" -}}
+{{- if not .Values.postgresql.enabled -}}
+external-postgres-password
+{{- else if .Values.postgresql.auth.existingSecret }}
+    {{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
+        {{- .Values.postgresql.auth.secretKeys.adminPasswordKey }}
+    {{- else }}
+        {{- .Values.postgresql.auth.secretKeys.userPasswordKey }}
+    {{- end -}}
+{{- else -}}
+    {{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
+        postgres-password
+    {{- else -}}
+        password
+    {{- end -}}
+{{- end -}}
+{{- end }}
 
 {{/*Return postgres host*/}}
 {{- define "tbmq.postgres.host" -}}
 {{- if .Values.postgresql.enabled -}}
   {{- if .Values.postgresql.fullnameOverride }}
     {{- .Values.postgresql.fullnameOverride -}}
-  {{- else }}
+  {{- else if .Values.postgresql.nameOverride }}
     {{- printf "%s-%s" .Release.Name .Values.postgresql.nameOverride -}}
+  {{- else }}
+    {{- printf "%s-postgresql" .Release.Name -}}
   {{- end }}
 {{- else }}
   {{- .Values.externalPostgresql.host -}}
@@ -85,7 +191,11 @@
 {{/*Return postgres username*/}}
 {{- define "tbmq.postgres.username" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- .Values.postgresql.auth.username -}}
+    {{- if .Values.postgresql.auth.username -}}
+        {{- .Values.postgresql.auth.username -}}
+    {{- else -}}
+        postgres
+    {{- end }}
 {{- else -}}
 {{- .Values.externalPostgresql.username -}}
 {{- end -}}
@@ -99,10 +209,12 @@
 
 {{/*Return kafka servers environment variables for tbmq services*/}}
 {{- define "tbmq.kafka.servers" -}}
-{{- if index .Values "kafka" "fullnameOverride" }}
-  {{- printf "%s:9092" (index .Values "kafka" "fullnameOverride") -}}
+{{- if index .Values.kafka.fullnameOverride }}
+  {{- printf "%s:9092" .Values.kafka.fullnameOverride -}}
+{{- else if .Values.kafka.nameOverride }}
+  {{- printf "%s-%s:9092" .Release.Name .Values.kafka.nameOverride -}}
 {{- else }}
-  {{- printf "%s-%s:9092" .Release.Name (index .Values "kafka" "nameOverride") -}}
+  {{- printf "%s-kafka:9092" .Release.Name -}}
 {{- end }}
 {{- end }}
 
@@ -133,8 +245,8 @@
     - name: PGPASSWORD
       valueFrom:
         secretKeyRef:
-          name: {{ $context.Release.Name }}-postgres-secret
-          key: SPRING_DATASOURCE_PASSWORD
+          name: {{ include "tbmq.postgres.secretName" . }}
+          key: {{ include "tbmq.postgres.secretKey" . }}
   command:
     - bash
   args:
