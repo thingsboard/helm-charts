@@ -3,7 +3,7 @@ appVersion: 2.1.0-SNAPSHOT
 description: Helm chart for TBMQ cluster.
 name: tbmq-cluster
 type: application
-version: 0.0.4
+version: 0.0.5
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -15,15 +15,10 @@ annotations:
   artifacthub.io/prerelease: "true"
   artifacthub.io/changes: |
     - kind: added
-      description: Added ability to specify privateKeyPasswordSecret for the MQTTs
+      description: Enhanced auth options for bitnami sub-charts & Added ability to use existing config maps for tbmq and tbmq-ie.
       links:
         - name: GitHub PR
-          url: https://github.com/ShvaykaD/tbmq-helm-chart/pull/5
-    - kind: added
-      description: README.md update
-      links:
-        - name: GitHub PR
-          url: https://github.com/ShvaykaD/tbmq-helm-chart/pull/6
+          url: https://github.com/ShvaykaD/tbmq-helm-chart/pull/7
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
