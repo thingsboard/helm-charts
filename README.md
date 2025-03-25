@@ -62,7 +62,7 @@ helm install my-tbmq-cluster tbmq-helm-chart/tbmq-cluster -f values.yaml --set i
 
 ## Upgrading the Chart
 
-You can update your TBMQ deployment by modifying `values.yaml` and applying the changes using the `helm upgrade` command.
+You can update your TBMQ deployment by modifying `values.yaml` and applying the changes using the `helm upgrade` command:
 
 ```bash
 helm upgrade my-tbmq-cluster tbmq-helm-chart/tbmq-cluster -f values.yaml
