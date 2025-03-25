@@ -68,26 +68,6 @@ You can update your TBMQ deployment by modifying `values.yaml` and applying the 
 helm upgrade my-tbmq-cluster tbmq-helm-chart/tbmq-cluster -f values.yaml
 ```
 
-> ⚠️ **Warning:** Helm preserves `--set` values across upgrades, so without resetting, previously set options will still apply. 
-If you previously installed the chart with `--set installation.installDbSchema=true` option, 
-you must reset this value before running the first upgrade to prevent the database installation pod from running again. See reset options below.
-
-### Option 1: Reset DB schema installation using --reset-values flag:
-
-Use `--reset-values` to discard all previously set values and apply only those in `values.yaml`:
-
-```bash
-helm upgrade my-tbmq-cluster tbmq-helm-chart/tbmq-cluster -f values.yaml --reset-values
-```
-
-### Option 2: Reset DB schema installation using --set option:
-
-If `--reset-values` cannot be used because other `--set` options must persist, explicitly override `installation.installDbSchema` to `false`:
-
-```bash
-helm upgrade my-tbmq-cluster tbmq-helm-chart/tbmq-cluster -f values.yaml --set installation.installDbSchema=false
-```
-
 ## Configuration and Parameters
 
 This section describes the configurable parameters of the TBMQ Helm chart. The `values.yaml` file includes settings for TBMQ itself and its required dependencies.
