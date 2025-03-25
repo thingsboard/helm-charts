@@ -34,7 +34,7 @@ tbmq:
   # Statefulset option for TBMQ service.
   statefulSet:
     # Replica count for TBMQ services.
-    replicas: 1
+    replicas: 2
     # Custom annotations applied to the StatefulSet resource (metadata.annotations).
     # These are useful for CI/CD tools, Helm diff, audit tracking, etc.
     annotations: { }
@@ -221,7 +221,7 @@ tbmq-ie:
   # Statefulset option for TBMQ-IE service.
   statefulSet:
     # Replica count for TBMQ-IE services.
-    replicas: 1
+    replicas: 2
     # Custom annotations applied to the StatefulSet resource (metadata.annotations).
     # These are useful for CI/CD tools, Helm diff, audit tracking, etc.
     annotations: { }
