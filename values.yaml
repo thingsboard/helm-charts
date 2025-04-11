@@ -826,8 +826,8 @@ loadbalancer:
   # HTTP(S) Load Balancer Configuration (Application Layer - L7)
   # This load balancer is used for HTTP/HTTPS traffic, such as REST APIs.
   http:
-    # Set to true to enable the HTTP load balancer.
-    enabled: false
+    # Set to false to disable the HTTP load balancer.
+    enabled: true
     ssl:
       # Enables HTTPS termination at the load balancer level.
       enabled: false
@@ -850,8 +850,8 @@ loadbalancer:
   # MQTT Load Balancer Configuration (Transport Layer - L4)
   # This load balancer is used for MQTT traffic (TCP).
   mqtt:
-    # Set to true to enable the MQTT load balancer.
-    enabled: false
+    # Set to false to disable the MQTT load balancer.
+    enabled: true
     # Two-Way TLS (Mutual TLS or mTLS) - Handled at the TBMQ application level.
     # This ensures that both the client and the server authenticate each other.
     mutualTls:
@@ -907,7 +907,7 @@ loadbalancer:
     # - AWS: TLS termination is supported via Network Load Balancer (NLB) with an ACM certificate.
     # - Azure: TLS termination is NOT supported at the Azure Load Balancer level.
     # - GCP: TLS termination is NOT supported at the GCP Network Load Balancer level.
-    # - Nginx: Not implemented.
+    # - Nginx: TLS termination is NOT supported.
     tlsTermination:
       # Set to true to enable TLS termination at the load balancer. Will be ignored if @param mutualTls.enabled is set to true
       enabled: false
@@ -915,5 +915,5 @@ loadbalancer:
       # - AWS: The ACM certificate ARN for NLB.
       # - Azure: Not applicable (this option will be ignored).
       # - GCP: Not applicable (this option will be ignored).
-      # - Nginx: Not implemented (this option will be ignored).
+      # - Nginx: Not applicable (this option will be ignored).
       certificateRef: ""
