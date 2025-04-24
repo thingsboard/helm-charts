@@ -6,13 +6,13 @@ metadata:
   namespace: {{ .Release.Namespace }}
   annotations:
     appgw.ingress.kubernetes.io/use-regex: 'true'
-    kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/request-timeout: "300"
     {{- if .Values.loadbalancer.http.ssl.enabled }}
     appgw.ingress.kubernetes.io/appgw-ssl-certificate: {{ .Values.loadbalancer.http.ssl.certificateRef }}
     appgw.ingress.kubernetes.io/ssl-redirect: "true"
     {{- end }}
 spec:
+  ingressClassName: azure/application-gateway
   rules:
     - http:
         paths:

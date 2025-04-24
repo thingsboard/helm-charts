@@ -25,13 +25,13 @@ metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
   annotations:
-    kubernetes.io/ingress.class: "gce"
     {{- if .Values.loadbalancer.http.ssl.enabled }}
     kubernetes.io/ingress.global-static-ip-name: {{ .Values.loadbalancer.http.ssl.staticIP }}
     networking.gke.io/managed-certificates: {{ .Values.loadbalancer.http.ssl.certificateRef }}
     networking.gke.io/v1beta1.FrontendConfig: tbmq-http-fe-config
     {{- end }}
 spec:
+  ingressClassName: "gce"
   rules:
     - http:
         paths:
