@@ -1,161 +1,5 @@
 apiVersion: v1
 entries:
-  common:
-  - annotations:
-      category: Infrastructure
-      licenses: Apache-2.0
-    apiVersion: v2
-    appVersion: 2.30.0
-    created: "2025-04-29T16:22:34.595825495+03:00"
-    description: A Library Helm Chart for grouping common logic between bitnami charts.
-      This chart is not deployable by itself.
-    digest: 3027e5f251efc1033d23a554812c75cdfa5485e611bac3d80f6d7d7d931f3716
-    home: https://bitnami.com
-    icon: https://dyltqmyl993wv.cloudfront.net/downloads/logos/bitnami-mark.png
-    keywords:
-    - common
-    - helper
-    - template
-    - function
-    - bitnami
-    maintainers:
-    - name: Broadcom, Inc. All Rights Reserved.
-      url: https://github.com/bitnami/charts
-    name: common
-    sources:
-    - https://github.com/bitnami/charts/tree/main/bitnami/common
-    type: library
-    urls:
-    - https://helm.thingsboard.io/tbmq/charts/common-2.30.0.tgz
-    version: 2.30.0
-  kafka:
-  - annotations:
-      category: Infrastructure
-      images: |
-        - name: jmx-exporter
-          image: docker.io/bitnami/jmx-exporter:1.0.1-debian-12-r1
-        - name: kafka
-          image: docker.io/bitnami/kafka:3.7.0-debian-12-r7
-        - name: kubectl
-          image: docker.io/bitnami/kubectl:1.30.2-debian-12-r0
-        - name: os-shell
-          image: docker.io/bitnami/os-shell:12-debian-12-r22
-      licenses: Apache-2.0
-    apiVersion: v2
-    appVersion: 3.7.0
-    created: "2025-04-29T16:22:34.601316259+03:00"
-    dependencies:
-    - condition: zookeeper.enabled
-      name: zookeeper
-      repository: oci://registry-1.docker.io/bitnamicharts
-      version: 13.x.x
-    - name: common
-      repository: oci://registry-1.docker.io/bitnamicharts
-      tags:
-      - bitnami-common
-      version: 2.x.x
-    description: Apache Kafka is a distributed streaming platform designed to build
-      real-time pipelines and can be used as a message broker or as a replacement
-      for a log aggregation solution for big data applications.
-    digest: e76e96c8be7b454761a54bb4639715b011ad276ac698ec6eecc490fe1037c4c1
-    home: https://bitnami.com
-    icon: https://bitnami.com/assets/stacks/kafka/img/kafka-stack-220x234.png
-    keywords:
-    - kafka
-    - zookeeper
-    - streaming
-    - producer
-    - consumer
-    maintainers:
-    - name: Broadcom, Inc. All Rights Reserved.
-      url: https://github.com/bitnami/charts
-    name: kafka
-    sources:
-    - https://github.com/bitnami/charts/tree/main/bitnami/kafka
-    urls:
-    - https://helm.thingsboard.io/tbmq/charts/kafka-29.3.4.tgz
-    version: 29.3.4
-  postgresql:
-  - annotations:
-      category: Database
-      images: |
-        - name: os-shell
-          image: docker.io/bitnami/os-shell:12-debian-12-r30
-        - name: postgres-exporter
-          image: docker.io/bitnami/postgres-exporter:0.15.0-debian-12-r43
-        - name: postgresql
-          image: docker.io/bitnami/postgresql:16.4.0-debian-12-r14
-      licenses: Apache-2.0
-    apiVersion: v2
-    appVersion: 16.4.0
-    created: "2025-04-29T16:22:34.605063251+03:00"
-    dependencies:
-    - name: common
-      repository: oci://registry-1.docker.io/bitnamicharts
-      tags:
-      - bitnami-common
-      version: 2.x.x
-    description: PostgreSQL (Postgres) is an open source object-relational database
-      known for reliability and data integrity. ACID-compliant, it supports foreign
-      keys, joins, views, triggers and stored procedures.
-    digest: 7b796710cd09acb1f085d30d67a1e41afadf9fcc9464b89acceaa65ccda3c0b3
-    home: https://bitnami.com
-    icon: https://bitnami.com/assets/stacks/postgresql/img/postgresql-stack-220x234.png
-    keywords:
-    - postgresql
-    - postgres
-    - database
-    - sql
-    - replication
-    - cluster
-    maintainers:
-    - name: Broadcom, Inc. All Rights Reserved.
-      url: https://github.com/bitnami/charts
-    name: postgresql
-    sources:
-    - https://github.com/bitnami/charts/tree/main/bitnami/postgresql
-    urls:
-    - https://helm.thingsboard.io/tbmq/charts/postgresql-15.5.38.tgz
-    version: 15.5.38
-  redis-cluster:
-  - annotations:
-      category: Database
-      images: |
-        - name: os-shell
-          image: docker.io/bitnami/os-shell:12-debian-12-r26
-        - name: redis-cluster
-          image: docker.io/bitnami/redis-cluster:7.2.5-debian-12-r4
-        - name: redis-exporter
-          image: docker.io/bitnami/redis-exporter:1.62.0-debian-12-r2
-      licenses: Apache-2.0
-    apiVersion: v2
-    appVersion: 7.2.5
-    created: "2025-04-29T16:22:34.6077057+03:00"
-    dependencies:
-    - name: common
-      repository: oci://registry-1.docker.io/bitnamicharts
-      tags:
-      - bitnami-common
-      version: 2.x.x
-    description: Redis(R) is an open source, scalable, distributed in-memory cache
-      for applications. It can be used to store and serve data in the form of strings,
-      hashes, lists, sets and sorted sets.
-    digest: 57bd13945603b750569e035d28b014bf62e0c93d3d1610e03a855a1cd1cb16b6
-    home: https://bitnami.com
-    icon: https://bitnami.com/assets/stacks/redis/img/redis-stack-220x234.png
-    keywords:
-    - redis
-    - keyvalue
-    - database
-    maintainers:
-    - name: Broadcom, Inc. All Rights Reserved.
-      url: https://github.com/bitnami/charts
-    name: redis-cluster
-    sources:
-    - https://github.com/bitnami/charts/tree/main/bitnami/redis-cluster
-    urls:
-    - https://helm.thingsboard.io/tbmq/charts/redis-cluster-10.3.0.tgz
-    version: 10.3.0
   tbmq-cluster:
   - annotations:
       artifacthub.io/category: streaming-messaging
@@ -174,7 +18,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T16:22:34.595356635+03:00"
+    created: "2025-04-29T17:32:42.975693876+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -221,7 +65,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T16:22:34.580588891+03:00"
+    created: "2025-04-29T17:32:42.961332775+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -268,7 +112,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T16:22:34.5668453+03:00"
+    created: "2025-04-29T17:32:42.946152397+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -315,7 +159,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T16:22:34.55253789+03:00"
+    created: "2025-04-29T17:32:42.932681687+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -367,7 +211,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T16:22:34.538498914+03:00"
+    created: "2025-04-29T17:32:42.918935019+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -414,7 +258,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T16:22:34.525254008+03:00"
+    created: "2025-04-29T17:32:42.905667059+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -466,7 +310,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T16:22:34.508794349+03:00"
+    created: "2025-04-29T17:32:42.891214636+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -514,7 +358,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T16:22:34.49305357+03:00"
+    created: "2025-04-29T17:32:42.874240965+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -543,4 +387,4 @@ entries:
     urls:
     - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.1.tgz
     version: 0.0.1
-generated: "2025-04-29T16:22:34.479117677+03:00"
+generated: "2025-04-29T17:32:42.859132321+03:00"
