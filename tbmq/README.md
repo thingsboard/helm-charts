@@ -1,4 +1,4 @@
-# Helm Chart for TBMQ Cluster (Pre-Release)
+# Helm Chart for TBMQ Cluster
 
 TBMQ represents an open-source MQTT message broker with the capacity to handle 4M+ concurrent client connections, 
 supporting a minimum of 3M messages per second throughput per single cluster node with low latency delivery. 
@@ -8,7 +8,7 @@ In the cluster mode, its capabilities are further enhanced, enabling it to suppo
 
  - 🔗 TBMQ [Documentation](https://thingsboard.io/products/mqtt-broker/)
  - 💻 TBMQ GitHub [Repository](https://github.com/thingsboard/tbmq)
- - 💻 TBMQ Helm Chart GitHub [Repository](https://github.com/ShvaykaD/tbmq-helm-chart)
+ - 💻 ThinsBoard Charts GitHub [Repository](https://github.com/thingsboard/helm-charts)
 
 > **📜 Trademarks:** This software listing is packaged by TBMQ Team. 
 The respective trademarks mentioned in the offering are owned by the respective companies, and use of them does not imply any affiliation or endorsement.
@@ -32,7 +32,7 @@ To install TBMQ using this Helm chart, follow these steps:
 Before installing the chart, add the TBMQ Helm repository to your local Helm client:
 
 ```bash
-helm repo add tbmq-helm-chart https://shvaykad.github.io/tbmq-helm-chart
+helm repo add tbmq-helm-chart https://helm.thingsboard.io/tbmq
 helm repo update
 ```
 
@@ -102,7 +102,7 @@ This section describes the configuration options for the **TBMQ** and its **Inte
 |---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
 | **Image Configuration**                     |                                                                                                                                                                                                                                                                |                                         |
 | tbmq.image.repository                       | Docker image repository for TBMQ node.                                                                                                                                                                                                                         | thingsboard/tbmq-node                   |
-| tbmq.image.tag                              | Image tag/version.                                                                                                                                                                                                                                             | 2.1.0-SNAPSHOT                          |
+| tbmq.image.tag                              | Image tag/version.                                                                                                                                                                                                                                             | 2.1.0                                   |
 | tbmq.imagePullSecret                        | Kubernetes secret for pulling private images.                                                                                                                                                                                                                  | regcred                                 |
 | tbmq.imagePullPolicy                        | Image pull policy.                                                                                                                                                                                                                                             | Always                                  |
 | **Scaling & Deployment**                    |                                                                                                                                                                                                                                                                |                                         |
@@ -152,7 +152,7 @@ This section describes the configuration options for the **TBMQ** and its **Inte
 |---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
 | **Image Configuration**                     |                                                                                                                                                                                                                                                                |                                       |
 | tbmq-ie.image.repository                    | Docker image repository for TBMQ-IE node.                                                                                                                                                                                                                      | thingsboard/tbmq-integration-executor |
-| tbmq-ie.image.tag                           | Image tag/version.                                                                                                                                                                                                                                             | 2.1.0-SNAPSHOT                        |
+| tbmq-ie.image.tag                           | Image tag/version.                                                                                                                                                                                                                                             | 2.1.0                                 |
 | tbmq-ie.imagePullSecret                     | Kubernetes secret for pulling private images.                                                                                                                                                                                                                  | regcred                               |
 | tbmq-ie.imagePullPolicy                     | Image pull policy.                                                                                                                                                                                                                                             | Always                                |
 | **Scaling & Deployment**                    |                                                                                                                                                                                                                                                                |                                       |
