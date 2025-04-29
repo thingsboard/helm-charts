@@ -9,7 +9,7 @@
 # when the hash of the last commit in the branch you set up changes. This does
 # NOT apply to ownership claim operations, which are processed immediately.
 #
-repositoryID: a7932cd9-dbed-4840-bfa9-24d9646cca73
+repositoryID: c69d0f4a-9ae0-4f31-86f8-53443fe57b75
 owners:
   - name: dshvaika
     email: dshvaika@thingsboard.io
