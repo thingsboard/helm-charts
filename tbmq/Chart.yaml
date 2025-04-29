@@ -3,7 +3,7 @@ appVersion: 2.1.0-SNAPSHOT
 description: Helm chart for TBMQ cluster.
 name: tbmq-cluster
 type: application
-version: 0.0.7
+version: 0.0.8
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -15,10 +15,10 @@ annotations:
   artifacthub.io/prerelease: "true"
   artifacthub.io/changes: |
     - kind: added
-      description: Enabled default HTTP and MQTT load balancers using the NGINX Ingress Controller (plain protocols only).
+      description: Transferred repository to ThingsBoard organization.
       links:
         - name: GitHub Commit
-          url: https://github.com/ShvaykaD/tbmq-helm-chart/commit/bbd183c7d89d081ae59245b1d3788ac092554f06
+          url: https://github.com/thingsboard/helm-charts/commit/0bc842efec0da1e15b0295d1977bb0019fd00fe6
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
