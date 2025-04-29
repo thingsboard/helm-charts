@@ -26,7 +26,7 @@ tbmq:
     # Docker image repository for TBMQ node.
     repository: thingsboard/tbmq-node
     # Image tag/version.
-    tag: 2.1.0-SNAPSHOT
+    tag: 2.1.0
   # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
   # Image pull policy.
@@ -213,7 +213,7 @@ tbmq-ie:
     # Docker image repository for TBMQ-IE node.
     repository: thingsboard/tbmq-integration-executor
     # Image tag/version.
-    tag: 2.1.0-SNAPSHOT
+    tag: 2.1.0
   # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
   # Image pull policy.

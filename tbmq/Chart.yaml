@@ -1,9 +1,9 @@
 apiVersion: v2
-appVersion: 2.1.0-SNAPSHOT
+appVersion: 2.1.0
 description: Helm chart for TBMQ cluster.
 name: tbmq-cluster
 type: application
-version: 0.0.8
+version: 1.0.0
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -12,13 +12,13 @@ annotations:
       email: dshvaika@thingsboard.io
     - name: dlandiak
       email: dlandiak@thingsboard.io
-  artifacthub.io/prerelease: "true"
+  artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
     - kind: added
-      description: Transferred repository to ThingsBoard organization.
+      description: Release 1.0.0
       links:
-        - name: GitHub Commit
-          url: https://github.com/thingsboard/helm-charts/commit/0bc842efec0da1e15b0295d1977bb0019fd00fe6
+        - name: GitHub PR
+          url: https://github.com/thingsboard/helm-charts/pull/9
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
