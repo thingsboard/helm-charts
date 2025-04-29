@@ -174,7 +174,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T15:55:08.989259872+03:00"
+    created: "2025-04-29T16:11:06.991925678+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -202,7 +202,7 @@ entries:
     name: tbmq-cluster
     type: application
     urls:
-    - https://helm.thingsboard.io/tbmq-cluster-0.0.8.tgz
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.8.tgz
     version: 0.0.8
   - annotations:
       artifacthub.io/category: streaming-messaging
@@ -221,7 +221,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T15:55:08.975678801+03:00"
+    created: "2025-04-29T16:11:06.978532749+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -249,7 +249,7 @@ entries:
     name: tbmq-cluster
     type: application
     urls:
-    - https://helm.thingsboard.io/tbmq-cluster-0.0.7.tgz
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.7.tgz
     version: 0.0.7
   - annotations:
       artifacthub.io/category: streaming-messaging
@@ -268,7 +268,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T15:55:08.962463286+03:00"
+    created: "2025-04-29T16:11:06.964217398+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -296,7 +296,7 @@ entries:
     name: tbmq-cluster
     type: application
     urls:
-    - https://helm.thingsboard.io/tbmq-cluster-0.0.6.tgz
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.6.tgz
     version: 0.0.6
   - annotations:
       artifacthub.io/category: streaming-messaging
@@ -315,7 +315,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T15:55:08.948552637+03:00"
+    created: "2025-04-29T16:11:06.950786237+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -343,7 +343,7 @@ entries:
     name: tbmq-cluster
     type: application
     urls:
-    - https://helm.thingsboard.io/tbmq-cluster-0.0.5.tgz
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.5.tgz
     version: 0.0.5
   - annotations:
       artifacthub.io/category: streaming-messaging
@@ -367,7 +367,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T15:55:08.934027355+03:00"
+    created: "2025-04-29T16:11:06.937256992+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -395,7 +395,7 @@ entries:
     name: tbmq-cluster
     type: application
     urls:
-    - https://helm.thingsboard.io/tbmq-cluster-0.0.4.tgz
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.4.tgz
     version: 0.0.4
   - annotations:
       artifacthub.io/category: streaming-messaging
@@ -414,7 +414,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T15:55:08.920726409+03:00"
+    created: "2025-04-29T16:11:06.923626747+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -442,7 +442,7 @@ entries:
     name: tbmq-cluster
     type: application
     urls:
-    - https://helm.thingsboard.io/tbmq-cluster-0.0.3.tgz
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.3.tgz
     version: 0.0.3
   - annotations:
       artifacthub.io/category: streaming-messaging
@@ -466,7 +466,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T15:55:08.905523716+03:00"
+    created: "2025-04-29T16:11:06.908008872+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -494,7 +494,7 @@ entries:
     name: tbmq-cluster
     type: application
     urls:
-    - https://helm.thingsboard.io/tbmq-cluster-0.0.2.tgz
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.2.tgz
     version: 0.0.2
   - annotations:
       artifacthub.io/category: streaming-messaging
@@ -514,7 +514,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T15:55:08.890114615+03:00"
+    created: "2025-04-29T16:11:06.891709407+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -541,6 +541,6 @@ entries:
     name: tbmq-cluster
     type: application
     urls:
-    - https://helm.thingsboard.io/tbmq-cluster-0.0.1.tgz
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.1.tgz
     version: 0.0.1
-generated: "2025-04-29T15:55:08.876643581+03:00"
+generated: "2025-04-29T16:11:06.87821152+03:00"
