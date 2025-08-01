@@ -5,7 +5,7 @@ metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
 spec:
-  ingressClassName: nginx
+  ingressClassName: {{ .Values.loadbalancer.http.ingressClassName | default "nginx" }}
   rules:
     - http:
         paths:

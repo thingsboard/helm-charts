@@ -3,7 +3,7 @@ appVersion: 2.1.0
 description: Helm chart for TBMQ cluster.
 name: tbmq-cluster
 type: application
-version: 1.0.0
+version: 1.1.0
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -15,7 +15,7 @@ annotations:
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
     - kind: added
-      description: Release 1.0.0
+      description: Release 1.1.0
       links:
         - name: GitHub PR
           url: https://github.com/thingsboard/helm-charts/pull/9
@@ -34,6 +34,7 @@ dependencies:
   - name: redis-cluster
     version: 10.3.0
     repository: oci://registry-1.docker.io/bitnamicharts
+    condition: redis-cluster.enabled
   - name: postgresql
     version: 15.5.38
     repository: oci://registry-1.docker.io/bitnamicharts
@@ -41,3 +42,4 @@ dependencies:
   - name: kafka
     version: 29.3.4
     repository: oci://registry-1.docker.io/bitnamicharts
+    condition: kafka.enabled
