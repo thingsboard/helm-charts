@@ -5,6 +5,10 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}-mqtt-lb
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.loadbalancer.mqtt.annotations }}
+  annotations:
+    {{ toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ $serviceType }}
   {{- if and (eq $serviceType "NodePort") (eq $serviceType "LoadBalancer") }}

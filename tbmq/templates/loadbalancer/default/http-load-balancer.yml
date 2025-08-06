@@ -4,10 +4,15 @@ kind: Ingress
 metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.loadbalancer.http.annotations }}
+  annotations:
+    {{ toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   ingressClassName: {{ .Values.loadbalancer.http.ingressClassName | default "nginx" }}
-  rules:
-    - http:
+  rules: 
+    - host: {{ .Values.loadbalancer.http.host | default "\"\"" }}
+      http:
         paths:
           - path: /
             pathType: Prefix
@@ -16,4 +21,12 @@ spec:
                 name: {{ include "tbmq.node.label" . }}
                 port:
                   name: http
+  {{- if .Values.loadbalancer.http.ssl.enabled }}
+  tls:
+    - hosts:
+        {{- range .Values.loadbalancer.http.ssl.hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .Values.loadbalancer.http.ssl.secretName }}
+  {{- end }}
 {{- end }}

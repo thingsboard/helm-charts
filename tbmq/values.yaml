@@ -829,8 +829,15 @@ loadbalancer:
   http:
     # Set to false to disable the HTTP load balancer.
     enabled: true
-
+    # Host for the HTTP load balancer.
+    host: ""
+    # Annotations for HTTP ingress
+    annotations: {}
     ssl:
+      # Hosts to be configured for the ingress.
+      hosts: {}
+      # Secret name with the certificate for the ssl termination.
+      secretName: ""
       # Enables HTTPS termination at the load balancer level.
       enabled: false
       # Certificate reference:
