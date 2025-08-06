@@ -812,7 +812,7 @@ kafka:
       ##     memory: 1024Mi
       ##
       resources: {}
-  # Name of an existing ConfigMap that will override Postgres configurations.
+  # Name of an existing ConfigMap that will override Kafka configurations.
   existingConfigMap: ""
 # Load Balancer Configuration
 # This section defines the load balancer settings for TBMQ.

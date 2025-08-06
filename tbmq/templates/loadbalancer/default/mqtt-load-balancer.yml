@@ -11,7 +11,7 @@ metadata:
   {{- end }}
 spec:
   type: {{ $serviceType }}
-  {{- if and (eq $serviceType "NodePort") (eq $serviceType "LoadBalancer") }}
+  {{- if or (eq $serviceType "NodePort") (eq $serviceType "LoadBalancer") }}
   externalTrafficPolicy: Local
   {{- end }}
   selector:
