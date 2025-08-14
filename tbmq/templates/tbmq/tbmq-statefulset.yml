@@ -81,8 +81,15 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "tbmq.postgres.secretName" . }}
-                  key: {{ include "tbmq.postgres.secretKey" . }}
-            {{- if index .Values "redis-cluster" "usePassword" }}
+                  key: {{ include "tbmq.postgres.secretPasswordKey" . }}
+            {{- if .Values.externalPostgresql.existingSecretUsernameKey }}
+            - name: SPRING_DATASOURCE_USER
+              valueFrom:
+                  secretKeyRef:
+                    name: {{ include "tbmq.postgres.secretName" . }}
+                    key: {{ include "tbmq.postgres.secretUsernameKey" . }}
+            {{- end }}
+            {{- if or (index .Values "redis-cluster" "usePassword") .Values.externalRedis.existingSecret }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:

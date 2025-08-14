@@ -368,9 +368,13 @@ tbmq-ie:
 # This section will bring bitnami/redis-cluster (https://artifacthub.io/packages/helm/bitnami/redis-cluster) into this chart.
 # If you want to add some extra configuration parameters, you can put them under the `redis-cluster` key, and they will be passed to bitnami/redis-cluster chart.
 redis-cluster:
+  enabled: true
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "redis"
+  ## @param Should use password?
+  ##
+  usePassword: false
   ## @param password Redis&reg; password (ignored if existingSecret set)
   ## Defaults to a random 10-character alphanumeric string if not set and usePassword is true
   ## ref: https://github.com/bitnami/containers/tree/main/bitnami/redis#setting-the-server-password-on-first-run
@@ -381,7 +385,7 @@ redis-cluster:
   existingSecret: ""
   ## @param existingSecretPasswordKey Name of key containing password to be retrieved from the existing secret
   ##
-  existingSecretPasswordKey: ""
+  existingSecretKey: ""
   ## Pod Disruption Budget configuration
   ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
   ##
@@ -396,7 +400,6 @@ redis-cluster:
   ## @section Redis&reg; statefulset parameters
   ##
   redis:
-    enabled: true
     ## @param redis.useAOFPersistence Whether to use AOF Persistence mode or not
     ## It is strongly recommended to use this type when dealing with clusters
     ## ref: https://redis.io/topics/persistence#append-only-file
@@ -523,6 +526,18 @@ redis-cluster:
     ##
     resources: {}
 
+# If you're deploying Redis externally, configure this section
+externalRedis:
+  # param existingConfigMap Name of an existing ConfigMap that will override Redis configurations.
+  ##
+  existingConfigMap: ""
+  # @param existingSecret Name of existing secret object (for password authentication)
+  ##
+  existingSecret: ""
+  # @param existingSecretKey Name of key containing password to be retrieved from the existing secret
+  ##
+  existingSecretKey: ""
+
 # If you're deploying PostgreSQL externally, configure this section
 externalPostgresql:
   # @param host - External PostgreSQL server host
@@ -539,12 +554,28 @@ externalPostgresql:
   # @param database - PostgreSQL database name for TBMQ
   ##
   database: "thingsboard_mqtt_broker"
+  # param existingConfigMap Name of an existing ConfigMap that will override Postgres configurations.
+  ##
+  existingConfigMap: ""
+  # @param existingSecret - existing secret having the credentials to the Postgresql database instance
+  ##
+  existingSecret: ""
+  # @param existingSecretPasswordKey - key in existing secret having the credentials to the Postgresql database instance
+  ##
+  existingSecretPasswordKey: ""
+  # @param existingSecretUsernameKey - key in existing secret having the credentials to the Postgresql database instance
+  ##
+  existingSecretUsernameKey: ""
+
+externalKafka:
+  # Name of an existing ConfigMap that will override Kafka configurations.
+  existingConfigMap: ""
 
 # This section will bring bitnami/postgresql (https://artifacthub.io/packages/helm/bitnami/postgresql) into this chart.
 #  If you want to add some extra configuration parameters, you can put them under the `postgresql` key, and they will be passed to bitnami/postgresql chart
 postgresql:
   # @param enabled If enabled is set to true, externalPostgresql configuration will be ignored
-  enabled: true
+  enabled: false
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "postgresql"
@@ -812,8 +843,6 @@ kafka:
       ##     memory: 1024Mi
       ##
       resources: {}
-  # Name of an existing ConfigMap that will override Kafka configurations.
-  existingConfigMap: ""
 # Load Balancer Configuration
 # This section defines the load balancer settings for TBMQ.
 # Supported types:
@@ -835,7 +864,7 @@ loadbalancer:
     annotations: {}
     ssl:
       # Hosts to be configured for the ingress.
-      hosts: {}
+      hosts: []
       # Secret name with the certificate for the ssl termination.
       secretName: ""
       # Enables HTTPS termination at the load balancer level.

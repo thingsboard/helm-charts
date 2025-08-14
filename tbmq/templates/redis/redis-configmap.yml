@@ -1,4 +1,4 @@
-{{- if empty (index .Values "redis-cluster" "existingConfigMap") }}
+{{- if and (empty (index .Values "redis-cluster" "existingConfigMap")) (index .Values "redis-cluster" "enabled") }}
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
 {{- $redisName := index .Values "redis-cluster" "nameOverride" }}

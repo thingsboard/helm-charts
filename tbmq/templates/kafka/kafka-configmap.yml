@@ -1,4 +1,4 @@
-{{- if empty .Values.kafka.existingConfigMap }}
+{{- if and (empty .Values.kafka.existingConfigMap) .Values.kafka.enabled }}
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
 apiVersion: v1
