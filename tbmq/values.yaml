@@ -37,7 +37,7 @@ tbmq:
     replicas: 2
     # Custom annotations applied to the StatefulSet resource (metadata.annotations).
     # These are useful for CI/CD tools, Helm diff, audit tracking, etc.
-    annotations: { }
+    annotations: {}
   # List of ports for TBMQ service.
   ports:
     - name: http
@@ -58,7 +58,7 @@ tbmq:
   # nodeSelector:
   #    role: tbmq-node
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
-  nodeSelector: { }
+  nodeSelector: {}
   # Affinity for choosing nodes for scheduling pods.
   # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
   # Example:
@@ -73,7 +73,7 @@ tbmq:
   #            - antarctica-east1
   #            - antarctica-west1
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
-  affinity: { }
+  affinity: {}
   # Custom environment variables that are always applied, regardless of configuration source.
   # These variables will be appended to the container environment and will override any conflicting
   # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
@@ -85,9 +85,7 @@ tbmq:
   #
   # Even if `existingConfigMap` or `existingJavaOptsConfigMap` define `SECURITY_MQTT_SSL_ENABLED`,
   # the value from `customEnv` will take precedence.
-  customEnv: {
-    SECURITY_MQTT_BASIC_ENABLED: "true"
-  }
+  customEnv: { SECURITY_MQTT_BASIC_ENABLED: "true" }
   # Name of an existing ConfigMap that will override TBMQ Java and Logback configurations.
   # If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).
   #
@@ -153,7 +151,7 @@ tbmq:
   enableChecksumAnnotations: true
   # Custom annotations applied to the TBMQ pods (spec.template.metadata.annotations).
   # These are commonly used for service discovery (e.g., Prometheus scraping) or logging agents.
-  annotations: { }
+  annotations: {}
   # Default readiness probe for TBMQ service.
   readinessProbe:
     tcpSocket:
@@ -204,7 +202,7 @@ tbmq:
   #     cpu: "1.5"
   #     memory: 3Gi
   # See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#pod-level-resource-specification for more details.
-  resources: { }
+  resources: {}
 
 ## Section to configure TBMQ Integration executor service.
 tbmq-ie:
@@ -224,7 +222,7 @@ tbmq-ie:
     replicas: 2
     # Custom annotations applied to the StatefulSet resource (metadata.annotations).
     # These are useful for CI/CD tools, Helm diff, audit tracking, etc.
-    annotations: { }
+    annotations: {}
   # List of ports for TBMQ-IE service.
   ports:
     - name: http
@@ -235,7 +233,7 @@ tbmq-ie:
   # nodeSelector:
   #    role: tbmq-ie
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
-  nodeSelector: { }
+  nodeSelector: {}
   # Affinity for choosing nodes for scheduling pods.
   # Note that this is a default kubernetes object, so you need to specify a whole object, not just labels.
   # Example:
@@ -250,7 +248,7 @@ tbmq-ie:
   #            - antarctica-east1
   #            - antarctica-west1
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
-  affinity: { }
+  affinity: {}
   # Custom environment variables that are always applied, regardless of configuration source.
   # These variables will be appended to the container environment and will override any conflicting
   # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
@@ -262,7 +260,7 @@ tbmq-ie:
   #
   # Even if `existingConfigMap` or `existingJavaOptsConfigMap` define `TB_SERVICE_INTEGRATIONS_EXCLUDED`,
   # the value from `customEnv` will take precedence.
-  customEnv: { }
+  customEnv: {}
   # Name of an existing ConfigMap that will override TBMQ-IE Java and Logback configurations.
   # If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).
   #
@@ -328,7 +326,7 @@ tbmq-ie:
   enableChecksumAnnotations: true
   # Custom annotations applied to the TBMQ-IE pods (spec.template.metadata.annotations).
   # These are commonly used for service discovery (e.g., Prometheus scraping) or logging agents.
-  annotations: { }
+  annotations: {}
   # Default readiness probe for TBMQ-IE service.
   readinessProbe:
     # Interval between probe executions.
@@ -365,14 +363,18 @@ tbmq-ie:
   #     cpu: "1.5"
   #     memory: 3Gi
   # See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#pod-level-resource-specification for more details.
-  resources: { }
+  resources: {}
 
 # This section will bring bitnami/redis-cluster (https://artifacthub.io/packages/helm/bitnami/redis-cluster) into this chart.
 # If you want to add some extra configuration parameters, you can put them under the `redis-cluster` key, and they will be passed to bitnami/redis-cluster chart.
 redis-cluster:
+  enabled: true
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "redis"
+  ## @param Should use password?
+  ##
+  usePassword: false
   ## @param password Redis&reg; password (ignored if existingSecret set)
   ## Defaults to a random 10-character alphanumeric string if not set and usePassword is true
   ## ref: https://github.com/bitnami/containers/tree/main/bitnami/redis#setting-the-server-password-on-first-run
@@ -383,7 +385,7 @@ redis-cluster:
   existingSecret: ""
   ## @param existingSecretPasswordKey Name of key containing password to be retrieved from the existing secret
   ##
-  existingSecretPasswordKey: ""
+  existingSecretKey: ""
   ## Pod Disruption Budget configuration
   ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
   ##
@@ -414,7 +416,7 @@ redis-cluster:
     ##     cpu: 3
     ##     memory: 1024Mi
     ##
-    resources: { }
+    resources: {}
     ## @param redis.podAntiAffinityPreset Redis&reg; pod anti-affinity preset. Ignored if `redis.affinity` is set. Allowed values: `soft` or `hard`
     ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
     ##
@@ -437,12 +439,12 @@ redis-cluster:
       ##   - e2e-az1
       ##   - e2e-az2
       ##
-      values: [ ]
-    affinity: { }
+      values: []
+    affinity: {}
     ## @param redis.nodeSelector Node labels for Redis&reg; pods assignment
     ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
     ##
-    nodeSelector: { }
+    nodeSelector: {}
   ## Enable persistence using Persistent Volume Claims
   ## ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
   ##
@@ -504,7 +506,7 @@ redis-cluster:
       currentNumberOfReplicas: 1
       ## @param cluster.update.newExternalIPs External IPs obtained from the services for the new nodes to add to the cluster
       ##
-      newExternalIPs: [ ]
+      newExternalIPs: []
   ## Prometheus Exporter / Metrics
   ##
   metrics:
@@ -522,7 +524,19 @@ redis-cluster:
     ##     memory: 1024Mi
     ## ref: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
     ##
-    resources: { }
+    resources: {}
+
+# If you're deploying Redis externally, configure this section
+externalRedis:
+  # param existingConfigMap Name of an existing ConfigMap that will override Redis configurations.
+  ##
+  existingConfigMap: ""
+  # @param existingSecret Name of existing secret object (for password authentication)
+  ##
+  existingSecret: ""
+  # @param existingSecretKey Name of key containing password to be retrieved from the existing secret
+  ##
+  existingSecretKey: ""
 
 # If you're deploying PostgreSQL externally, configure this section
 externalPostgresql:
@@ -540,12 +554,28 @@ externalPostgresql:
   # @param database - PostgreSQL database name for TBMQ
   ##
   database: "thingsboard_mqtt_broker"
+  # param existingConfigMap Name of an existing ConfigMap that will override Postgres configurations.
+  ##
+  existingConfigMap: ""
+  # @param existingSecret - existing secret having the credentials to the Postgresql database instance
+  ##
+  existingSecret: ""
+  # @param existingSecretPasswordKey - key in existing secret having the credentials to the Postgresql database instance
+  ##
+  existingSecretPasswordKey: ""
+  # @param existingSecretUsernameKey - key in existing secret having the credentials to the Postgresql database instance
+  ##
+  existingSecretUsernameKey: ""
+
+externalKafka:
+  # Name of an existing ConfigMap that will override Kafka configurations.
+  existingConfigMap: ""
 
 # This section will bring bitnami/postgresql (https://artifacthub.io/packages/helm/bitnami/postgresql) into this chart.
 #  If you want to add some extra configuration parameters, you can put them under the `postgresql` key, and they will be passed to bitnami/postgresql chart
 postgresql:
   # @param enabled If enabled is set to true, externalPostgresql configuration will be ignored
-  enabled: true
+  enabled: false
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "postgresql"
@@ -591,11 +621,11 @@ postgresql:
     ##     cpu: 3
     ##     memory: 1024Mi
     ##
-    resources: { }
+    resources: {}
     ## @param primary.nodeSelector Node labels for PostgreSQL primary pods assignment
     ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
     ##
-    nodeSelector: { }
+    nodeSelector: {}
     ## PostgreSQL Primary persistence configuration
     ##
     persistence:
@@ -628,10 +658,10 @@ postgresql:
       ## @param backup.cronjob.nodeSelector Node labels for PostgreSQL backup CronJob pod assignment
       ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/assign-pods-nodes/
       ##
-      nodeSelector: { }
+      nodeSelector: {}
       ## @param backup.cronjob.resources Set container requests and limits for different resources like CPU or memory
       ## Example:
-      resources: { }
+      resources: {}
       storage:
         ## @param backup.cronjob.storage.size PVC Storage Request for the backup data volume
         ##
@@ -652,7 +682,7 @@ postgresql:
     ##     cpu: 3
     ##     memory: 1024Mi
     ##
-    resources: { }
+    resources: {}
     ## Service configuration
     ##
     service:
@@ -661,11 +691,12 @@ postgresql:
       ports:
         metrics: 9187
 
-
-
+  # Name of an existing ConfigMap that will override Postgres configurations.
+  existingConfigMap: ""
 # This section will bring bitnami/kafka (https://artifacthub.io/packages/helm/bitnami/kafka) into this chart.
 # If you want to add some extra configuration parameters, you can put them under the `kafka` key, and they will be passed to bitnami/kafka chart
 kafka:
+  enabled: true
   # Default name override for bitnami/kafka
   nameOverride: "kafka"
   ## @param extraConfig Additional configuration to be appended at the end of the generated Kafka configuration file.
@@ -724,7 +755,7 @@ kafka:
     ##     cpu: 3
     ##     memory: 1024Mi
     ##
-    resources: { }
+    resources: {}
     ## @param controller.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
     ## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
     ##
@@ -747,16 +778,16 @@ kafka:
       ##   - e2e-az1
       ##   - e2e-az2
       ##
-      values: [ ]
+      values: []
     ## @param controller.affinity Affinity for pod assignment
     ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
     ## Note: podAffinityPreset, podAntiAffinityPreset, and  nodeAffinityPreset will be ignored when it's set
     ##
-    affinity: { }
+    affinity: {}
     ## @param controller.nodeSelector Node labels for pod assignment
     ## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
     ##
-    nodeSelector: { }
+    nodeSelector: {}
     ## Kafka Pod Disruption Budget
     ## ref: https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
     ## @param controller.pdb.create Deploy a pdb object for the Kafka pod
@@ -811,8 +842,7 @@ kafka:
       ##     cpu: 3
       ##     memory: 1024Mi
       ##
-      resources: { }
-
+      resources: {}
 # Load Balancer Configuration
 # This section defines the load balancer settings for TBMQ.
 # Supported types:
@@ -828,7 +858,15 @@ loadbalancer:
   http:
     # Set to false to disable the HTTP load balancer.
     enabled: true
+    # Host for the HTTP load balancer.
+    host: ""
+    # Annotations for HTTP ingress
+    annotations: {}
     ssl:
+      # Hosts to be configured for the ingress.
+      hosts: []
+      # Secret name with the certificate for the ssl termination.
+      secretName: ""
       # Enables HTTPS termination at the load balancer level.
       enabled: false
       # Certificate reference:

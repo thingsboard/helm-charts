@@ -1,12 +1,19 @@
-{{- if and (eq .Values.loadbalancer.type "nginx") .Values.loadbalancer.mqtt.enabled }}
+{{- if and (eq .Values.loadbalancer.type "nginx") .Values.loadbalancer.mqtt.enabled -}}
+{{- $serviceType := .Values.loadbalancer.mqtt.type | default "LoadBalancer" }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-mqtt-lb
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.loadbalancer.mqtt.annotations }}
+  annotations:
+    {{ toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  type: LoadBalancer
+  type: {{ $serviceType }}
+  {{- if or (eq $serviceType "NodePort") (eq $serviceType "LoadBalancer") }}
   externalTrafficPolicy: Local
+  {{- end }}
   selector:
     app: {{ include "tbmq.node.label" . }}
   ports:

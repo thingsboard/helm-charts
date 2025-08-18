@@ -1,3 +1,4 @@
+{{- if and (empty (index .Values "redis-cluster" "existingConfigMap")) (index .Values "redis-cluster" "enabled") }}
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
 {{- $redisName := index .Values "redis-cluster" "nameOverride" }}
@@ -53,3 +54,4 @@ data:
   REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED: "true"
   # Specifies the interval (in seconds) for periodic cluster topology updates
   REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC: "60"
+{{- end -}}

@@ -76,12 +76,15 @@
 {{/*Return redis cluster configurations environment variables for tbmq services*/}}
 {{- define "tbmq.redis.configuration.ref"}}
 - configMapRef:
-    name: {{ .Release.Name }}-redis-config
-{{- end}}
+    name: {{ .Values.externalRedis.existingConfigMap | default (printf "%s-redis-config" .Release.Name) }}
+{{- end }}
 
 {{/*Returns redis cluster secret name*/}}
 {{- define "tbmq.redis.secretName" -}}
 {{- $redis := index .Values "redis-cluster" }}
+{{- if not $redis.enabled -}}
+{{- .Values.externalRedis.existingSecret -}}
+{{- else -}}
 {{- if $redis.existingSecret }}
 {{- $redis.existingSecret }}
 {{- else if $redis.fullnameOverride }}
@@ -92,18 +95,19 @@
 {{- printf "%s-redis-cluster" .Release.Name }}
 {{- end }}
 {{- end }}
+{{- end }}
 
 {{/*Returns redis cluster secret key*/}}
 {{- define "tbmq.redis.secretKey" -}}
 {{- $redis := index .Values "redis-cluster" }}
-{{- if $redis.existingSecret -}}
+{{- if not $redis.enabled }}
+{{- .Values.externalRedis.existingSecretKey -}}
+{{- else if $redis.existingSecret}}
 {{ $redis.existingSecretPasswordKey | default "REDIS_PASSWORD" }}
 {{- else -}}
 redis-password
-{{- end -}}
 {{- end }}
-
-
+{{- end }}
 
 {{/*Return redis cluster nodes*/}}
 {{- define "tbmq.redis.nodes" -}}
@@ -119,13 +123,17 @@ redis-password
 {{/*Return postgresql configurations environment variables for tbmq services*/}}
 {{- define "tbmq.postgres.configuration.ref"}}
 - configMapRef:
-    name: {{ .Release.Name }}-postgres-config
-{{- end}}
+    name: {{ .Values.externalPostgresql.existingConfigMap | default (printf "%s-postgres-config" .Release.Name) }}
+{{- end }}
 
 {{/*Return postgresql secret name*/}}
 {{- define "tbmq.postgres.secretName" -}}
 {{- if not .Values.postgresql.enabled }}
+{{- if .Values.externalPostgresql.existingSecret }}
+{{- .Values.externalPostgresql.existingSecret }}
+{{- else -}}
 {{- printf "%s-postgres-external" .Release.Name }}
+{{- end }}
 {{- else if .Values.postgresql.auth.existingSecret }}
 {{- .Values.postgresql.auth.existingSecret }}
 {{- else if .Values.postgresql.fullnameOverride }}
@@ -137,10 +145,15 @@ redis-password
 {{- end }}
 {{- end }}
 
+
 {{/*Return postgresql secret key*/}}
-{{- define "tbmq.postgres.secretKey" -}}
+{{- define "tbmq.postgres.secretPasswordKey" -}}
 {{- if not .Values.postgresql.enabled -}}
+{{- if .Values.externalPostgresql.existingSecretPasswordKey -}}
+{{- .Values.externalPostgresql.existingSecretPasswordKey -}}
+{{- else -}}
 external-postgres-password
+{{- end }}
 {{- else if .Values.postgresql.auth.existingSecret }}
     {{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
         {{- .Values.postgresql.auth.secretKeys.adminPasswordKey }}
@@ -154,6 +167,17 @@ external-postgres-password
         password
     {{- end -}}
 {{- end -}}
+{{- end }}
+
+{{/*Return postgresql secret key*/}}
+{{- define "tbmq.postgres.secretUsernameKey" -}}
+{{- if not .Values.postgresql.enabled -}}
+{{- if .Values.externalPostgresql.existingSecretUsernameKey -}}
+{{- .Values.externalPostgresql.existingSecretUsernameKey -}}
+{{- else -}}
+external-postgres-username
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{/*Return postgres host*/}}
@@ -204,8 +228,8 @@ external-postgres-password
 {{/*Return kafka configurations environment variables for tbmq services*/}}
 {{- define "tbmq.kafka.configuration.ref"}}
 - configMapRef:
-    name: {{ .Release.Name }}-kafka-config
-{{- end}}
+    name: {{ .Values.externalKafka.existingConfigMap | default (printf "%s-kafka-config" .Release.Name) }}
+{{- end }}
 
 {{/*Return kafka servers environment variables for tbmq services*/}}
 {{- define "tbmq.kafka.servers" -}}
@@ -238,15 +262,20 @@ external-postgres-password
       value: {{ include "tbmq.postgres.host" . | quote }}
     - name: PGDATABASE
       value: {{ include "tbmq.postgres.database" . | quote }}
-    - name: PGUSER
-      value: {{ include "tbmq.postgres.username" . | quote }}
     - name: QUERY_TO_VALIDATE_DATA
       value: {{ $query | quote }}
     - name: PGPASSWORD
       valueFrom:
         secretKeyRef:
           name: {{ include "tbmq.postgres.secretName" . }}
-          key: {{ include "tbmq.postgres.secretKey" . }}
+          key: {{ include "tbmq.postgres.secretPasswordKey" . }}
+    {{- if .Values.externalPostgresql.existingSecretUsernameKey }}
+    - name: PGUSER
+      valueFrom:
+          secretKeyRef:
+            name: {{ include "tbmq.postgres.secretName" . }}
+            key: {{ include "tbmq.postgres.secretUsernameKey" . }}
+    {{- end }}
   command:
     - bash
   args:
