@@ -19,12 +19,12 @@ spec:
     metadata:
       annotations:
         {{- if .Values.tbmq.enableChecksumAnnotations }}
-        checksum/config: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-configmap.yml") . | sha256sum }}
-        checksum/env: {{ include (print $.Template.BasePath "/tbmq/tbmq-custom-env.yml") . | sha256sum }}
-        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres/postgres-configmap.yml") . | sha256sum }}
-        checksum/postgres-secret: {{ include (print $.Template.BasePath "/postgres/postgres-secret.yml") . | sha256sum }}
-        checksum/redis-config: {{ include (print $.Template.BasePath "/redis/redis-configmap.yml") . | sha256sum }}
-        checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/tbmq/tbmq-default-configmap.yaml") . | sha256sum }}
+        checksum/env: {{ include (print $.Template.BasePath "/tbmq/tbmq-custom-env.yaml") . | sha256sum }}
+        checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres/postgres-configmap.yaml") . | sha256sum }}
+        checksum/postgres-secret: {{ include (print $.Template.BasePath "/postgres/postgres-secret.yaml") . | sha256sum }}
+        checksum/redis-config: {{ include (print $.Template.BasePath "/redis/redis-configmap.yaml") . | sha256sum }}
+        checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yaml") . | sha256sum }}
         {{- end }}
         {{- with .Values.tbmq.annotations }}
           {{- toYaml . | nindent 8 }}

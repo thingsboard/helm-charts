@@ -20,10 +20,10 @@ spec:
     metadata:
       annotations:
         {{- if $tbmqIe.enableChecksumAnnotations }}
-        checksum/config: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-default-configmap.yml") . | sha256sum }}
-        checksum/logging: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-default-logback-configmap.yml") . | sha256sum }}
-        checksum/env: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-custom-env.yml") . | sha256sum }}
-        checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-default-configmap.yaml") . | sha256sum }}
+        checksum/logging: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-default-logback-configmap.yaml") . | sha256sum }}
+        checksum/env: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-custom-env.yaml") . | sha256sum }}
+        checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yaml") . | sha256sum }}
         {{- end }}
         {{- with $tbmqIe.annotations }}
           {{- toYaml . | nindent 8 }}
