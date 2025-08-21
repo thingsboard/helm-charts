@@ -95,8 +95,6 @@ helm search repo tbmq-helm-chart/tbmq-cluster --versions | grep 1.1.0
 Expected output:
 
 ```bash
-...
-Update Complete. ⎈Happy Helming!⎈
 tbmq-helm-chart/tbmq-cluster	1.1.0        	2.2.0         	Helm chart for TBMQ cluster.    
 ```
 
