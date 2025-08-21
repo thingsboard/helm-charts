@@ -85,7 +85,7 @@ While backing up your PostgreSQL database is highly recommended, it is optional 
 This chart upgrade includes a TBMQ application version bump from 2.1.0 to 2.2.0. 
 Before proceeding, please review the TBMQ [release notes](https://thingsboard.io/docs/mqtt-broker/releases/) for detailed information on the latest changes.
 
-> ⚠️ **Warning:**: Starting with this release, TBMQ Helm charts use Bitnami Legacy images (bitnamilegacy/*) for PostgreSQL, Redis, and Kafka due to upcoming [Bitnami registry changes](https://github.com/bitnami/charts/issues/35164) on August 28th 2025.
+> ⚠️ **Warning:** Starting with this release, TBMQ Helm charts use Bitnami Legacy images (bitnamilegacy/*) for PostgreSQL, Redis, and Kafka due to upcoming [Bitnami registry changes](https://github.com/bitnami/charts/issues/35164) on August 28th 2025.
 
 #### Step 1: Update the repo and ensure version 1.1.0 is available
 
@@ -148,7 +148,7 @@ If the upgrade fails, e.g., due to CrashLoopBackOff or a timeout while waiting f
 kubectl -n <namespace_name> logs -f my-tbmq-cluster-upgrade-3-r4cn6
 ```
 
-> ⚠️ **Warning:**: Upgrade pods have a short lifetime (ttlSecondsAfterFinished: 300), so they are automatically cleaned up 5 minutes after completion. Make sure to check the logs promptly.
+> ⚠️ **Warning:** Upgrade pods have a short lifetime (ttlSecondsAfterFinished: 300), so they are automatically cleaned up 5 minutes after completion. Make sure to check the logs promptly.
 
 ## Configuration and Parameters
 
