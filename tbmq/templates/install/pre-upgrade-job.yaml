@@ -31,7 +31,7 @@ spec:
           image: busybox:1.36
           command: [ 'sh', '-c', 'until nc -z {{ include "tbmq.postgres.host" . }} {{ include "tbmq.postgres.port" . }}; do echo waiting for postgres; sleep 2; done' ]
         - name: wait-for-redis-cluster
-          image: bitnami/redis:7.2.5
+          image: bitnamilegacy/redis:7.2.5
           env:
           {{- if index .Values "redis-cluster" "usePassword" }}
             - name: REDIS_PASSWORD
