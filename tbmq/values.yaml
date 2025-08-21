@@ -381,7 +381,7 @@ redis-cluster:
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "redis"
-  ## Use the Bitnami Legacy redis-cluster repository image instead of the default Bitnami repo.
+  ## Use the Bitnami Legacy redis-cluster repository instead of the default Bitnami repo.
   ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
   ## ref: https://hub.docker.com/r/bitnamilegacy/redis-cluster/tags/
   image:
@@ -484,7 +484,7 @@ redis-cluster:
     enabled: false
     whenScaled: Retain
     whenDeleted: Retain
-  ## Use the Bitnami Legacy os-shell repository image instead of the default Bitnami repo.
+  ## Use the Bitnami Legacy os-shell repository instead of the default Bitnami repo.
   ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
   ## ref: https://hub.docker.com/r/bitnamilegacy/os-shell/tags/
   volumePermissions:
@@ -530,7 +530,7 @@ redis-cluster:
     ## @param metrics.enabled Start a side-car prometheus exporter
     ##
     enabled: false
-    ## Use the Bitnami Legacy redis-exporter repository image instead of the default Bitnami repo.
+    ## Use the Bitnami Legacy redis-exporter repository instead of the default Bitnami repo.
     ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
     ## ref: https://hub.docker.com/r/bitnamilegacy/redis-exporter/tags/
     image:
@@ -547,7 +547,7 @@ redis-cluster:
     ## ref: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
     ##
     resources: { }
-  ## Use the Bitnami Legacy os-shell repository image instead of the default Bitnami repo.
+  ## Use the Bitnami Legacy os-shell repository instead of the default Bitnami repo.
   ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
   ## ref: https://hub.docker.com/r/bitnamilegacy/os-shell/tags/
   sysctlImage:
@@ -578,7 +578,7 @@ postgresql:
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "postgresql"
-  ## Use the Bitnami Legacy postgresql repository image instead of the default Bitnami repo.
+  ## Use the Bitnami Legacy postgresql repository instead of the default Bitnami repo.
   ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
   ## ref: https://hub.docker.com/r/bitnamilegacy/postgresql/tags/
   image:
@@ -670,7 +670,7 @@ postgresql:
         ## @param backup.cronjob.storage.size PVC Storage Request for the backup data volume
         ##
         size: 8Gi
-  ## Use the Bitnami Legacy os-shell repository image instead of the default Bitnami repo.
+  ## Use the Bitnami Legacy os-shell repository instead of the default Bitnami repo.
   ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
   ## ref: https://hub.docker.com/r/bitnamilegacy/os-shell/tags/
   volumePermissions:
@@ -683,7 +683,7 @@ postgresql:
     ## @param metrics.enabled Start a prometheus exporter
     ##
     enabled: false
-    ## Use the Bitnami Legacy postgres-exporter repository image instead of the default Bitnami repo.
+    ## Use the Bitnami Legacy postgres-exporter repository instead of the default Bitnami repo.
     ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
     ## ref: https://hub.docker.com/r/bitnamilegacy/postgres-exporter/tags/
     image:
@@ -712,7 +712,7 @@ postgresql:
 kafka:
   # Default name override for bitnami/kafka
   nameOverride: "kafka"
-  ## Use the Bitnami Legacy kafka image instead of the default Bitnami repo.
+  ## Use the Bitnami Legacy kafka repository instead of the default Bitnami repo.
   ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
   ## ref: https://hub.docker.com/r/bitnamilegacy/kafka/tags/
   image:
@@ -838,14 +838,14 @@ kafka:
       ## @param controller.persistence.size PVC Storage Request for Kafka data volume
       ##
       size: 8Gi
-  ## Use the Bitnami Legacy kubectl image instead of the default Bitnami repo.
+  ## Use the Bitnami Legacy kubectl repository instead of the default Bitnami repo.
   ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
   ## ref: https://hub.docker.com/r/bitnamilegacy/kubectl/tags/
   externalAccess:
     autoDiscovery:
       image:
         repository: bitnamilegacy/kubectl
-  ## Use the Bitnami Legacy os-shell image instead of the default Bitnami repo.
+  ## Use the Bitnami Legacy os-shell repository instead of the default Bitnami repo.
   ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
   ## ref: https://hub.docker.com/r/bitnamilegacy/os-shell/tags/
   volumePermissions:
@@ -864,7 +864,7 @@ kafka:
       ## @param metrics.jmx.kafkaJmxPort JMX port where the exporter will collect metrics, exposed in the Kafka container.
       ##
       kafkaJmxPort: 5555
-      ## Use the Bitnami Legacy jmx-exporter image instead of the default Bitnami repo.
+      ## Use the Bitnami Legacy jmx-exporter repository instead of the default Bitnami repo.
       ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
       ## ref: https://hub.docker.com/r/bitnamilegacy/jmx-exporter/tags/
       image:
