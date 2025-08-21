@@ -16,7 +16,15 @@ dockerAuth:
 installation:
   # This field is responsible for the installation process of TBMQ PostgreSQL database schema.
   installDbSchema: false
-  # When this chart installing via ArgoCd.
+  # When this chart installing via ArgoCD.
+  argocd: false
+
+# Controls the upgrade options, including database schema upgrade and ArgoCD support.
+upgrade:
+  # This field is responsible for the upgrade process of TBMQ PostgreSQL database schema.
+  # It will be ignored if the Helm release is not in the "upgrade" state.
+  upgradeDbSchema: false
+  # When this chart is provisioned via ArgoCD.
   argocd: false
 
 # Section to configure TBMQ service.
@@ -26,7 +34,7 @@ tbmq:
     # Docker image repository for TBMQ node.
     repository: thingsboard/tbmq-node
     # Image tag/version.
-    tag: 2.1.0
+    tag: 2.2.0-SNAPSHOT
   # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
   # Image pull policy.
@@ -213,7 +221,7 @@ tbmq-ie:
     # Docker image repository for TBMQ-IE node.
     repository: thingsboard/tbmq-integration-executor
     # Image tag/version.
-    tag: 2.1.0
+    tag: 2.2.0-SNAPSHOT
   # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
   # Image pull policy.
