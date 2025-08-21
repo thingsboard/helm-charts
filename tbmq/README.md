@@ -71,8 +71,7 @@ helm upgrade my-tbmq-cluster tbmq-helm-chart/tbmq-cluster -f values.yaml
 
 ## Upgrading
 
-When moving to a new TBMQ chart release, a database schema migration is required.
-To ensure consistency, TBMQ nodes must be temporarily scaled down before applying the upgrade.
+When moving to a new TBMQ chart release, a database schema migration is required. To ensure consistency, TBMQ nodes must be temporarily scaled down before applying the upgrade.
 
 ### Backup and restore (Optional)
 
@@ -81,12 +80,10 @@ While backing up your PostgreSQL database is highly recommended, it is optional 
  - If you are using the built-in Bitnami PostgreSQL, follow the official Bitnami backup and restore [documentation](https://artifacthub.io/packages/helm/bitnami/postgresql#backup-and-restore).
  - If you are using an external PostgreSQL (for example, AWS RDS, Google Cloud SQL, or Azure Database), please follow the instructions provided by your cloud provider.
 
-For further guidance, follow the official Bitnami [documentation](https://artifacthub.io/packages/helm/bitnami/postgresql#backup-and-restore). 
-
 ### Upgrading to 1.1.0
 
-When upgrading to a new TBMQ chart release, a database schema migration is required.
-To ensure consistency, TBMQ node replicas must be scaled down to 0 before applying the upgrade.
+This chart upgrade includes a TBMQ application version bump from 2.1.0 to 2.2.0. 
+Before proceeding, please review the TBMQ [release notes](https://thingsboard.io/docs/mqtt-broker/releases/) for detailed information on the latest changes.
 
 #### Step 1: Update the repo and ensure version 1.1.0 is available
 
@@ -95,30 +92,27 @@ helm repo update
 helm search repo tbmq-helm-chart/tbmq-cluster --versions | grep 1.1.0
 ```
 
-This will list all available chart versions and filter for 1.1.0. 
-If no result is returned, make sure your repo is up to date or that version 1.1.0 has been published.
-
 Expected output:
 
 ```bash
-Hang tight while we grab the latest from your chart repositories...
-...Successfully got an update from the "tbmq-helm-chart" chart repository
-...Successfully got an update from the "ingress-nginx" chart repository
-...Successfully got an update from the "eks" chart repository
-...Successfully got an update from the "bitnami" chart repository
+...
 Update Complete. ⎈Happy Helming!⎈
 tbmq-helm-chart/tbmq-cluster	1.1.0        	2.2.0         	Helm chart for TBMQ cluster.    
 ```
 
+This confirms that chart version `1.1.0` is available in your local Helm repository cache.
+
 #### Step 2: Scale down TBMQ node replicas
 
-Before applying the upgrade, scale down the running TBMQ nodes to 0 replicas to avoid running mixed versions during the schema migration:
+Before applying the `helm upgrade` command,
+please scale down the running TBMQ nodes to 0 replicas
+to avoid running mixed versions during the database schema upgrade:
 
 ```bash
 kubectl -n <namespace_name> scale statefulset/my-tbmq-cluster-tbmq-node --replicas=0
 ```
 
-This ensures that no TBMQ nodes are connected to PostgreSQL while the schema migration runs.
+This ensures that no TBMQ nodes are connected to PostgreSQL while the database schema upgrade runs.
 
 #### Step 3: Run the upgrade:
 
