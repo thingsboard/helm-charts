@@ -505,13 +505,13 @@ Please refer to the table below to review external PostgreSQL configuration para
 
 | Parameter                                    | Description                                                           | Default Value             |
 |----------------------------------------------|-----------------------------------------------------------------------|---------------------------|
-| externalPostgresql.host	                     | Hostname or IP of the external PostgreSQL server.                     | ""                        |
-| externalPostgresql.port	                     | PostgreSQL server port.                                               | 5432                      |
-| externalPostgresql.username	                 | Username for PostgreSQL authentication.                               | "postgres"                |
-| externalPostgresql.password	                 | Password for PostgreSQL authentication (change for production).       | "postgres"                |
+| externalPostgresql.host                      | Hostname or IP of the external PostgreSQL server.                     | ""                        |
+| externalPostgresql.port                      | PostgreSQL server port.                                               | 5432                      |
+| externalPostgresql.username                  | Username for PostgreSQL authentication.                               | "postgres"                |
+| externalPostgresql.password                  | Password for PostgreSQL authentication (change for production).       | "postgres"                |
 | externalPostgresql.existingSecret            | Name of an existing Secret that contains the PostgreSQL password.     | ""                        |
 | externalPostgresql.existingSecretPasswordKey | Key within the existing secret that contains the PostgreSQL password. | ""                        |
-| externalPostgresql.database	                 | PostgreSQL database name for TBMQ.                                    | "thingsboard_mqtt_broker" |
+| externalPostgresql.database                  | PostgreSQL database name for TBMQ.                                    | "thingsboard_mqtt_broker" |
 
 #### External PostgreSQL Configuration Example:
 
