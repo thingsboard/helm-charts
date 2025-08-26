@@ -273,10 +273,14 @@ This section describes the configuration options for the **TBMQ** and its **Inte
 ## Infrastructure Services for TBMQ
 
 TBMQ relies on several external services to handle persistence, message routing, and caching. 
-This Helm chart provides built-in support for deploying these dependencies using [Bitnami](https://bitnami.com/) Helm charts.
+This Helm chart provides built-in support for deploying these dependencies using [Bitnami](https://bitnami.com/) Helm charts, 
+while also allowing you to connect to existing external services.
 
-For the first release, only external PostgreSQL is supported, allowing TBMQ to connect to an existing database instance instead of deploying PostgreSQL using Bitnami within the cluster.
-Future releases will extend support for external Kafka and Redis, enabling users to connect to managed or self-hosted instances of these services.
+Currently, the chart supports the following options:
+
+- **PostgreSQL** – Use the bundled Bitnami PostgreSQL chart, or connect TBMQ to an existing external PostgreSQL instance.
+- **Redis Cluster** – Use the bundled Bitnami Redis Cluster chart, or connect TBMQ to an existing external Redis cluster by providing connection parameters and credentials.
+- **Kafka** – Use the bundled Bitnami Kafka chart. Support for external Kafka is planned for the next PR 🙂.
 
 ### Configuring Bitnami Sub-Charts
 
@@ -357,6 +361,7 @@ Please refer to the table below to review exposed parameters descriptions and th
 | **Parameter**                                                  | **Description**                                                                                                                                                                                                          | **Default Value**            |
 |----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
 | **General Configuration**                                      |                                                                                                                                                                                                                          |                              |
+| redis-cluster.enabled                                          | Whether to deploy Bitnami Redis Cluster as part of the chart. If set to `false`, the chart will use `external-redis-cluster` configuration instead.                                                                      | true                         |
 | redis-cluster.nameOverride                                     | Override default Redis cluster name.                                                                                                                                                                                     | "redis"                      |
 | redis-cluster.image.repository                                 | Docker image repository for Redis Cluster. Defaults to the Bitnami Legacy registry to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164           | bitnamilegacy/redis-cluster  |
 | redis-cluster.password                                         | Redis password (ignored if existingSecret set). Defaults to a random 10-character alphanumeric string if not set and usePassword is true.                                                                                | "myredispassword"            |
@@ -446,6 +451,37 @@ Please refer to the table below to review exposed parameters descriptions and th
 
 🔗 See official Bitnami PostgreSQL Artifact Hub [page](https://artifacthub.io/packages/helm/bitnami/postgresql/15.5.38) for more details.
 
+### External Redis Cluster Configuration
+
+By default, the chart installs Bitnami Redis Cluster `redis-cluster.enabled: true`, provisioning a multi-node Redis setup for caching and persistent session storage.
+For users with an existing Redis Cluster instance e.g., AWS ElastiCache, Google Memorystore, or a self-managed deployment, TBMQ can be configured to connect externally.
+To do this, disable the built-in Redis Cluster `redis-cluster.enabled: false` and specify connection details in the `external-redis-cluster` section.
+
+Please refer to the table below to review external Redis cluster configuration parameters, their descriptions, and default values.
+
+| Parameter                                        | Description                                                                     | Default Value |
+|--------------------------------------------------|---------------------------------------------------------------------------------|---------------|
+| external-redis-cluster.nodes                     | Comma-separated list of `host:port` pairs used to bootstrap from.               | ""            |
+| external-redis-cluster.usePassword               | Whether to use password authentication.                                         | true          |
+| external-redis-cluster.password                  | Redis password (not recommended for production — use `existingSecret` instead). | ""            |
+| external-redis-cluster.existingSecret            | Name of an existing Secret containing the Redis password.                       | ""            |
+| external-redis-cluster.existingSecretPasswordKey | Key within the existing Secret that contains the Redis password.                | ""            |
+
+#### External Redis Cluster Configuration Example:
+
+```yaml
+redis-cluster:
+  enabled: false
+
+external-redis-cluster:
+  nodes: "r-001.example.com:6379,r-002.example.com:6379,r-003.example.com:6379,r-004.example.com:6379,r-005.example.com:6379,r-006.example.com:6379"
+  usePassword: true
+  existingSecret: "my-redis-secret"
+  existingSecretPasswordKey: "redis-password"
+```
+
+This disables the Bitnami Redis Cluster sub-chart and connects TBMQ to the provided external Redis cluster using the specified authentication credentials.
+
 ### External PostgreSQL Configuration
 
 By default, the chart installs Bitnami PostgreSQL `postgresql.enabled: true`, provisioning a single-node instance with configurable storage, backups, and monitoring options. 
@@ -514,7 +550,6 @@ Please refer to the table below to review loadbalancer parameters, their descrip
 | loadbalancer.mqtt.mutualTls.privateKeyPasswordSecretKey | Key inside the Secret storing the private key password.                                                                                                                                                                                                                                                                                           | "key_password"           |
 | loadbalancer.mqtt.tlsTermination.enabled                | Enables one-way TLS Termination (L4, load balancer level).<br /><ul><li>AWS: Supported via NLB with ACM certificate.</li><li>Azure: Not supported at Azure LB level.</li><li>GCP: Not supported at GCP Network LB level.</li><li>Nginx: Not implemented.</li></ul>                                                                                | false                    |
 | loadbalancer.mqtt.tlsTermination.certificateRef         | TLS certificate reference for MQTT load balancer.<br /><ul><li>AWS: ACM certificate ARN for NLB.</li><li>Azure: Not applicable (ignored).</li><li>GCP: Not applicable (ignored).</li><li>Nginx: Not implemented (ignored).</li></ul>                                                                                                              | ""                       |
-
 
 ### Configuring Mutual TLS (mTLS) for MQTT
 
