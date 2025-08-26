@@ -29,6 +29,11 @@ annotations:
       links:
         - name: GitHub PR
           url: https://github.com/thingsboard/helm-charts/pull/14
+    - kind: added
+      description: Added support for external Kafka configuration
+      links:
+        - name: GitHub PR
+          url: https://github.com/thingsboard/helm-charts/pull/15
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
@@ -52,3 +57,4 @@ dependencies:
   - name: kafka
     version: 29.3.4
     repository: oci://registry-1.docker.io/bitnamicharts
+    condition: kafka.enabled
