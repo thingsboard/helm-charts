@@ -157,37 +157,45 @@ redis-password
 
 {{/*Return postgresql secret name*/}}
 {{- define "tbmq.postgres.secretName" -}}
-{{- if not .Values.postgresql.enabled }}
-{{- printf "%s-postgres-external" .Release.Name }}
-{{- else if .Values.postgresql.auth.existingSecret }}
-{{- .Values.postgresql.auth.existingSecret }}
-{{- else if .Values.postgresql.fullnameOverride }}
-{{- .Values.postgresql.fullnameOverride }}
-{{- else if .Values.postgresql.nameOverride }}
-{{- printf "%s-%s" .Release.Name .Values.postgresql.nameOverride }}
-{{- else }}
-{{- printf "%s-postgresql" .Release.Name }}
-{{- end }}
-{{- end }}
+{{- if not .Values.postgresql.enabled -}}
+{{- if empty .Values.externalPostgresql.existingSecret -}}
+{{- printf "%s-postgres-external" .Release.Name -}}
+{{- else -}}
+{{- .Values.externalPostgresql.existingSecret -}}
+{{- end -}}
+{{- else if .Values.postgresql.auth.existingSecret -}}
+{{- .Values.postgresql.auth.existingSecret -}}
+{{- else if .Values.postgresql.fullnameOverride -}}
+{{- .Values.postgresql.fullnameOverride -}}
+{{- else if .Values.postgresql.nameOverride -}}
+{{- printf "%s-%s" .Release.Name .Values.postgresql.nameOverride -}}
+{{- else -}}
+{{- printf "%s-postgresql" .Release.Name -}}
+{{- end -}}
+{{- end -}}
 
 {{/*Return postgresql secret key*/}}
 {{- define "tbmq.postgres.secretKey" -}}
 {{- if not .Values.postgresql.enabled -}}
+{{- if empty .Values.externalPostgresql.existingSecret -}}
 external-postgres-password
-{{- else if .Values.postgresql.auth.existingSecret }}
-    {{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
-        {{- .Values.postgresql.auth.secretKeys.adminPasswordKey }}
-    {{- else }}
-        {{- .Values.postgresql.auth.secretKeys.userPasswordKey }}
-    {{- end -}}
 {{- else -}}
-    {{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
-        postgres-password
-    {{- else -}}
-        password
-    {{- end -}}
+{{- .Values.externalPostgresql.existingSecretPasswordKey -}}
 {{- end -}}
-{{- end }}
+{{- else if .Values.postgresql.auth.existingSecret -}}
+{{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
+{{- .Values.postgresql.auth.secretKeys.adminPasswordKey -}}
+{{- else -}}
+{{- .Values.postgresql.auth.secretKeys.userPasswordKey -}}
+{{- end -}}
+{{- else -}}
+{{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
+postgres-password
+{{- else -}}
+password
+{{- end -}}
+{{- end -}}
+{{- end -}}
 
 {{/*Return postgres host*/}}
 {{- define "tbmq.postgres.host" -}}

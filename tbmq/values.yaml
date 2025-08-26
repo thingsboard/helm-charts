@@ -590,9 +590,15 @@ externalPostgresql:
   ## @param password - PostgreSQL user
   ##
   username: "postgres"
-  ## @param password - PostgreSQL user password
+  ## @param password - PostgreSQL user password (ignored if existingSecret set)
   ##
   password: "postgres"
+  ## @param existingSecret - existing secret having the credentials to the Postgresql database instance
+  ##
+  existingSecret: ""
+  ## @param existingSecretPasswordKey - Key within the existing secret that contains the PostgreSQL password
+  ##
+  existingSecretPasswordKey: ""
   ## @param database - PostgreSQL database name for TBMQ
   ##
   database: "thingsboard_mqtt_broker"

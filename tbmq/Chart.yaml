@@ -34,6 +34,11 @@ annotations:
       links:
         - name: GitHub PR
           url: https://github.com/thingsboard/helm-charts/pull/15
+    - kind: added
+      description: Added ability to use existing secret for postgres password
+      links:
+        - name: GitHub PR
+          url: https://github.com/thingsboard/helm-charts/pull/16
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
