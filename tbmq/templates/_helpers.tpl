@@ -242,14 +242,18 @@ external-postgres-password
 
 {{/*Return kafka servers environment variables for tbmq services*/}}
 {{- define "tbmq.kafka.servers" -}}
-{{- if index .Values.kafka.fullnameOverride }}
-  {{- printf "%s:9092" .Values.kafka.fullnameOverride -}}
-{{- else if .Values.kafka.nameOverride }}
-  {{- printf "%s-%s:9092" .Release.Name .Values.kafka.nameOverride -}}
+{{- if .Values.kafka.enabled -}}
+{{- if .Values.kafka.fullnameOverride }}
+{{- printf "%s:9092" .Values.kafka.fullnameOverride -}}
+{{- else if .Values.kafka.nameOverride -}}
+{{- printf "%s-%s:9092" .Release.Name .Values.kafka.nameOverride -}}
 {{- else }}
-  {{- printf "%s-kafka:9092" .Release.Name -}}
-{{- end }}
-{{- end }}
+{{- printf "%s-kafka:9092" .Release.Name -}}
+{{- end -}}
+{{- else -}}
+{{- .Values.externalKafka.bootstrapServers -}}
+{{- end -}}
+{{- end -}}
 
 {{/*Return tbmq image pull secret*/}}
 {{- define "tbmq.imagePullSecret" }}

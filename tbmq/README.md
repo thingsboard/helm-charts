@@ -280,7 +280,7 @@ Currently, the chart supports the following options:
 
 - **PostgreSQL** – Use the bundled Bitnami PostgreSQL chart, or connect TBMQ to an existing external PostgreSQL instance.
 - **Redis Cluster** – Use the bundled Bitnami Redis Cluster chart, or connect TBMQ to an existing external Redis cluster by providing connection parameters and credentials.
-- **Kafka** – Use the bundled Bitnami Kafka chart. Support for external Kafka is planned for the next PR 🙂.
+- **Kafka** – Use the bundled Bitnami Kafka chart, or connect TBMQ to an existing external Kafka cluster.
 
 ### Configuring Bitnami Sub-Charts
 
@@ -305,6 +305,7 @@ Please refer to the table below to review exposed parameters, their descriptions
 | **Parameter**                                       | **Description**                                                                                                                                                                                                          | **Default Value**                                                                                                                                                                                     |
 |-----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Kafka Deployment Settings**                       |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
+| kafka.enabled                                       | Whether to deploy Bitnami Kafka as part of the chart. If set to `false`, the chart will use `externalKafka` configuration instead.                                                                                       | true                                                                                                                                                                                                  |
 | kafka.nameOverride                                  | Override default Kafka cluster name.                                                                                                                                                                                     | "kafka"                                                                                                                                                                                               |
 | kafka.image.repository                              | Docker image repository for Kafka. Defaults to the Bitnami Legacy registry to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164                   | bitnamilegacy/kafka                                                                                                                                                                                   |
 | kafka.heapOpts                                      | Java heap size configuration for Kafka nodes.                                                                                                                                                                            | -Xmx1024m -Xms1024m                                                                                                                                                                                   |
@@ -415,7 +416,7 @@ Please refer to the table below to review exposed parameters descriptions and th
 | **Parameter**                                 | **Description**                                                                                                                                                                                             | **Default Value**               |
 |-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|
 | **General setting**                           |                                                                                                                                                                                                             |                                 |
-| postgresql.enabled                            | Enables Bitnami PostgreSQL installation.                                                                                                                                                                    | true                            |
+| postgresql.enabled                            | Whether to deploy Bitnami PostgreSQL as part of the chart. If set to `false`, the chart will use `externalPostgresql` configuration instead.                                                                | true                            |
 | postgresql.nameOverride                       | Override the name of the PostgreSQL deployment.                                                                                                                                                             | "postgresql"                    |
 | postgresql.image.repository                   | Docker image repository for PostgreSQL. Defaults to the Bitnami Legacy registry to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164 | bitnamilegacy/postgresql        |
 | **Authentication configuration**              |                                                                                                                                                                                                             |                                 |
@@ -450,6 +451,18 @@ Please refer to the table below to review exposed parameters descriptions and th
 | postgresql.metrics.service.ports.metrics      | Prometheus Exporter port for PostgreSQL metrics.                                                                                                                                                            | 9187                            |
 
 🔗 See official Bitnami PostgreSQL Artifact Hub [page](https://artifacthub.io/packages/helm/bitnami/postgresql/15.5.38) for more details.
+
+### External Kafka Configuration
+
+By default, the chart installs Bitnami Kafka `kafka.enabled: true`, provisioning a 3-node clustered instance for message routing and persistence.
+For users with an existing Kafka cluster (e.g., AWS MSK, Confluent Cloud, or a self-managed deployment), TBMQ can be configured to connect externally.
+To do this, disable the built-in Kafka `kafka.enabled: false` and specify connection details in the externalKafka section.
+
+Please refer to the table below to review external Kafka configuration parameters, their descriptions, and default values.
+
+| Parameter                      | Description                                                       | Default Value |
+|--------------------------------|-------------------------------------------------------------------|---------------|
+| externalKafka.bootstrapServers | Comma-separated list of `host:port` pairs used to bootstrap from. | ""            |
 
 ### External Redis Cluster Configuration
 

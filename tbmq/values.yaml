@@ -395,7 +395,6 @@ external-redis-cluster:
   ##
   existingSecretPasswordKey: ""
 
-
 # This section will bring bitnami/redis-cluster (https://artifacthub.io/packages/helm/bitnami/redis-cluster) into this chart.
 # If you want to add some extra configuration parameters, you can put them under the `redis-cluster` key, and they will be passed to bitnami/redis-cluster chart.
 redis-cluster:
@@ -738,6 +737,9 @@ postgresql:
 # This section will bring bitnami/kafka (https://artifacthub.io/packages/helm/bitnami/kafka) into this chart.
 # If you want to add some extra configuration parameters, you can put them under the `kafka` key, and they will be passed to bitnami/kafka chart
 kafka:
+  ## @param enabled If enabled is set to true, externalKafka configuration will be ignored
+  ##
+  enabled: true
   # Default name override for bitnami/kafka
   nameOverride: "kafka"
   ## Use the Bitnami Legacy kafka repository instead of the default Bitnami repo.
@@ -908,6 +910,13 @@ kafka:
       ##     memory: 1024Mi
       ##
       resources: { }
+
+# If you're deploying Kafka externally, configure this section
+externalKafka:
+  ## @param servers Comma-separated list of "host:port" pairs used to bootstrap from
+  ## Example: "kafka-1:9092,kafka-2:9092,kafka-3:9092"
+  ##
+  bootstrapServers: ""
 
 # Load Balancer Configuration
 # This section defines the load balancer settings for TBMQ.
