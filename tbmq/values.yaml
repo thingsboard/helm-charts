@@ -966,6 +966,9 @@ loadbalancer:
   mqtt:
     # Set to false to disable the MQTT load balancer.
     enabled: true
+    # Extra annotations for the MQTT load balancer (Service).
+    # Merged with provider defaults — on key conflicts, user values win.
+    annotations: { }
     # Two-Way TLS (Mutual TLS or mTLS) - Handled at the TBMQ application level.
     # This ensures that both the client and the server authenticate each other.
     mutualTls:

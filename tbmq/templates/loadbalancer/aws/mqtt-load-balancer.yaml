@@ -5,17 +5,23 @@ metadata:
   name: {{ .Release.Name }}-mqtt-lb
   namespace: {{ .Release.Namespace }}
   annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "external"
-    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
-    service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
-    service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: stickiness.enabled=true,stickiness.type=source_ip
-    service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: TBMQClusterELB=TBMQMqtt
-    {{- if and (not .Values.loadbalancer.mqtt.mutualTls.enabled) .Values.loadbalancer.mqtt.tlsTermination.enabled }}
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: {{ .Values.loadbalancer.mqtt.tlsTermination.certificateRef }}
-    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
-    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "mqtts,mqtt-wss"
-    {{- end }}
+    {{- $defaults := dict
+        "service.beta.kubernetes.io/aws-load-balancer-type" "external"
+        "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type" "ip"
+        "service.beta.kubernetes.io/aws-load-balancer-scheme" "internet-facing"
+        "service.beta.kubernetes.io/aws-load-balancer-attributes" "load_balancing.cross_zone.enabled=true"
+        "service.beta.kubernetes.io/aws-load-balancer-target-group-attributes" "stickiness.enabled=true,stickiness.type=source_ip"
+        "service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags" "TBMQClusterELB=TBMQMqtt"
+      -}}
+    {{- if and (not .Values.loadbalancer.mqtt.mutualTls.enabled) .Values.loadbalancer.mqtt.tlsTermination.enabled -}}
+      {{- $_ := set $defaults "service.beta.kubernetes.io/aws-load-balancer-ssl-cert" (printf "%v" .Values.loadbalancer.mqtt.tlsTermination.certificateRef) -}}
+      {{- $_ =  set $defaults "service.beta.kubernetes.io/aws-load-balancer-backend-protocol" "tcp" -}}
+      {{- $_ =  set $defaults "service.beta.kubernetes.io/aws-load-balancer-ssl-ports" "mqtts,mqtt-wss" -}}
+    {{- end -}}
+    {{- /* merge user annotations over defaults (user wins) */ -}}
+    {{- $user := default dict .Values.loadbalancer.mqtt.annotations -}}
+    {{- $merged := mergeOverwrite $defaults $user -}}
+    {{- toYaml $merged | nindent 4 }}
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Local
@@ -44,7 +50,7 @@ spec:
       targetPort: 8883
     # This way NLB acts as a transparent load balancer and forwards all traffic to port 8085 without decryption.
     - name: mqtt-wss
-      targetPort: 8085
       port: 8085
+      targetPort: 8085
     {{- end }}
 {{- end }}
