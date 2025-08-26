@@ -39,6 +39,11 @@ annotations:
       links:
         - name: GitHub PR
           url: https://github.com/thingsboard/helm-charts/pull/16
+    - kind: added
+      description: Added ability to define custom annotations for Ingress & LoadBalancer/NLB
+      links:
+        - name: GitHub PR
+          url: https://github.com/thingsboard/helm-charts/pull/17
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
