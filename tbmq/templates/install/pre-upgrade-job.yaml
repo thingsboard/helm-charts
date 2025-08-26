@@ -33,7 +33,7 @@ spec:
         - name: wait-for-redis-cluster
           image: bitnamilegacy/redis:7.2.5
           env:
-          {{- if index .Values "redis-cluster" "usePassword" }}
+          {{- if eq (include "tbmq.redis.passwordEnabled" .) "true" }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -44,7 +44,7 @@ spec:
             - sh
             - -c
             - |
-            {{- if index .Values "redis-cluster" "usePassword" }}
+            {{- if eq (include "tbmq.redis.passwordEnabled" .) "true" }}
               until redis-cli -u redis://default:${REDIS_PASSWORD}@{{ include "tbmq.redis.nodes" . }} cluster info | grep "cluster_state:ok"; do
             {{- else }}
               until redis-cli -u redis://{{ include "tbmq.redis.nodes" . }} cluster info | grep "cluster_state:ok"; do
@@ -68,7 +68,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "tbmq.postgres.secretName" . }}
                   key: {{ include "tbmq.postgres.secretKey" . }}
-            {{- if index .Values "redis-cluster" "usePassword" }}
+            {{- if eq (include "tbmq.redis.passwordEnabled" .) "true" }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:

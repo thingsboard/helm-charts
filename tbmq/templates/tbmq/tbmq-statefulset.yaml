@@ -82,7 +82,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "tbmq.postgres.secretName" . }}
                   key: {{ include "tbmq.postgres.secretKey" . }}
-            {{- if index .Values "redis-cluster" "usePassword" }}
+            {{- if eq (include "tbmq.redis.passwordEnabled" .) "true" }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:

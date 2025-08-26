@@ -375,9 +375,33 @@ tbmq-ie:
   # See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#pod-level-resource-specification for more details.
   resources: { }
 
+# If you're deploying Redis cluster externally, configure this section
+external-redis-cluster:
+  ## @param nodes Comma-separated list of "host:port" pairs used to bootstrap from
+  ## Example: "r-001.example.com:6379,r-002.example.com:6379,r-003.example.com:6379,r-004.example.com:6379,r-005.example.com:6379,r-006.example.com:6379"
+  ##
+  nodes: ""
+  ## @param usePassword Use password authentication
+  ##
+  usePassword: true
+  ## @param password Redis password (ignored if existingSecret set)
+  ##
+  ##
+  password: "myredispassword"
+  ## @param existingSecret Name of an existing Secret containing the Redis password
+  ##
+  existingSecret: ""
+  ## @param existingSecretPasswordKey Key within the existing Secret that contains the Redis password
+  ##
+  existingSecretPasswordKey: ""
+
+
 # This section will bring bitnami/redis-cluster (https://artifacthub.io/packages/helm/bitnami/redis-cluster) into this chart.
 # If you want to add some extra configuration parameters, you can put them under the `redis-cluster` key, and they will be passed to bitnami/redis-cluster chart.
 redis-cluster:
+  ## @param enabled If enabled is set to true, external-redis-cluster configuration will be ignored
+  ##
+  enabled: true
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "redis"
@@ -386,6 +410,9 @@ redis-cluster:
   ## ref: https://hub.docker.com/r/bitnamilegacy/redis-cluster/tags/
   image:
     repository: bitnamilegacy/redis-cluster
+  ## @param usePassword Use password authentication
+  ##
+  usePassword: true
   ## @param password Redis&reg; password (ignored if existingSecret set)
   ## Defaults to a random 10-character alphanumeric string if not set and usePassword is true
   ## ref: https://github.com/bitnami/containers/tree/main/bitnami/redis#setting-the-server-password-on-first-run
@@ -555,18 +582,19 @@ redis-cluster:
 
 # If you're deploying PostgreSQL externally, configure this section
 externalPostgresql:
-  # @param host - External PostgreSQL server host
+  ## @param host - External PostgreSQL server host
+  ##
   host: ""
-  # @param port - External PostgreSQL server port
+  ## @param port - External PostgreSQL server port
   ##
   port: 5432
-  # @param password - PostgreSQL user
+  ## @param password - PostgreSQL user
   ##
   username: "postgres"
-  # @param password - PostgreSQL user password
+  ## @param password - PostgreSQL user password
   ##
   password: "postgres"
-  # @param database - PostgreSQL database name for TBMQ
+  ## @param database - PostgreSQL database name for TBMQ
   ##
   database: "thingsboard_mqtt_broker"
 

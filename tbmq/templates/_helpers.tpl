@@ -81,38 +81,71 @@
 
 {{/*Returns redis cluster secret name*/}}
 {{- define "tbmq.redis.secretName" -}}
-{{- $redis := index .Values "redis-cluster" }}
-{{- if $redis.existingSecret }}
-{{- $redis.existingSecret }}
-{{- else if $redis.fullnameOverride }}
-{{- $redis.fullnameOverride }}
-{{- else if $redis.nameOverride }}
-{{- printf "%s-%s" .Release.Name $redis.nameOverride }}
-{{- else }}
-{{- printf "%s-redis-cluster" .Release.Name }}
-{{- end }}
-{{- end }}
+{{- $redis := index .Values "redis-cluster" -}}
+{{- if $redis.enabled -}}
+{{- if $redis.existingSecret -}}
+{{- $redis.existingSecret -}}
+{{- else if $redis.fullnameOverride -}}
+{{- $redis.fullnameOverride -}}
+{{- else if $redis.nameOverride -}}
+{{- printf "%s-%s" .Release.Name $redis.nameOverride -}}
+{{- else -}}
+{{- printf "%s-redis-cluster" .Release.Name -}}
+{{- end -}}
+{{- else -}}
+{{- $external := index .Values "external-redis-cluster" -}}
+{{- if $external.existingSecret -}}
+{{- $external.existingSecret -}}
+{{- else -}}
+{{- printf "%s-redis-cluster-external" .Release.Name -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 
 {{/*Returns redis cluster secret key*/}}
 {{- define "tbmq.redis.secretKey" -}}
-{{- $redis := index .Values "redis-cluster" }}
+{{- $redis := index .Values "redis-cluster" -}}
+{{- if $redis.enabled -}}
 {{- if $redis.existingSecret -}}
-{{ $redis.existingSecretPasswordKey | default "REDIS_PASSWORD" }}
+{{ $redis.existingSecretPasswordKey | default "REDIS_PASSWORD" -}}
 {{- else -}}
 redis-password
 {{- end -}}
-{{- end }}
+{{- else -}}
+{{- $external := index .Values "external-redis-cluster" -}}
+{{- if $external.existingSecret -}}
+{{- $external.existingSecretPasswordKey | default "REDIS_PASSWORD" -}}
+{{- else -}}
+redis-password
+{{- end -}}
+{{- end -}}
+{{- end -}}
 
-
+{{/*Returns if Redis should use password*/}}
+{{- define "tbmq.redis.passwordEnabled" -}}
+{{- $redis := index .Values "redis-cluster" -}}
+{{- if $redis.enabled -}}
+{{- $redis.usePassword -}}
+{{- else -}}
+{{- $external := index .Values "external-redis-cluster" -}}
+{{ $external.usePassword -}}
+{{ end -}}
+{{ end -}}
 
 {{/*Return redis cluster nodes*/}}
 {{- define "tbmq.redis.nodes" -}}
+{{- $redis := index .Values "redis-cluster" -}}
+{{- if $redis.enabled }}
 {{- if index .Values "redis-cluster" "fullnameOverride" }}
-  {{- printf "%s-headless:6379" (index .Values "redis-cluster" "fullnameOverride") -}}
+{{- printf "%s-headless:6379" (index .Values "redis-cluster" "fullnameOverride") -}}
 {{- else if index .Values "redis-cluster" "nameOverride" }}
-  {{- printf "%s-%s-headless:6379" .Release.Name (index .Values "redis-cluster" "nameOverride") -}}
+{{- printf "%s-%s-headless:6379" .Release.Name (index .Values "redis-cluster" "nameOverride") -}}
 {{- else }}
-  {{- printf "%s-redis-cluster-headless:6379" .Release.Name -}}
+{{- printf "%s-redis-cluster-headless:6379" .Release.Name -}}
+{{- end }}
+{{- else -}}
+{{- $external := index .Values "external-redis-cluster" -}}
+{{- $external.nodes -}}
 {{- end }}
 {{- end }}
 
