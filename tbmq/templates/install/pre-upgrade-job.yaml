@@ -1,0 +1,113 @@
+{{- $namespace := .Release.Namespace -}}
+{{- $releaseName := .Release.Name }}
+{{- if and .Release.IsUpgrade .Values.upgrade.upgradeDbSchema }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-upgrade-%d" $releaseName .Release.Revision }}
+  namespace: {{ $namespace }}
+  annotations:
+    {{- if .Values.upgrade.argocd }}
+    argocd.argoproj.io/hook: PreSync
+    {{- else }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-timeout": "600s"
+    {{- end }}
+  labels:
+    app: upgrade-job
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: upgrade-job
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: [ 'sh', '-c', 'until nc -z {{ include "tbmq.postgres.host" . }} {{ include "tbmq.postgres.port" . }}; do echo waiting for postgres; sleep 2; done' ]
+        - name: wait-for-redis-cluster
+          image: bitnamilegacy/redis:7.2.5
+          env:
+          {{- if index .Values "redis-cluster" "usePassword" }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tbmq.redis.secretName" . }}
+                  key: {{ include "tbmq.redis.secretKey" . }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+            {{- if index .Values "redis-cluster" "usePassword" }}
+              until redis-cli -u redis://default:${REDIS_PASSWORD}@{{ include "tbmq.redis.nodes" . }} cluster info | grep "cluster_state:ok"; do
+            {{- else }}
+              until redis-cli -u redis://{{ include "tbmq.redis.nodes" . }} cluster info | grep "cluster_state:ok"; do
+            {{- end }}
+                echo "Waiting for Redis cluster...";
+                sleep 2;
+              done
+      containers:
+        - name: {{ $releaseName }}-db-upgrade
+          image: {{ include "tbmq.node.image" . }}
+          imagePullPolicy: {{ .Values.tbmq.imagePullPolicy }}
+          env:
+            - name: TB_SERVICE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: UPGRADE_TB
+              value: "true"
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tbmq.postgres.secretName" . }}
+                  key: {{ include "tbmq.postgres.secretKey" . }}
+            {{- if index .Values "redis-cluster" "usePassword" }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tbmq.redis.secretName" . }}
+                  key: {{ include "tbmq.redis.secretKey" . }}
+            {{- end }}
+          envFrom:
+            {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
+            {{- include "tbmq.redis.configuration.ref" . | indent 12 }}
+            {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
+            - configMapRef:
+                name: {{ $releaseName }}-tbmq-custom-env
+          volumeMounts:
+            - name: {{ printf "%s-tbmq-node-config" $releaseName }}
+              mountPath: /config/thingsboard-mqtt-broker.conf
+              subPath: thingsboard-mqtt-broker.conf
+            - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
+              mountPath: /config/logback.xml
+              subPath: logback.xml
+            - name: {{ $releaseName }}-tbmq-node-logs
+              mountPath: /var/log/thingsboard-mqtt-broker
+            - name: {{ $releaseName }}-tbmq-node-data
+              mountPath: /data
+              readOnly: false
+      volumes:
+        - name: {{ printf "%s-tbmq-node-config" $releaseName }}
+          configMap:
+            name: {{ include "tbmq.configMapName" . }}
+            items:
+              - key: conf
+                path: thingsboard-mqtt-broker.conf
+        - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
+          configMap:
+            name: {{ include "tbmq.logbackConfigMapName" . }}
+            items:
+              - key: logback
+                path: logback.xml
+        - name: {{ $releaseName }}-tbmq-node-logs
+          emptyDir: {}
+        - name: {{ printf "%s-tbmq-node-data" $releaseName }}
+          emptyDir: {}
+{{- end }}

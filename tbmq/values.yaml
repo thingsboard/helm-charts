@@ -16,7 +16,15 @@ dockerAuth:
 installation:
   # This field is responsible for the installation process of TBMQ PostgreSQL database schema.
   installDbSchema: false
-  # When this chart installing via ArgoCd.
+  # When this chart installing via ArgoCD.
+  argocd: false
+
+# Controls the upgrade options, including database schema upgrade and ArgoCD support.
+upgrade:
+  # This field is responsible for the upgrade process of TBMQ PostgreSQL database schema.
+  # It will be ignored if the Helm release is not in the "upgrade" state.
+  upgradeDbSchema: false
+  # When this chart is provisioned via ArgoCD.
   argocd: false
 
 # Section to configure TBMQ service.
@@ -26,7 +34,7 @@ tbmq:
     # Docker image repository for TBMQ node.
     repository: thingsboard/tbmq-node
     # Image tag/version.
-    tag: 2.1.0
+    tag: 2.2.0
   # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
   # Image pull policy.
@@ -213,7 +221,7 @@ tbmq-ie:
     # Docker image repository for TBMQ-IE node.
     repository: thingsboard/tbmq-integration-executor
     # Image tag/version.
-    tag: 2.1.0
+    tag: 2.2.0
   # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
   # Image pull policy.
@@ -373,6 +381,11 @@ redis-cluster:
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "redis"
+  ## Use the Bitnami Legacy redis-cluster repository instead of the default Bitnami repo.
+  ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+  ## ref: https://hub.docker.com/r/bitnamilegacy/redis-cluster/tags/
+  image:
+    repository: bitnamilegacy/redis-cluster
   ## @param password Redis&reg; password (ignored if existingSecret set)
   ## Defaults to a random 10-character alphanumeric string if not set and usePassword is true
   ## ref: https://github.com/bitnami/containers/tree/main/bitnami/redis#setting-the-server-password-on-first-run
@@ -471,6 +484,12 @@ redis-cluster:
     enabled: false
     whenScaled: Retain
     whenDeleted: Retain
+  ## Use the Bitnami Legacy os-shell repository instead of the default Bitnami repo.
+  ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+  ## ref: https://hub.docker.com/r/bitnamilegacy/os-shell/tags/
+  volumePermissions:
+    image:
+      repository: bitnamilegacy/os-shell
   ## Redis&reg; Cluster settings
   ##
   cluster:
@@ -511,6 +530,11 @@ redis-cluster:
     ## @param metrics.enabled Start a side-car prometheus exporter
     ##
     enabled: false
+    ## Use the Bitnami Legacy redis-exporter repository instead of the default Bitnami repo.
+    ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+    ## ref: https://hub.docker.com/r/bitnamilegacy/redis-exporter/tags/
+    image:
+      repository: bitnamilegacy/redis-exporter
     ## @param metrics.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
     ## Example:
     ## resources:
@@ -523,6 +547,11 @@ redis-cluster:
     ## ref: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
     ##
     resources: { }
+  ## Use the Bitnami Legacy os-shell repository instead of the default Bitnami repo.
+  ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+  ## ref: https://hub.docker.com/r/bitnamilegacy/os-shell/tags/
+  sysctlImage:
+    repository: bitnamilegacy/os-shell
 
 # If you're deploying PostgreSQL externally, configure this section
 externalPostgresql:
@@ -549,6 +578,11 @@ postgresql:
   ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
   ##
   nameOverride: "postgresql"
+  ## Use the Bitnami Legacy postgresql repository instead of the default Bitnami repo.
+  ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+  ## ref: https://hub.docker.com/r/bitnamilegacy/postgresql/tags/
+  image:
+    repository: bitnamilegacy/postgresql
   ## Authentication parameters
   ## ref: https://github.com/bitnami/containers/tree/main/bitnami/postgresql#setting-the-root-password-on-first-run
   ## ref: https://github.com/bitnami/containers/tree/main/bitnami/postgresql#creating-a-database-on-first-run
@@ -636,12 +670,24 @@ postgresql:
         ## @param backup.cronjob.storage.size PVC Storage Request for the backup data volume
         ##
         size: 8Gi
+  ## Use the Bitnami Legacy os-shell repository instead of the default Bitnami repo.
+  ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+  ## ref: https://hub.docker.com/r/bitnamilegacy/os-shell/tags/
+  volumePermissions:
+    image:
+      repository: bitnamilegacy/os-shell
+
   ## @section Metrics Parameters
   ##
   metrics:
     ## @param metrics.enabled Start a prometheus exporter
     ##
     enabled: false
+    ## Use the Bitnami Legacy postgres-exporter repository instead of the default Bitnami repo.
+    ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+    ## ref: https://hub.docker.com/r/bitnamilegacy/postgres-exporter/tags/
+    image:
+      repository: bitnamilegacy/postgres-exporter
     ## @param metrics.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
     ## Example:
     ## resources:
@@ -661,13 +707,16 @@ postgresql:
       ports:
         metrics: 9187
 
-
-
 # This section will bring bitnami/kafka (https://artifacthub.io/packages/helm/bitnami/kafka) into this chart.
 # If you want to add some extra configuration parameters, you can put them under the `kafka` key, and they will be passed to bitnami/kafka chart
 kafka:
   # Default name override for bitnami/kafka
   nameOverride: "kafka"
+  ## Use the Bitnami Legacy kafka repository instead of the default Bitnami repo.
+  ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+  ## ref: https://hub.docker.com/r/bitnamilegacy/kafka/tags/
+  image:
+    repository: bitnamilegacy/kafka
   ## @param extraConfig Additional configuration to be appended at the end of the generated Kafka configuration file.
   ##
   extraConfig: |
@@ -789,6 +838,20 @@ kafka:
       ## @param controller.persistence.size PVC Storage Request for Kafka data volume
       ##
       size: 8Gi
+  ## Use the Bitnami Legacy kubectl repository instead of the default Bitnami repo.
+  ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+  ## ref: https://hub.docker.com/r/bitnamilegacy/kubectl/tags/
+  externalAccess:
+    autoDiscovery:
+      image:
+        repository: bitnamilegacy/kubectl
+  ## Use the Bitnami Legacy os-shell repository instead of the default Bitnami repo.
+  ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+  ## ref: https://hub.docker.com/r/bitnamilegacy/os-shell/tags/
+  volumePermissions:
+    image:
+      repository: bitnamilegacy/os-shell
+
   ## Prometheus Exporters / Metrics
   ##
   metrics:
@@ -801,6 +864,11 @@ kafka:
       ## @param metrics.jmx.kafkaJmxPort JMX port where the exporter will collect metrics, exposed in the Kafka container.
       ##
       kafkaJmxPort: 5555
+      ## Use the Bitnami Legacy jmx-exporter repository instead of the default Bitnami repo.
+      ## Other image settings (tag, pullPolicy, etc.) are inherited from the parent chart.
+      ## ref: https://hub.docker.com/r/bitnamilegacy/jmx-exporter/tags/
+      image:
+        repository: bitnamilegacy/jmx-exporter
       ## @param metrics.kafka.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
       ## Example:
       ## resources:
