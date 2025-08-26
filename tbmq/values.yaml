@@ -937,8 +937,11 @@ loadbalancer:
   # HTTP(S) Load Balancer Configuration (Application Layer - L7)
   # This load balancer is used for HTTP/HTTPS traffic, such as REST APIs.
   http:
-    # Set to false to disable the HTTP load balancer.
+    # Set to `false` to disable the HTTP load balancer.
     enabled: true
+    # Extra annotations for the HTTP(S) load balancer (Ingress).
+    # Merged with defaults — on key conflicts, user values win.
+    annotations: { }
     ssl:
       # Enables HTTPS termination at the load balancer level.
       enabled: false

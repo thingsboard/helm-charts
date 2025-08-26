@@ -4,6 +4,10 @@ kind: Ingress
 metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.loadbalancer.http.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   ingressClassName: nginx
   rules:

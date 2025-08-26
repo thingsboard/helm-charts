@@ -6,8 +6,8 @@ metadata:
   name: {{ .Values.loadbalancer.http.ssl.certificateRef }}
 spec:
   domains:
-    {{-  range $domain := .Values.loadbalancer.http.ssl.domains }}
-    - {{ $domain }}
+    {{- range $domain := .Values.loadbalancer.http.ssl.domains }}
+    - {{ $domain | quote }}
     {{- end }}
 ---
 apiVersion: networking.gke.io/v1beta1
@@ -25,11 +25,16 @@ metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
   annotations:
-    {{- if .Values.loadbalancer.http.ssl.enabled }}
-    kubernetes.io/ingress.global-static-ip-name: {{ .Values.loadbalancer.http.ssl.staticIP }}
-    networking.gke.io/managed-certificates: {{ .Values.loadbalancer.http.ssl.certificateRef }}
-    networking.gke.io/v1beta1.FrontendConfig: tbmq-http-fe-config
-    {{- end }}
+    {{- $defaults := dict -}}
+    {{- if .Values.loadbalancer.http.ssl.enabled -}}
+      {{- $_ := set $defaults "kubernetes.io/ingress.global-static-ip-name" (printf "%v" .Values.loadbalancer.http.ssl.staticIP) -}}
+      {{- $_ = set $defaults "networking.gke.io/managed-certificates" (printf "%v" .Values.loadbalancer.http.ssl.certificateRef) -}}
+      {{- $_ =  set $defaults "networking.gke.io/v1beta1.FrontendConfig" "tbmq-http-fe-config" -}}
+    {{- end -}}
+    {{- /* merge user annotations over defaults (user wins) */ -}}
+    {{- $user := default dict .Values.loadbalancer.http.annotations -}}
+    {{- $merged := mergeOverwrite $defaults $user -}}
+    {{- toYaml $merged | nindent 4 }}
 spec:
   ingressClassName: "gce"
   rules:

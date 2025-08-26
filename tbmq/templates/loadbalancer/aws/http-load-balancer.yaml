@@ -5,13 +5,19 @@ metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
   annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    {{- if .Values.loadbalancer.http.ssl.enabled }}
-    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.loadbalancer.http.ssl.certificateRef }}
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-    {{- end }}
+    {{- $defaults := dict
+        "alb.ingress.kubernetes.io/scheme" "internet-facing"
+        "alb.ingress.kubernetes.io/target-type" "ip"
+      -}}
+    {{- if .Values.loadbalancer.http.ssl.enabled -}}
+      {{- $_ := set $defaults "alb.ingress.kubernetes.io/certificate-arn" (printf "%v" .Values.loadbalancer.http.ssl.certificateRef) -}}
+      {{- $_ =  set $defaults "alb.ingress.kubernetes.io/listen-ports" "[{\"HTTP\": 80}, {\"HTTPS\": 443}]" -}}
+      {{- $_ =  set $defaults "alb.ingress.kubernetes.io/ssl-redirect" "443" -}}
+    {{- end -}}
+    {{- /* merge user annotations over defaults (user wins) */ -}}
+    {{- $user := default dict .Values.loadbalancer.http.annotations -}}
+    {{- $merged := mergeOverwrite $defaults $user -}}
+    {{- toYaml $merged | nindent 4 }}
 spec:
   ingressClassName: alb
   rules:

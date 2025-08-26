@@ -5,12 +5,18 @@ metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
   annotations:
-    appgw.ingress.kubernetes.io/use-regex: 'true'
-    appgw.ingress.kubernetes.io/request-timeout: "300"
-    {{- if .Values.loadbalancer.http.ssl.enabled }}
-    appgw.ingress.kubernetes.io/appgw-ssl-certificate: {{ .Values.loadbalancer.http.ssl.certificateRef }}
-    appgw.ingress.kubernetes.io/ssl-redirect: "true"
-    {{- end }}
+    {{- $defaults := dict
+        "appgw.ingress.kubernetes.io/use-regex" "true"
+        "appgw.ingress.kubernetes.io/request-timeout" "300"
+      -}}
+    {{- if .Values.loadbalancer.http.ssl.enabled -}}
+      {{- $_ := set $defaults "appgw.ingress.kubernetes.io/appgw-ssl-certificate" (printf "%v" .Values.loadbalancer.http.ssl.certificateRef) -}}
+      {{- $_ =  set $defaults "appgw.ingress.kubernetes.io/ssl-redirect" "true" -}}
+    {{- end -}}
+    {{- /* merge user annotations over defaults (user wins) */ -}}
+    {{- $user := default dict .Values.loadbalancer.http.annotations -}}
+    {{- $merged := mergeOverwrite $defaults $user -}}
+    {{- toYaml $merged | nindent 4 }}
 spec:
   ingressClassName: azure/application-gateway
   rules:
