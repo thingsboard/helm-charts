@@ -24,6 +24,11 @@ annotations:
       links:
         - name: GitHub PR
           url: https://github.com/thingsboard/helm-charts/pull/13
+    - kind: added
+      description: Added support for external Redis Cluster configuration
+      links:
+        - name: GitHub PR
+          url: https://github.com/thingsboard/helm-charts/pull/14
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
