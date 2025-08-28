@@ -5,6 +5,55 @@ entries:
       artifacthub.io/category: streaming-messaging
       artifacthub.io/changes: |
         - kind: added
+          description: Release 1.0.1 Bitnamilegacy as a temporary solution
+          links:
+            - name: Updated README.md for bitnamilegacy
+              url: https://github.com/thingsboard/helm-charts/commit/39d37a0345a2357a470132389e2794e40e3a7864
+            - name: Updated bitnami to bitnamilegacy as a temporary solution
+              url: https://github.com/thingsboard/helm-charts/commit/b735813405ab7e1832304fcaf031c1f7111fe811
+      artifacthub.io/maintainers: |
+        - name: dshvaika
+          email: dshvaika@thingsboard.io
+        - name: dlandiak
+          email: dlandiak@thingsboard.io
+      artifacthub.io/prerelease: "false"
+      licenses: Apache-2.0
+    apiVersion: v2
+    appVersion: 2.1.0
+    created: "2025-08-28T15:27:33.944730284+03:00"
+    dependencies:
+    - name: common
+      repository: oci://registry-1.docker.io/bitnamicharts
+      version: 2.x.x
+    - name: redis-cluster
+      repository: oci://registry-1.docker.io/bitnamicharts
+      version: 10.3.0
+    - condition: postgresql.enabled
+      name: postgresql
+      repository: oci://registry-1.docker.io/bitnamicharts
+      version: 15.5.38
+    - name: kafka
+      repository: oci://registry-1.docker.io/bitnamicharts
+      version: 29.3.4
+    description: Helm chart for TBMQ cluster.
+    digest: bfda79fd63b9fe5f4798bb6577ab5cbbcc486f108765f71148af7d37dfe8b367
+    home: https://thingsboard.io/products/mqtt-broker/
+    icon: https://img.thingsboard.io/thingsboard_blue.svg
+    keywords:
+    - tbmq
+    - mqtt
+    - broker
+    - thingsboard
+    - iot
+    name: tbmq-cluster
+    type: application
+    urls:
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-1.0.1.tgz
+    version: 1.0.1
+  - annotations:
+      artifacthub.io/category: streaming-messaging
+      artifacthub.io/changes: |
+        - kind: added
           description: Release 1.0.0
           links:
             - name: GitHub PR
@@ -18,7 +67,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2025-04-29T17:49:32.348959797+03:00"
+    created: "2025-08-28T15:27:33.93095604+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -65,7 +114,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T17:49:32.335695833+03:00"
+    created: "2025-08-28T15:27:33.916423261+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -112,7 +161,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T17:49:32.320238612+03:00"
+    created: "2025-08-28T15:27:33.902339416+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -159,7 +208,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T17:49:32.306576441+03:00"
+    created: "2025-08-28T15:27:33.886015865+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -206,7 +255,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T17:49:32.293590749+03:00"
+    created: "2025-08-28T15:27:33.867904847+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -258,7 +307,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T17:49:32.280259069+03:00"
+    created: "2025-08-28T15:27:33.848349998+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -305,7 +354,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T17:49:32.265925336+03:00"
+    created: "2025-08-28T15:27:33.834325865+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -357,7 +406,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T17:49:32.251057392+03:00"
+    created: "2025-08-28T15:27:33.817758386+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -405,7 +454,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2025-04-29T17:49:32.235104209+03:00"
+    created: "2025-08-28T15:27:33.801798047+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -434,4 +483,4 @@ entries:
     urls:
     - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.1.tgz
     version: 0.0.1
-generated: "2025-04-29T17:49:32.220709011+03:00"
+generated: "2025-08-28T15:27:33.787952369+03:00"
