@@ -3,7 +3,7 @@ appVersion: 2.1.0
 description: Helm chart for TBMQ cluster.
 name: tbmq-cluster
 type: application
-version: 1.0.0
+version: 1.0.1
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -15,10 +15,12 @@ annotations:
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
     - kind: added
-      description: Release 1.0.0
+      description: Release 1.0.1 Bitnamilegacy as a temporary solution
       links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/9
+        - name: Updated README.md for bitnamilegacy
+          url: https://github.com/thingsboard/helm-charts/commit/39d37a0345a2357a470132389e2794e40e3a7864
+        - name: Updated bitnami to bitnamilegacy as a temporary solution
+          url: https://github.com/thingsboard/helm-charts/commit/b735813405ab7e1832304fcaf031c1f7111fe811
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
