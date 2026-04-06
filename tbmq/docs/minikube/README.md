@@ -136,7 +136,7 @@ This deploys a 3-node KRaft cluster (no ZooKeeper) with combined controller+brok
 
 ```bash
 cat <<'EOF' | kubectl apply -f -
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
   name: combined
@@ -163,7 +163,7 @@ spec:
       memory: "1Gi"
       cpu: "500m"
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
   name: tbmq-kafka
