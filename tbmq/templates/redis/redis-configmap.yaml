@@ -1,6 +1,5 @@
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
-{{- $redisName := index .Values "redis-cluster" "nameOverride" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,12 +8,17 @@ metadata:
   labels:
     name: {{ $releaseName }}-redis-config
 data:
-  REDIS_CONNECTION_TYPE: "cluster"
+  REDIS_CONNECTION_TYPE: {{ include "tbmq.redis.connectionType" . | quote }}
+  {{- if eq (include "tbmq.redis.connectionType" .) "standalone" }}
+  REDIS_HOST: {{ include "tbmq.redis.host" . | quote }}
+  REDIS_PORT: {{ include "tbmq.redis.port" . | quote }}
+  {{- else }}
   REDIS_NODES: {{ include "tbmq.redis.nodes" . | quote }}
   # Maximum number of redirects to follow when executing commands across the cluster
   REDIS_MAX_REDIRECTS: "12"
   # If set false will be used pool config build from values of the pool config section
   REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG: "true"
+  {{- end }}
 
   # The common prefix for all cache keys. Defaults to empty string meaning no prefix is added
   CACHE_PREFIX: ""
@@ -29,7 +33,7 @@ data:
   # Cache TTL in minutes. Defaults to 0 meaning the cache is eternal
   CACHE_SPECS_CLIENT_MQTT_VERSION_TTL: "0"
 
-
+  {{- if eq (include "tbmq.redis.connectionType" .) "cluster" }}
   # Enable/disable auto-flush. If disabled, commands are buffered and flushed based on cmd count or time interval
   REDIS_LETTUCE_CMDS_AUTO_FLUSH_ENABLED: "true"
   # Number of buffered commands before flush is triggered. Used when auto-flush is disabled
@@ -46,10 +50,10 @@ data:
   REDIS_LETTUCE_CLUSTER_TOPOLOGY_REFRESH_ENABLED: "true"
   # Specifies the interval (in seconds) for periodic cluster topology updates
   REDIS_LETTUCE_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC: "60"
-
   # Enables or disables periodic cluster topology updates.
   # Useful for Redis cluster setup to handle topology changes,
   # such as node failover, restarts, or IP address changes
   REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED: "true"
   # Specifies the interval (in seconds) for periodic cluster topology updates
   REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC: "60"
+  {{- end }}

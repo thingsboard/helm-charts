@@ -1,9 +1,9 @@
 apiVersion: v2
-appVersion: 2.2.0
+appVersion: 2.3.0
 description: Helm chart for TBMQ cluster.
 name: tbmq-cluster
 type: application
-version: 1.1.0
+version: 2.0.0
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -14,36 +14,10 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
-    - kind: added
-      description: Renamed template files to use the .yaml extension instead of .yml for proper rendering in Artifact Hub UI
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/12
-    - kind: added
-      description: Added upgrade job & updated default values to use TBMQ 2.2.0 images
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/13
-    - kind: added
-      description: Added support for external Redis Cluster configuration
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/14
-    - kind: added
-      description: Added support for external Kafka configuration
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/15
-    - kind: added
-      description: Added ability to use existing secret for postgres password
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/16
-    - kind: added
-      description: Added ability to define custom annotations for Ingress & LoadBalancer/NLB
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/17
+    - kind: changed
+      description: "BREAKING: Removed all Bitnami subchart dependencies (PostgreSQL, Redis Cluster, Kafka). Infrastructure must now be deployed externally."
+    - kind: changed
+      description: "Updated default values to use TBMQ 2.3.0 images"
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
@@ -52,19 +26,3 @@ keywords:
   - broker
   - thingsboard
   - iot
-dependencies:
-  - name: common
-    version: 2.x.x
-    repository: oci://registry-1.docker.io/bitnamicharts
-  - name: redis-cluster
-    version: 10.3.0
-    repository: oci://registry-1.docker.io/bitnamicharts
-    condition: redis-cluster.enabled
-  - name: postgresql
-    version: 15.5.38
-    repository: oci://registry-1.docker.io/bitnamicharts
-    condition: postgresql.enabled
-  - name: kafka
-    version: 29.3.4
-    repository: oci://registry-1.docker.io/bitnamicharts
-    condition: kafka.enabled
