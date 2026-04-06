@@ -314,10 +314,22 @@ kubectl get pods -n thingsboard-mqtt-broker
 
 ### Access the TBMQ UI
 
+**Option A: Ingress (requires NGINX Ingress controller)**
+
 ```bash
-# Port-forward the HTTP service
-kubectl port-forward svc/$(kubectl get svc -n thingsboard-mqtt-broker -l app -o jsonpath='{.items[0].metadata.name}') \
-  8083:8083 -n thingsboard-mqtt-broker
+minikube addons enable ingress
+```
+
+Once the ingress controller is running, access TBMQ at `http://<minikube-ip>/`:
+
+```bash
+minikube ip
+```
+
+**Option B: Port-forward**
+
+```bash
+kubectl port-forward svc/tbmq-tbmq-node 8083:8083 -n thingsboard-mqtt-broker
 ```
 
 Open http://localhost:8083 in your browser.

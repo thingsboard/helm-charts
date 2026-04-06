@@ -1,0 +1,38 @@
+installation:
+  installDbSchema: true
+
+tbmq:
+  image:
+    tag: 2.2.0
+  statefulSet:
+    replicas: 1
+
+tbmq-ie:
+  image:
+    tag: 2.2.0
+  statefulSet:
+    replicas: 1
+
+postgresql:
+  host: "tbmq-db-primary"
+  port: 5432
+  database: "thingsboard_mqtt_broker"
+  username: "postgres"
+  existingSecret: "tbmq-db-pguser-postgres"
+  existingSecretPasswordKey: "password"
+
+kafka:
+  bootstrapServers: "tbmq-kafka-kafka-bootstrap:9092"
+
+redis:
+  connectionType: "standalone"
+  host: "valkey"
+  port: 6379
+  usePassword: false
+
+loadbalancer:
+  type: "nginx"
+  http:
+    enabled: true
+  mqtt:
+    enabled: true
