@@ -41,6 +41,10 @@ spec:
                   fieldPath: metadata.name
             - name: UPGRADE_TB
               value: "true"
+            {{- if .Values.upgrade.fromVersion }}
+            - name: JAVA_OPTS
+              value: "-Dinstall.upgrade.from_version={{ .Values.upgrade.fromVersion }}"
+            {{- end }}
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:

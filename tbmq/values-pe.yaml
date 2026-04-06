@@ -1,0 +1,10 @@
+# TBMQ Professional Edition values overlay.
+# Usage: helm install tbmq-pe ./tbmq -f tbmq/values-pe.yaml -f my-values.yaml
+
+tbmq:
+  image:
+    repository: thingsboard/tbmq-pe-node
+
+tbmq-ie:
+  image:
+    repository: thingsboard/tbmq-pe-integration-executor

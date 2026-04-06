@@ -26,6 +26,10 @@ upgrade:
   upgradeDbSchema: false
   # When this chart is provisioned via ArgoCD.
   argocd: false
+  # Set to "ce" when upgrading from Community Edition to Professional Edition.
+  # This passes -Dinstall.upgrade.from_version=ce to the upgrade job.
+  # Leave empty for normal CE→CE or PE→PE upgrades.
+  fromVersion: ""
 
 # Section to configure TBMQ service.
 tbmq:
