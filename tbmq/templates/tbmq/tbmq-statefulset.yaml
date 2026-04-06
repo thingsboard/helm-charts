@@ -24,6 +24,7 @@ spec:
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres/postgres-configmap.yaml") . | sha256sum }}
         checksum/postgres-secret: {{ include (print $.Template.BasePath "/postgres/postgres-secret.yaml") . | sha256sum }}
         checksum/redis-config: {{ include (print $.Template.BasePath "/redis/redis-configmap.yaml") . | sha256sum }}
+        checksum/redis-secret: {{ include (print $.Template.BasePath "/redis/redis-secret.yaml") . | sha256sum }}
         checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yaml") . | sha256sum }}
         {{- end }}
         {{- with .Values.tbmq.annotations }}
