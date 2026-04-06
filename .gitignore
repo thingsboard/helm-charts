@@ -8,6 +8,10 @@ test_values.yaml  # Local test values
 .idea/
 .vscode/
 
+# Ignore Claude Code files
+CLAUDE.md
+.claude/
+
 # Ignore OS-generated files
 .DS_Store
 Thumbs.db
