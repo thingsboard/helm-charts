@@ -7,16 +7,25 @@
 #     -f values.yaml \
 #     --set installation.installDbSchema=true
 #
-# This file only switches the broker and integration-executor images to the PE variants.
-# All other configuration (infrastructure, replicas, load balancer, etc.) comes from your
-# own values.yaml — the templates and value schema are identical between CE and PE.
+# This file switches the broker and integration-executor images to the PE variants
+# and pins the matching PE-suffixed tags. All other configuration (infrastructure,
+# replicas, load balancer, etc.) comes from your own values.yaml — the templates
+# and value schema are identical between CE and PE.
+#
+# PE images are published publicly to Docker Hub:
+#   - docker.io/thingsboard/tbmq-pe-node
+#   - docker.io/thingsboard/tbmq-pe-integration-executor
 
 tbmq:
   image:
     # PE node image. CE default is "thingsboard/tbmq-node".
     repository: thingsboard/tbmq-pe-node
+    # PE tag matches the chart appVersion with a "PE" suffix (e.g. 2.3.0 → 2.3.0PE).
+    tag: 2.3.0PE
 
 tbmq-ie:
   image:
     # PE integration executor image. CE default is "thingsboard/tbmq-integration-executor".
     repository: thingsboard/tbmq-pe-integration-executor
+    # PE tag matches the chart appVersion with a "PE" suffix (e.g. 2.3.0 → 2.3.0PE).
+    tag: 2.3.0PE

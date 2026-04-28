@@ -4,14 +4,14 @@ installation:
 tbmq:
   image:
     repository: thingsboard/tbmq-pe-node
-    tag: 2.2.0
+    tag: 2.3.0PE
   statefulSet:
     replicas: 1
 
 tbmq-ie:
   image:
     repository: thingsboard/tbmq-pe-integration-executor
-    tag: 2.2.0
+    tag: 2.3.0PE
   statefulSet:
     replicas: 1
 

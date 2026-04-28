@@ -260,13 +260,13 @@ installation:
 
 tbmq:
   image:
-    tag: 2.2.0
+    tag: 2.3.0
   statefulSet:
     replicas: 1
 
 tbmq-ie:
   image:
-    tag: 2.2.0
+    tag: 2.3.0
   statefulSet:
     replicas: 1
 

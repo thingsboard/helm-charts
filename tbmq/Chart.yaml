@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: 2.2.0
+appVersion: 2.3.0
 description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
@@ -14,6 +14,8 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
+    - kind: changed
+      description: "Bumped TBMQ to 2.3.0 (CE images: 2.3.0; PE images: 2.3.0PE)."
     - kind: changed
       description: "BREAKING: Removed all Bitnami subchart dependencies (PostgreSQL, Redis Cluster, Kafka). Infrastructure must now be deployed externally."
     - kind: added
