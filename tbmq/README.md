@@ -92,18 +92,18 @@ helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
 
 #### Professional Edition (PE)
 
-The PE images (`thingsboard/tbmq-pe-node` and `thingsboard/tbmq-pe-integration-executor`) are
-selected by applying the bundled `values-pe.yaml` overlay. The overlay is shipped inside the chart
-package, so first extract it to a local path:
+PE deploys exactly the same chart as CE — only the broker and integration-executor images differ
+(`thingsboard/tbmq-pe-node` and `thingsboard/tbmq-pe-integration-executor`). Two equivalent ways to
+select PE:
+
+**Option 1 — apply the bundled overlay (recommended):**
+
+The chart package ships a `values-pe.yaml` overlay that switches both image repositories. Extract
+it once, then apply it on every `helm install`/`helm upgrade` for this release:
 
 ```bash
 helm pull tbmq-helm-chart/tbmq-cluster --untar --untardir /tmp
-```
 
-Then install with the overlay applied **before** your own `values.yaml`, so your overrides win on
-conflict:
-
-```bash
 helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
   -f /tmp/tbmq-cluster/values-pe.yaml \
   -f values.yaml \
@@ -119,6 +119,26 @@ helm install my-tbmq ./tbmq \
   --set installation.installDbSchema=true
 ```
 
+**Option 2 — inline overrides:**
+
+If you prefer not to manage an extra file, you can set the two image repositories directly:
+
+```bash
+helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
+  -f values.yaml \
+  --set tbmq.image.repository=thingsboard/tbmq-pe-node \
+  --set tbmq-ie.image.repository=thingsboard/tbmq-pe-integration-executor \
+  --set installation.installDbSchema=true
+```
+
+Either form must be repeated on every subsequent `helm upgrade` for this release — Helm does not
+remember overlays or `--set` flags between invocations.
+
+> **Private images:** PE images are published to a private registry. Provide pull credentials via
+> the chart's `dockerAuth.username`/`dockerAuth.password` values (a `regcred` Secret will be
+> created), or pre-create your own pull Secret and set `tbmq.imagePullSecret` /
+> `tbmq-ie.imagePullSecret` to its name.
+
 > **Tip:** `my-tbmq` is the **Helm release name**. Pick any name. It is used as the prefix for all
 > deployed resources and as the reference for future `helm` commands against this release.
 
@@ -128,15 +148,19 @@ helm install my-tbmq ./tbmq \
 kubectl get pods -l app.kubernetes.io/instance=my-tbmq -n <namespace>
 ```
 
-The install pod (`my-tbmq-install-pod`) runs once and creates the schema, then exits. The
-`my-tbmq-tbmq-node-*` and `my-tbmq-tbmq-ie-*` StatefulSet pods should reach `Running` and pass
-readiness probes within a minute or two.
-
-If the install pod fails, inspect its logs (it has a 5-minute TTL after completion):
+The install pod (`my-tbmq-install-pod`) runs once, creates the schema, then exits. Helm deletes it
+immediately on completion (`hook-delete-policy: hook-succeeded,hook-failed`), so capture logs while
+the pod is still alive — the install hook has a 300s timeout. The `my-tbmq-tbmq-node-*` and
+`my-tbmq-tbmq-ie-*` StatefulSet pods should reach `Running` and pass readiness probes within a
+minute or two after the install pod succeeds.
 
 ```bash
-kubectl logs my-tbmq-install-pod -n <namespace>
+kubectl logs my-tbmq-install-pod -n <namespace> -f
 ```
+
+If the pod is gone before you can grab logs, re-run the install with `--debug` so Helm streams hook
+output to your terminal, or inspect the broker pod logs after they crash-loop on the missing
+schema.
 
 ## Updating Configuration
 
@@ -185,12 +209,17 @@ self-managed instance) to create a logical or physical backup before proceeding.
 The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades. Only the values overlay
 differs.
 
-1. **Scale `tbmq-node` to 0 replicas** so no broker is connected to PostgreSQL while the schema
-   migration runs:
+1. **Scale `tbmq-node` (and optionally `tbmq-ie`) to 0 replicas** so no application is reading or
+   writing while the schema migration runs:
 
    ```bash
    kubectl scale statefulset/my-tbmq-tbmq-node --replicas=0 -n <namespace>
+   # Recommended on minor/major upgrades that touch IE-related tables:
+   kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=0 -n <namespace>
    ```
+
+   Scaling `tbmq-ie` is optional for routine config-only changes but recommended whenever a schema
+   migration runs (the IE talks to the same database).
 
 2. **Run the upgrade.** The `upgrade.upgradeDbSchema=true` flag triggers the pre-upgrade Helm hook
    that runs the migration:
@@ -214,28 +243,33 @@ differs.
      --set upgrade.upgradeDbSchema=true
    ```
 
-3. **Verify the migration completed.** The migration job runs as
-   `my-tbmq-upgrade-<revision>-<random>` and is automatically cleaned up 5 minutes after success
-   (`ttlSecondsAfterFinished: 300`). Check its logs promptly if anything looks off:
+3. **Verify the migration completed.** The migration runs as a Kubernetes Job named
+   `my-tbmq-upgrade-<revision>` and is automatically deleted 5 minutes after it finishes
+   (`ttlSecondsAfterFinished: 300`). Tail its logs while it runs:
 
    ```bash
-   kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace>
+   kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
    ```
 
-4. **Scale `tbmq-node` back up.** Helm scales the StatefulSet back to the configured replica count
-   automatically when the upgrade hook completes — no manual scale-up is needed unless you scaled
-   down outside of Helm.
+4. **Scale back up.** Helm scales the StatefulSets back to their configured replica counts as part
+   of the upgrade — no manual scale-up is needed unless you scaled down outside of Helm. If you
+   manually scaled `tbmq-ie` to 0 in step 1, scale it back:
+
+   ```bash
+   kubectl scale statefulset/my-tbmq-tbmq-ie --replicas=2 -n <namespace>
+   ```
 
 ### CE → PE Upgrade (Cross-Edition Migration)
 
-To migrate an existing CE deployment to PE on the same TBMQ version, set `upgrade.fromVersion=ce`
-in addition to the standard upgrade flags. This passes `-Dinstall.upgrade.from_version=ce` to the
-upgrade job, which applies PE-specific schema and data transformations on top of the existing CE
-data.
+To migrate an existing CE deployment to PE **on the same TBMQ version**, set
+`upgrade.fromVersion=ce` in addition to the standard upgrade flags. This passes
+`-Dinstall.upgrade.from_version=ce` to the upgrade job, which applies PE-specific schema and data
+transformations on top of the existing CE data.
 
 ```bash
-# 1. Scale broker to 0
+# 1. Scale broker (and IE) to 0
 kubectl scale statefulset/my-tbmq-tbmq-node --replicas=0 -n <namespace>
+kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=0 -n <namespace>
 
 # 2. Upgrade with PE overlay AND cross-edition flag
 helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
@@ -245,8 +279,19 @@ helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
   --set upgrade.fromVersion=ce
 ```
 
-After the migration succeeds, do **not** carry `upgrade.fromVersion=ce` forward to subsequent
-PE → PE upgrades. Drop the flag (or set it to `""`) on the next `helm upgrade`.
+What happens during this upgrade:
+
+- The pre-upgrade Job uses the **PE** broker image (because the PE overlay is in effect) with
+  `UPGRADE_TB=true` and `JAVA_OPTS=-Dinstall.upgrade.from_version=ce`. It reads the CE schema and
+  rewrites it as PE.
+- After the migration succeeds, Helm rolls the `tbmq-node` and `tbmq-ie` StatefulSets onto the PE
+  images.
+- Manually scale `tbmq-ie` back up if you scaled it down.
+
+After the migration succeeds, **do not** carry `upgrade.fromVersion=ce` forward to subsequent
+PE → PE upgrades — drop the flag (or set it to `""`) on the next `helm upgrade`. Leaving it on
+will cause the upgrade job to attempt a CE→PE migration against an already-PE database on every
+release, which will fail.
 
 ### Upgrading from chart version 1.x to 2.0.0
 
@@ -272,24 +317,32 @@ Cluster, Kafka) have been removed. The chart now requires you to bring your own 
 
 ### Troubleshooting Upgrades
 
-The pre-upgrade migration job creates a temporary pod named
-`my-tbmq-upgrade-<revision>-<random>`. If the upgrade fails (CrashLoopBackOff or hook timeout),
-inspect the pod logs immediately — it is auto-deleted 5 minutes after completion:
+The pre-upgrade migration Job spawns a Pod named `my-tbmq-upgrade-<revision>-<random>`. The Job
+itself has `ttlSecondsAfterFinished: 300`, so both Job and Pod are deleted 5 minutes after the
+migration finishes — successful or not. Watch logs while the Job runs, or capture them quickly
+once it terminates:
 
 ```bash
-kubectl logs <upgrade-pod-name> -n <namespace>
+kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
+# or, if the Pod has already finished:
+kubectl logs <upgrade-pod-name> -n <namespace> --previous
 ```
 
 Common causes:
 
 - **Connection refused** to PostgreSQL → check `postgresql.host`/`postgresql.port` and that the DB
-  is reachable from the TBMQ namespace.
+  is reachable from the TBMQ namespace. The Job's `wait-for-postgres` init container loops until
+  the host:port is reachable (it never times out on its own; the Helm hook timeout will fire after
+  600s).
 - **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
   the expected key.
 - **Hook timeout (10 minutes)** → for very large databases, the migration may exceed the default
-  600s timeout. Re-run with a fresh release revision after addressing performance.
+  600s timeout. Roll back (`helm rollback`) and re-run after addressing the performance bottleneck
+  (e.g., increase resources, run `VACUUM`/`ANALYZE` first).
 - **CE → PE migration failed** → confirm `upgrade.fromVersion=ce` was set AND that the PE image is
-  in use (check the upgrade pod's `image:` field).
+  in use (check the upgrade Pod's `image:` field — it should be `thingsboard/tbmq-pe-node:<tag>`).
+- **`upgrade.fromVersion=ce` left set on a follow-up PE → PE upgrade** → the upgrade job will try
+  to migrate an already-PE database from CE and fail. Drop the flag.
 
 ## Configuration Reference
 
@@ -299,8 +352,8 @@ Common causes:
 |------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
 | **Docker Authentication**    |                                                                                                                                                                                      |                             |
 | dockerAuth.registry          | Docker registry for TBMQ images. Used only when supplying credentials.                                                                                                               | https://index.docker.io/v1/ |
-| dockerAuth.username          | Docker username — written to the `regcred` pull secret.                                                                                                                              | ""                          |
-| dockerAuth.password          | Docker password — written to the `regcred` pull secret.                                                                                                                              | ""                          |
+| dockerAuth.username          | Docker username. When set, the chart creates a pull Secret named `tbmq.imagePullSecret` (default `regcred`). When empty, no Secret is created — useful when you pre-create your own. | ""                          |
+| dockerAuth.password          | Docker password. Used together with `dockerAuth.username` to populate the chart-managed pull Secret.                                                                                 | ""                          |
 | **Installation**             |                                                                                                                                                                                      |                             |
 | installation.installDbSchema | Initializes the TBMQ DB schema. Pass via `--set` on first install only. The post-install hook is also bound to `post-upgrade` for recovery scenarios.                                | false                       |
 | installation.argocd          | Replaces Helm install/upgrade hooks with ArgoCD `Sync` hook annotations on the install pod.                                                                                          | false                       |
@@ -316,7 +369,7 @@ Common causes:
 | **Image**                               |                                                                                                                                                            |                                       |
 | tbmq.image.repository                   | Broker image repository. CE: `thingsboard/tbmq-node`. PE (via `values-pe.yaml`): `thingsboard/tbmq-pe-node`.                                              | thingsboard/tbmq-node                 |
 | tbmq.image.tag                          | Image tag. Defaults to the chart `appVersion`.                                                                                                             | 2.2.0                                 |
-| tbmq.imagePullSecret                    | Pull secret name. Auto-created from `dockerAuth` if credentials are provided.                                                                              | regcred                               |
+| tbmq.imagePullSecret                    | Pull secret name referenced by the broker StatefulSet, install Pod, and upgrade Job. Auto-created from `dockerAuth.username`/`password` if those are set; otherwise expected to exist in the namespace already. | regcred                               |
 | tbmq.imagePullPolicy                    | Image pull policy.                                                                                                                                         | Always                                |
 | **Scaling**                             |                                                                                                                                                            |                                       |
 | tbmq.statefulSet.replicas               | Number of broker pods. With one replica, broker runs in singleton mode (`TB_SERVICE_SINGLETON_MODE=true`).                                                 | 2                                     |
@@ -327,11 +380,11 @@ Common causes:
 | **Ports**                               |                                                                                                                                                            |                                       |
 | tbmq.ports                              | Container ports: HTTP 8083, HTTPS 443, MQTT 1883, MQTTS 8883, MQTT-WS 8084, MQTT-WSS 8085.                                                                 | (see values.yaml)                     |
 | **Configuration**                       |                                                                                                                                                            |                                       |
-| tbmq.customEnv                          | Map of env vars added to broker pods, install pod, and upgrade job. Wins over keys in any `existing*ConfigMap`.                                            | { SECURITY_MQTT_BASIC_ENABLED: "true" } |
-| tbmq.existingConfigMap                  | One ConfigMap providing both `conf` (Java opts) and `logback` (logging) keys. Highest priority — disables the two below.                                   | ""                                    |
-| tbmq.existingJavaOptsConfigMap          | ConfigMap with a `conf` key providing Java options.                                                                                                        | ""                                    |
-| tbmq.existingLogbackConfigMap           | ConfigMap with a `logback` key providing logback XML.                                                                                                      | ""                                    |
-| tbmq.enableChecksumAnnotations          | Auto-restart pods on relevant ConfigMap/Secret changes during `helm upgrade`. Logback is excluded (hot-reloaded).                                          | true                                  |
+| tbmq.customEnv                          | Map of env vars applied to broker pods, install Pod, and upgrade Job. Wins over keys in any `existing*ConfigMap`.                                          | { SECURITY_MQTT_BASIC_ENABLED: "true" } |
+| tbmq.existingConfigMap                  | One ConfigMap providing both `conf` (Java opts) and `logback` (logging) keys. Highest priority — when set, the chart skips rendering its default ConfigMaps and ignores the two below. Applies to broker pods and the upgrade Job; the install Pod uses a dedicated minimal `*-install-config`. | ""                                    |
+| tbmq.existingJavaOptsConfigMap          | ConfigMap with a `conf` key providing Java options. Used only when `existingConfigMap` is empty.                                                           | ""                                    |
+| tbmq.existingLogbackConfigMap           | ConfigMap with a `logback` key providing logback XML. Used only when `existingConfigMap` is empty.                                                          | ""                                    |
+| tbmq.enableChecksumAnnotations          | Auto-restart pods on relevant ConfigMap/Secret changes during `helm upgrade`. Logback is intentionally excluded — TBMQ hot-reloads logback every 10s.       | true                                  |
 | **Health checks**                       |                                                                                                                                                            |                                       |
 | tbmq.readinessProbe                     | Default: TCP 1883, initialDelay 30s, period 20s, failure threshold 5.                                                                                      | (see values.yaml)                     |
 | tbmq.livenessProbe                      | Default: TCP 1883, initialDelay 60s, period 10s, failure threshold 10.                                                                                     | (see values.yaml)                     |
@@ -495,14 +548,13 @@ To enable application-level mTLS for the MQTT listener:
 helm uninstall my-tbmq -n <namespace>
 ```
 
-`helm uninstall` removes Kubernetes resources but **does not delete persistent data**. The TBMQ
-StatefulSets use `emptyDir` volumes for logs and node-local data — those are deleted when pods
-terminate. PostgreSQL, Kafka, and Redis data are owned by your external infrastructure and remain
-untouched.
+`helm uninstall` removes the Kubernetes resources owned by the release (StatefulSets, Services,
+ConfigMaps, chart-managed Secrets, Ingress, and the load balancer Service). It does **not** touch:
 
-If you used the chart's checksum-restart feature with PVCs added externally, you can clean them up
-explicitly:
+- **External infrastructure** — PostgreSQL data, Kafka topics, and Redis cache are owned by the
+  systems you deployed alongside TBMQ. Drop them explicitly if you no longer need them.
+- **Pre-existing Secrets** — anything referenced via `postgresql.existingSecret`,
+  `redis.existingSecret`, or a pre-created `tbmq.imagePullSecret` is left in place.
 
-```bash
-kubectl delete pvc -l app.kubernetes.io/instance=my-tbmq -n <namespace>
-```
+The broker and IE pods use `emptyDir` for logs and node-local data, so there are no PVCs created
+by this chart to clean up.

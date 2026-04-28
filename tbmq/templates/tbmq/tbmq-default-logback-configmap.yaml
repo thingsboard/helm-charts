@@ -1,4 +1,4 @@
-{{- if empty .Values.tbmq.existingLogbackConfigMap }}
+{{- if and (empty .Values.tbmq.existingConfigMap) (empty .Values.tbmq.existingLogbackConfigMap) }}
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
 apiVersion: v1

@@ -20,7 +20,7 @@ metadata:
     app: install-job
 spec:
   imagePullSecrets:
-    - name: regcred
+    - name: {{ .Values.tbmq.imagePullSecret }}
   volumes:
     - name: install-config
       configMap:

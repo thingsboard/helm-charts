@@ -24,7 +24,7 @@ spec:
         app: upgrade-job
     spec:
       imagePullSecrets:
-        - name: regcred
+        - name: {{ .Values.tbmq.imagePullSecret }}
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres

@@ -195,6 +195,8 @@ postgres-password
       value: "30"
     - name: PGHOST
       value: {{ include "tbmq.postgres.host" . | quote }}
+    - name: PGPORT
+      value: {{ include "tbmq.postgres.port" . | quote }}
     - name: PGDATABASE
       value: {{ include "tbmq.postgres.database" . | quote }}
     - name: PGUSER
