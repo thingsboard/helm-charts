@@ -14,21 +14,28 @@ dockerAuth:
 
 # Controls the installation options, including database schema initialization and ArgoCD support.
 installation:
-  # This field is responsible for the installation process of TBMQ PostgreSQL database schema.
+  # Initializes the TBMQ PostgreSQL database schema. Set to true ONLY on the first install.
+  # Pass via --set on `helm install` rather than persisting in values.yaml; otherwise the install
+  # pod will also run on every subsequent `helm upgrade` (it is hooked to post-install,post-upgrade
+  # so users can recover from an install where this flag was forgotten).
   installDbSchema: false
-  # When this chart installing via ArgoCD.
+  # Replaces Helm install/upgrade hook annotations with ArgoCD Sync hook annotations.
+  # Enable when the chart is managed by ArgoCD.
   argocd: false
 
-# Controls the upgrade options, including database schema upgrade and ArgoCD support.
+# Controls the upgrade options, including database schema upgrade, edition migration, and ArgoCD support.
 upgrade:
-  # This field is responsible for the upgrade process of TBMQ PostgreSQL database schema.
-  # It will be ignored if the Helm release is not in the "upgrade" state.
+  # Runs the TBMQ database schema migration during `helm upgrade`.
+  # Ignored if the Helm release is not in the "upgrade" state (i.e., on first install).
+  # Pass via --set on `helm upgrade` rather than persisting in values.yaml.
   upgradeDbSchema: false
-  # When this chart is provisioned via ArgoCD.
+  # Replaces Helm pre-upgrade hook annotations with ArgoCD PreSync hook annotations.
+  # Enable when the chart is managed by ArgoCD.
   argocd: false
-  # Set to "ce" when upgrading from Community Edition to Professional Edition.
-  # This passes -Dinstall.upgrade.from_version=ce to the upgrade job.
-  # Leave empty for normal CE→CE or PE→PE upgrades.
+  # Edition the upgrade is migrating FROM. Used only for cross-edition upgrades.
+  # Set to "ce" when upgrading from Community Edition to Professional Edition (same TBMQ version).
+  # This passes -Dinstall.upgrade.from_version=ce to the upgrade job so PE-specific schema and data
+  # transformations are applied. Leave empty for same-edition upgrades (CE→CE or PE→PE).
   fromVersion: ""
 
 # Section to configure TBMQ service.

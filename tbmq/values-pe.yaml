@@ -1,10 +1,22 @@
-# TBMQ Professional Edition values overlay.
-# Usage: helm install tbmq-pe ./tbmq -f tbmq/values-pe.yaml -f my-values.yaml
+# TBMQ Professional Edition (PE) values overlay.
+#
+# Apply this file BEFORE your own values.yaml so that your overrides win on conflict:
+#
+#   helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
+#     -f values-pe.yaml \
+#     -f values.yaml \
+#     --set installation.installDbSchema=true
+#
+# This file only switches the broker and integration-executor images to the PE variants.
+# All other configuration (infrastructure, replicas, load balancer, etc.) comes from your
+# own values.yaml — the templates and value schema are identical between CE and PE.
 
 tbmq:
   image:
+    # PE node image. CE default is "thingsboard/tbmq-node".
     repository: thingsboard/tbmq-pe-node
 
 tbmq-ie:
   image:
+    # PE integration executor image. CE default is "thingsboard/tbmq-integration-executor".
     repository: thingsboard/tbmq-pe-integration-executor

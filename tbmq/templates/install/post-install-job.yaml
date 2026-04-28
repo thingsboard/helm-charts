@@ -61,9 +61,11 @@ spec:
               key: {{ include "tbmq.redis.secretKey" . }}
         {{- end }}
       envFrom:
-        {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
-        {{- include "tbmq.redis.configuration.ref" . | indent 12 }}
-        {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
+        {{- include "tbmq.postgres.configuration.ref" . | indent 8 }}
+        {{- include "tbmq.redis.configuration.ref" . | indent 8 }}
+        {{- include "tbmq.kafka.configuration.ref" . | indent 8 }}
+        - configMapRef:
+            name: {{ $releaseName }}-tbmq-custom-env
       volumeMounts:
         - mountPath: /config
           name: install-config

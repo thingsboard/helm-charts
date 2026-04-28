@@ -1,6 +1,6 @@
 apiVersion: v2
 appVersion: 2.2.0
-description: Helm chart for TBMQ cluster.
+description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
 version: 2.0.0
@@ -16,8 +16,16 @@ annotations:
   artifacthub.io/changes: |
     - kind: changed
       description: "BREAKING: Removed all Bitnami subchart dependencies (PostgreSQL, Redis Cluster, Kafka). Infrastructure must now be deployed externally."
-    - kind: changed
-      description: "Updated default values to use TBMQ 2.3.0 images"
+    - kind: added
+      description: "Professional Edition (PE) support via values-pe.yaml overlay."
+    - kind: added
+      description: "CE-to-PE upgrade path via upgrade.fromVersion=ce."
+    - kind: added
+      description: "Redis standalone connection mode (in addition to cluster mode)."
+    - kind: fixed
+      description: "Pod restart behavior: logback changes no longer trigger restart (hot-reloaded); Redis password changes now trigger restart (parity with PostgreSQL)."
+    - kind: fixed
+      description: "Install pod now applies tbmq.customEnv (parity with upgrade job)."
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
