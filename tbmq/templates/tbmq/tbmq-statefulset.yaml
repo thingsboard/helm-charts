@@ -26,6 +26,9 @@ spec:
         checksum/redis-config: {{ include (print $.Template.BasePath "/redis/redis-configmap.yaml") . | sha256sum }}
         checksum/redis-secret: {{ include (print $.Template.BasePath "/redis/redis-secret.yaml") . | sha256sum }}
         checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yaml") . | sha256sum }}
+        {{- if eq (include "tbmq.license.enabled" .) "true" }}
+        checksum/license-secret: {{ include (print $.Template.BasePath "/license-secret.yaml") . | sha256sum }}
+        {{- end }}
         {{- end }}
         {{- with .Values.tbmq.annotations }}
           {{- toYaml . | nindent 8 }}
@@ -90,6 +93,7 @@ spec:
                   name: {{ include "tbmq.redis.secretName" . }}
                   key: {{ include "tbmq.redis.secretKey" . }}
             {{- end }}
+            {{- include "tbmq.license.env" . | nindent 12 }}
           envFrom:
             {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
             {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}

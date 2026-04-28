@@ -12,6 +12,11 @@
 # replicas, load balancer, etc.) comes from your own values.yaml — the templates
 # and value schema are identical between CE and PE.
 #
+# IMPORTANT: PE additionally REQUIRES a license. Set one of `license.secret` or
+# `license.existingSecret` in your own values.yaml (see README.md → "Professional
+# Edition (PE)" for the recommended Secret-based pattern). PE pods will refuse to
+# start without a valid license.
+#
 # PE images are published publicly to Docker Hub:
 #   - docker.io/thingsboard/tbmq-pe-node
 #   - docker.io/thingsboard/tbmq-pe-integration-executor

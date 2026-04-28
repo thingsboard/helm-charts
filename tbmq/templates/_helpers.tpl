@@ -172,6 +172,47 @@ postgres-password
     name: {{ .Release.Name }}-kafka-config
 {{- end}}
 
+{{/*Whether PE license env injection is enabled — true when either license.secret or license.existingSecret is set*/}}
+{{- define "tbmq.license.enabled" -}}
+{{- if or .Values.license.secret .Values.license.existingSecret -}}true{{- end -}}
+{{- end -}}
+
+{{/*Return the name of the Secret that holds the PE license value*/}}
+{{- define "tbmq.license.secretName" -}}
+{{- if .Values.license.existingSecret -}}
+{{ .Values.license.existingSecret }}
+{{- else -}}
+{{ printf "%s-tbmq-license-secret" .Release.Name }}
+{{- end -}}
+{{- end -}}
+
+{{/*Return the key inside the license Secret that holds the license value*/}}
+{{- define "tbmq.license.secretKey" -}}
+{{- if .Values.license.existingSecret -}}
+{{ .Values.license.existingSecretLicenseKey | default "license-key" }}
+{{- else -}}
+license-key
+{{- end -}}
+{{- end -}}
+
+{{/*Return the filesystem path used by the license client for its per-pod instance data file*/}}
+{{- define "tbmq.license.instanceDataFile" -}}
+{{ .Values.license.instanceDataFile | default "/data/tbmq-instance-license-$(TB_SERVICE_ID).data" }}
+{{- end -}}
+
+{{/*Render the TBMQ_LICENSE_SECRET + TBMQ_LICENSE_INSTANCE_DATA_FILE env entries when license is configured*/}}
+{{- define "tbmq.license.env" -}}
+{{- if eq (include "tbmq.license.enabled" .) "true" }}
+- name: TBMQ_LICENSE_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tbmq.license.secretName" . }}
+      key: {{ include "tbmq.license.secretKey" . }}
+- name: TBMQ_LICENSE_INSTANCE_DATA_FILE
+  value: {{ include "tbmq.license.instanceDataFile" . | quote }}
+{{- end }}
+{{- end -}}
+
 {{/*Return kafka bootstrap servers*/}}
 {{- define "tbmq.kafka.servers" -}}
 {{- .Values.kafka.bootstrapServers -}}

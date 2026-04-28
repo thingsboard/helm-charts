@@ -93,13 +93,53 @@ helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
 #### Professional Edition (PE)
 
 PE deploys exactly the same chart as CE — only the broker and integration-executor images differ
-(`thingsboard/tbmq-pe-node` and `thingsboard/tbmq-pe-integration-executor`). Two equivalent ways to
-select PE:
+(`thingsboard/tbmq-pe-node` and `thingsboard/tbmq-pe-integration-executor`), and **PE additionally
+requires a license**.
 
-**Option 1 — apply the bundled overlay (recommended):**
+##### 1. Provide your license
 
-The chart package ships a `values-pe.yaml` overlay that switches both image repositories. Extract
-it once, then apply it on every `helm install`/`helm upgrade` for this release:
+You can either let the chart create a Secret from a value you supply, or point the chart at a
+Secret you've already created.
+
+**Recommended (production):** pre-create a Kubernetes Secret with your license, then reference
+it from values:
+
+```bash
+kubectl create secret generic my-tbmq-license -n <namespace> \
+  --from-literal=license-key=YOUR_LICENSE_VALUE
+```
+
+```yaml
+license:
+  existingSecret: my-tbmq-license
+  # existingSecretLicenseKey defaults to "license-key" — match what you used above
+```
+
+**Quick (test / dev):** paste the license value into your values file and the chart will create
+the Secret for you (`<release>-tbmq-license-secret`):
+
+```yaml
+license:
+  secret: YOUR_LICENSE_VALUE
+```
+
+You can also pass the license value via `--set license.secret=…` on the install command — but
+remember it lands in the helm release manifest stored inside the cluster.
+
+The chart then injects two env vars wherever the broker image runs (broker StatefulSet, IE
+StatefulSet, pre-upgrade Job):
+
+- `TBMQ_LICENSE_SECRET` — read from the Secret above.
+- `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to a per-pod license cache file. The default
+  (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) places it on the chart's `/data` emptyDir
+  and namespaces it by pod name so multi-replica deployments don't race on a single file. Override
+  via `license.instanceDataFile` only if you mount a different writable path.
+
+##### 2. Select the PE images
+
+Two equivalent ways:
+
+**Option A — apply the bundled `values-pe.yaml` overlay (recommended):**
 
 ```bash
 helm pull tbmq-helm-chart/tbmq-cluster --untar --untardir /tmp
@@ -119,25 +159,23 @@ helm install my-tbmq ./tbmq \
   --set installation.installDbSchema=true
 ```
 
-**Option 2 — inline overrides:**
-
-If you prefer not to manage an extra file, you can set the two image repositories directly:
+**Option B — inline overrides:**
 
 ```bash
 helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
   -f values.yaml \
   --set tbmq.image.repository=thingsboard/tbmq-pe-node \
+  --set tbmq.image.tag=<appVersion>PE \
   --set tbmq-ie.image.repository=thingsboard/tbmq-pe-integration-executor \
+  --set tbmq-ie.image.tag=<appVersion>PE \
   --set installation.installDbSchema=true
 ```
 
 Either form must be repeated on every subsequent `helm upgrade` for this release — Helm does not
 remember overlays or `--set` flags between invocations.
 
-> **Private images:** PE images are published to a private registry. Provide pull credentials via
-> the chart's `dockerAuth.username`/`dockerAuth.password` values (a `regcred` Secret will be
-> created), or pre-create your own pull Secret and set `tbmq.imagePullSecret` /
-> `tbmq-ie.imagePullSecret` to its name.
+> **Note on tags:** `values-pe.yaml` pins `<appVersion>PE` (e.g., `2.3.0PE`) — that's the convention
+> the PE images use on Docker Hub. The CE/PE image tags are not interchangeable.
 
 > **Tip:** `my-tbmq` is the **Helm release name**. Pick any name. It is used as the prefix for all
 > deployed resources and as the reference for future `helm` commands against this release.
@@ -361,6 +399,11 @@ Common causes:
 | upgrade.upgradeDbSchema      | Runs the DB migration during `helm upgrade` (pre-upgrade hook). Ignored on first install.                                                                                            | false                       |
 | upgrade.argocd               | Replaces Helm pre-upgrade hooks with ArgoCD `PreSync` hook annotations on the upgrade job.                                                                                           | false                       |
 | upgrade.fromVersion          | Edition the upgrade is migrating FROM. Set to `"ce"` only for CE → PE cross-edition upgrades. Leave empty for same-edition upgrades.                                                 | ""                          |
+| **License (PE only)**        | Required for PE; ignored for CE (when both `secret` and `existingSecret` are empty, the chart skips license wiring).                                                                 |                             |
+| license.secret               | License value. When set, the chart creates a Secret `<release>-tbmq-license-secret`. Convenient for testing; the value lands in the helm release manifest.                           | ""                          |
+| license.existingSecret       | Name of a pre-existing Kubernetes Secret holding the license. Recommended for production. When set, the chart does NOT create a Secret of its own.                                   | ""                          |
+| license.existingSecretLicenseKey | Key inside `existingSecret` that holds the license value. Matches the convention from the official PE k8s manifests.                                                             | "license-key"               |
+| license.instanceDataFile     | Path to the per-pod license cache file. Default uses `$(TB_SERVICE_ID)` so each replica gets its own file under the chart's `/data` emptyDir.                                        | "/data/tbmq-instance-license-$(TB_SERVICE_ID).data" |
 
 ### TBMQ (Broker) Parameters
 

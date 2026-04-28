@@ -23,6 +23,9 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-default-configmap.yaml") . | sha256sum }}
         checksum/env: {{ include (print $.Template.BasePath "/tbmq-ie/tbmq-ie-custom-env.yaml") . | sha256sum }}
         checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yaml") . | sha256sum }}
+        {{- if eq (include "tbmq.license.enabled" .) "true" }}
+        checksum/license-secret: {{ include (print $.Template.BasePath "/license-secret.yaml") . | sha256sum }}
+        {{- end }}
         {{- end }}
         {{- with $tbmqIe.annotations }}
           {{- toYaml . | nindent 8 }}
@@ -57,6 +60,7 @@ spec:
               value: "ALL"
             - name: TB_SERVICE_INTEGRATIONS_EXCLUDED
               value: "NONE"
+            {{- include "tbmq.license.env" . | nindent 12 }}
           envFrom:
             {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
             - configMapRef:

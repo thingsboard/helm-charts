@@ -57,6 +57,7 @@ spec:
                   name: {{ include "tbmq.redis.secretName" . }}
                   key: {{ include "tbmq.redis.secretKey" . }}
             {{- end }}
+            {{- include "tbmq.license.env" . | nindent 12 }}
           envFrom:
             {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
             {{- include "tbmq.redis.configuration.ref" . | indent 12 }}

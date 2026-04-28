@@ -38,6 +38,41 @@ upgrade:
   # transformations are applied. Leave empty for same-edition upgrades (CE→CE or PE→PE).
   fromVersion: ""
 
+# TBMQ Professional Edition (PE) license configuration.
+# REQUIRED for PE deployments. IGNORED for the Community Edition (when both `secret` and
+# `existingSecret` are empty, the chart skips license wiring entirely — CE behavior preserved).
+#
+# When configured, the chart injects two env vars into the broker StatefulSet, the IE
+# StatefulSet, and the pre-upgrade Job:
+#   - TBMQ_LICENSE_SECRET           (mounted from a Kubernetes Secret)
+#   - TBMQ_LICENSE_INSTANCE_DATA_FILE (path to the per-pod license cache file)
+license:
+  # OPTION A — paste the license value here. The chart will create a Secret named
+  # `<release>-tbmq-license-secret` and reference it. Convenient for testing; not
+  # recommended for production (the value lands in your values file and the helm
+  # release manifest).
+  secret: ""
+
+  # OPTION B (recommended for production) — pre-create your own Secret and point at it:
+  #
+  #   kubectl create secret generic my-tbmq-license -n <namespace> \
+  #     --from-literal=license-key=YOUR_LICENSE_VALUE
+  #
+  # Then set `license.existingSecret: my-tbmq-license`. The chart will NOT create a
+  # secret of its own; it just references yours.
+  existingSecret: ""
+
+  # Key inside `existingSecret` that holds the license value. Defaults to "license-key"
+  # (the convention used by the official PE k8s manifests at
+  # https://github.com/thingsboard/tbmq-pe-k8s).
+  existingSecretLicenseKey: "license-key"
+
+  # Filesystem path where the license client caches its instance data file. Must be
+  # writable by the container user (799). The default puts each pod's cache file under
+  # the chart's `/data` emptyDir, namespaced by `$(TB_SERVICE_ID)` so multi-replica
+  # deployments don't race on a single file.
+  instanceDataFile: "/data/tbmq-instance-license-$(TB_SERVICE_ID).data"
+
 # Section to configure TBMQ service.
 tbmq:
   # Docker image configuration.

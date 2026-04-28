@@ -21,6 +21,8 @@ annotations:
     - kind: added
       description: "Professional Edition (PE) support via values-pe.yaml overlay."
     - kind: added
+      description: "PE license configuration (license.secret / license.existingSecret) — chart wires TBMQ_LICENSE_SECRET and TBMQ_LICENSE_INSTANCE_DATA_FILE on broker, IE, and upgrade pods. CE deployments are unaffected."
+    - kind: added
       description: "CE-to-PE upgrade path via upgrade.fromVersion=ce."
     - kind: added
       description: "Redis standalone connection mode (in addition to cluster mode)."
