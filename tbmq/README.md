@@ -126,9 +126,9 @@ license:
 You can also pass the license value via `--set license.secret=…` on the install command — but
 remember it lands in the helm release manifest stored inside the cluster.
 
-Only the broker validates the license, so the chart injects two env vars on the broker
-StatefulSet and on the pre-upgrade Job (which runs the broker image). The IE StatefulSet
-does **not** receive these env vars and does **not** depend on the license Secret.
+Only the broker StatefulSet validates the license, so the chart injects two env vars there.
+The IE StatefulSet, the install Pod, and the pre-upgrade Job all run code paths that do **not**
+check the license, so they do **not** receive these env vars and do **not** depend on the Secret.
 
 - `TBMQ_LICENSE_SECRET` — read from the Secret above.
 - `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to a per-pod license cache file. The default
