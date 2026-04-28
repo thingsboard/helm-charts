@@ -38,8 +38,9 @@ helm install pgo oci://registry.developers.crunchydata.com/crunchydata/pgo \
 Wait for the operator pod to be ready:
 
 ```bash
-kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=pgo \
-  -n thingsboard-mqtt-broker --timeout=120s
+kubectl wait --for=condition=Ready pod \
+  -l postgres-operator.crunchydata.com/control-plane=pgo \
+  -n thingsboard-mqtt-broker --timeout=180s
 ```
 
 ### Create a PostgreSQL cluster
@@ -305,34 +306,54 @@ helm install tbmq ../../ -f minikube-values.yaml \
 ### Verify
 
 ```bash
-# Wait for TBMQ pods
-kubectl wait --for=condition=Ready pod -l app -n thingsboard-mqtt-broker --timeout=300s
+# Wait for the broker pod
+kubectl wait --for=condition=Ready pod/tbmq-tbmq-node-0 \
+  -n thingsboard-mqtt-broker --timeout=300s
+
+# Wait for the integration executor pod
+kubectl wait --for=condition=Ready pod/tbmq-tbmq-ie-0 \
+  -n thingsboard-mqtt-broker --timeout=300s
 
 # Check all pods are running
 kubectl get pods -n thingsboard-mqtt-broker
 ```
 
+> **Note on the install Pod:** the chart's post-install hook creates a one-shot
+> Pod named `tbmq-install-pod`. Helm deletes it as soon as it succeeds (or
+> fails) — `hook-delete-policy: hook-succeeded,hook-failed`. If you want to
+> watch its logs, run `kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker -f`
+> immediately after `helm install`, or use `helm install --debug` to stream
+> hook output to your terminal.
+
 ### Access the TBMQ UI
 
-**Option A: Ingress (requires NGINX Ingress controller)**
-
-```bash
-minikube addons enable ingress
-```
-
-Once the ingress controller is running, access TBMQ at `http://<minikube-ip>/`:
-
-```bash
-minikube ip
-```
-
-**Option B: Port-forward**
+**Option A: Port-forward (simplest, recommended for Minikube)**
 
 ```bash
 kubectl port-forward svc/tbmq-tbmq-node 8083:8083 -n thingsboard-mqtt-broker
 ```
 
-Open http://localhost:8083 in your browser.
+Open http://localhost:8083. Leave the command running; close it with `Ctrl-C`
+when you're done.
+
+**Option B: Ingress addon (browse via the Minikube IP)**
+
+The chart creates an `Ingress` resource (`tbmq-http-lb`) but does NOT bring an
+Ingress Controller. On Minikube, enable the bundled NGINX controller addon:
+
+```bash
+minikube addons enable ingress
+# wait for the controller to be ready
+kubectl wait --for=condition=Ready pod \
+  -l app.kubernetes.io/component=controller \
+  -n ingress-nginx --timeout=180s
+```
+
+Then browse to `http://<minikube ip>/` — find it with `minikube ip`. Note that
+the chart's default Ingress matches `host: *` on port 80, which will work as
+long as no other Ingress in the cluster claims `/`. If you also want the MQTT
+LoadBalancer Service to get an external IP, run `minikube tunnel` in a
+separate terminal (it asks for sudo).
 
 Default credentials: `sysadmin@thingsboard.org` / `sysadmin`
 
