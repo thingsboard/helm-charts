@@ -42,10 +42,11 @@ upgrade:
 # REQUIRED for PE deployments. IGNORED for the Community Edition (when both `secret` and
 # `existingSecret` are empty, the chart skips license wiring entirely — CE behavior preserved).
 #
-# When configured, the chart injects two env vars into the broker StatefulSet, the IE
-# StatefulSet, and the pre-upgrade Job:
+# Only the broker (tbmq-node) image checks the license. The chart therefore injects two env
+# vars into the broker StatefulSet and the pre-upgrade Job (which uses the broker image):
 #   - TBMQ_LICENSE_SECRET           (mounted from a Kubernetes Secret)
 #   - TBMQ_LICENSE_INSTANCE_DATA_FILE (path to the per-pod license cache file)
+# The IE StatefulSet does NOT receive these env vars — it does not validate the license.
 license:
   # OPTION A — paste the license value here. The chart will create a Secret named
   # `<release>-tbmq-license-secret` and reference it. Convenient for testing; not
