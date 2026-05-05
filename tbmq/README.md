@@ -301,9 +301,10 @@ differs.
 ### CE → PE Upgrade (Cross-Edition Migration)
 
 To migrate an existing CE deployment to PE **on the same TBMQ version**, set
-`upgrade.fromVersion=ce` in addition to the standard upgrade flags. This passes
-`-Dinstall.upgrade.from_version=ce` to the upgrade job, which applies PE-specific schema and data
-transformations on top of the existing CE data.
+`upgrade.fromVersion=ce` in addition to the standard upgrade flags. This sets the `FROM_VERSION=ce`
+env var on the upgrade job (which the PE entrypoint script forwards as
+`-Dinstall.upgrade.from_version=ce` to the install application), triggering the PE-specific schema
+and data transformations on top of the existing CE data.
 
 ```bash
 # 1. Scale broker (and IE) to 0
@@ -321,8 +322,9 @@ helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
 What happens during this upgrade:
 
 - The pre-upgrade Job uses the **PE** broker image (because the PE overlay is in effect) with
-  `UPGRADE_TB=true` and `JAVA_OPTS=-Dinstall.upgrade.from_version=ce`. It reads the CE schema and
-  rewrites it as PE.
+  `UPGRADE_TB=true` and `FROM_VERSION=ce`. The PE entrypoint script reads `FROM_VERSION` and
+  appends `-Dinstall.upgrade.from_version=ce` to the install application command line, which
+  switches the migration into CE→PE mode (rewrites the CE schema as PE).
 - After the migration succeeds, Helm rolls the `tbmq-node` and `tbmq-ie` StatefulSets onto the PE
   images.
 - Manually scale `tbmq-ie` back up if you scaled it down.

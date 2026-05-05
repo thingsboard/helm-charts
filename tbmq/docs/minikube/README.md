@@ -256,9 +256,6 @@ kubectl get svc valkey -n thingsboard-mqtt-broker
 Create `minikube-values.yaml`:
 
 ```yaml
-installation:
-  installDbSchema: true
-
 tbmq:
   image:
     tag: 2.3.0
@@ -300,8 +297,14 @@ loadbalancer:
 
 ```bash
 helm install tbmq ../../ -f minikube-values.yaml \
+  --set installation.installDbSchema=true \
   --namespace thingsboard-mqtt-broker
 ```
+
+> Pass `installation.installDbSchema=true` via `--set` on the **first install only**.
+> Do not put it in `minikube-values.yaml` — the post-install hook is bound to
+> `post-install,post-upgrade`, so persisting the flag would re-fire the install
+> Pod on every `helm upgrade` and corrupt an already-populated schema.
 
 ### Verify
 
@@ -356,6 +359,93 @@ LoadBalancer Service to get an external IP, run `minikube tunnel` in a
 separate terminal (it asks for sudo).
 
 Default credentials: `sysadmin@thingsboard.org` / `sysadmin`
+
+---
+
+## Step 5: Upgrade CE to PE (Cross-Edition Migration)
+
+This step migrates the CE deployment from Step 4 to **Professional Edition (PE)** on
+the same TBMQ version. PE images are published publicly on Docker Hub
+(`thingsboard/tbmq-pe-node`, `thingsboard/tbmq-pe-integration-executor`); the only
+new requirement compared to CE is a valid PE license.
+
+### 5.1 Create a Secret with your PE license
+
+```bash
+kubectl create secret generic tbmq-license \
+  --from-literal=license-key=YOUR_LICENSE_KEY \
+  -n thingsboard-mqtt-broker
+```
+
+### 5.2 Reference the Secret in `minikube-pe-values.yaml`
+
+This repo ships an example PE values file at
+`tbmq/docs/minikube/minikube-pe-values.yaml`. Open it and uncomment the
+`existingSecret` line so the broker mounts your license:
+
+```yaml
+license:
+  secret: ""
+  existingSecret: tbmq-license
+```
+
+`minikube-pe-values.yaml` already pins the PE image repos (`tbmq-pe-node`,
+`tbmq-pe-integration-executor`) and the matching `2.3.0PE` tags, and points to the
+same Postgres / Kafka / Valkey services you deployed in Steps 1–3.
+
+### 5.3 Run the helm upgrade
+
+```bash
+helm upgrade tbmq ../../ -f minikube-pe-values.yaml \
+  --set upgrade.upgradeDbSchema=true \
+  --set upgrade.fromVersion=ce \
+  -n thingsboard-mqtt-broker
+```
+
+What happens:
+
+- The **pre-upgrade Job** runs with the PE broker image, `UPGRADE_TB=true` and
+  `FROM_VERSION=ce`. The PE entrypoint script forwards `FROM_VERSION` as
+  `-Dinstall.upgrade.from_version=ce` to the install application, which switches
+  the migration into CE→PE mode and rewrites the CE schema as PE.
+- Once the migration succeeds, Helm rolls the **`tbmq-tbmq-node`** and
+  **`tbmq-tbmq-ie`** StatefulSets onto the PE images. The broker validates the
+  license on startup (the IE and the upgrade Job do not validate the license).
+- The broker writes a per-Pod license cache file under
+  `/data/tbmq-instance-license-$(TB_SERVICE_ID).data`.
+
+### 5.4 Verify
+
+```bash
+# Wait for the broker pod to come back Ready on the PE image
+kubectl wait --for=condition=Ready pod/tbmq-tbmq-node-0 \
+  -n thingsboard-mqtt-broker --timeout=300s
+kubectl wait --for=condition=Ready pod/tbmq-tbmq-ie-0 \
+  -n thingsboard-mqtt-broker --timeout=300s
+
+# Image should now be the PE one
+kubectl get pod tbmq-tbmq-node-0 -n thingsboard-mqtt-broker \
+  -o jsonpath='{.spec.containers[0].image}'
+# expected: thingsboard/tbmq-pe-node:2.3.0PE
+
+# tb_schema_settings.product should now be PE
+PG_POD=$(kubectl get pod -n thingsboard-mqtt-broker \
+  -l postgres-operator.crunchydata.com/role=master -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n thingsboard-mqtt-broker "$PG_POD" -c database -- \
+  psql -U postgres -d thingsboard_mqtt_broker -c "SELECT * FROM tb_schema_settings;"
+# expected: product = PE
+```
+
+### 5.5 After the migration succeeds
+
+**Drop `upgrade.fromVersion=ce`** on subsequent PE→PE upgrades — leaving it set
+would cause the upgrade Job to attempt the CE→PE migration against an already-PE
+schema and fail. The flag is single-use for the cross-edition migration.
+
+> If you only want to do a fresh PE install (no CE→PE migration), use
+> `minikube-pe-values.yaml` directly with `helm install` instead — same way as the
+> Step 4 CE flow, but pointing at this file and adding
+> `--set installation.installDbSchema=true` on the first install.
 
 ---
 

@@ -1,6 +1,3 @@
-installation:
-  installDbSchema: true
-
 tbmq:
   image:
     tag: 2.3.0

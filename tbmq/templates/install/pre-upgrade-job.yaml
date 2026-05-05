@@ -42,8 +42,8 @@ spec:
             - name: UPGRADE_TB
               value: "true"
             {{- if .Values.upgrade.fromVersion }}
-            - name: JAVA_OPTS
-              value: "-Dinstall.upgrade.from_version={{ .Values.upgrade.fromVersion }}"
+            - name: FROM_VERSION
+              value: {{ .Values.upgrade.fromVersion | quote }}
             {{- end }}
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:

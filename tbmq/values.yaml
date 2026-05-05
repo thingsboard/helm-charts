@@ -34,8 +34,9 @@ upgrade:
   argocd: false
   # Edition the upgrade is migrating FROM. Used only for cross-edition upgrades.
   # Set to "ce" when upgrading from Community Edition to Professional Edition (same TBMQ version).
-  # This passes -Dinstall.upgrade.from_version=ce to the upgrade job so PE-specific schema and data
-  # transformations are applied. Leave empty for same-edition upgrades (CE→CE or PE→PE).
+  # The chart sets FROM_VERSION=ce on the upgrade job, and the PE entrypoint forwards it as
+  # -Dinstall.upgrade.from_version=ce to the install application — triggering the PE-specific
+  # schema and data transformations. Leave empty for same-edition upgrades (CE→CE or PE→PE).
   fromVersion: ""
 
 # TBMQ Professional Edition (PE) license configuration.

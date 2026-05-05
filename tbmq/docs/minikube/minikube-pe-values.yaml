@@ -1,6 +1,3 @@
-installation:
-  installDbSchema: true
-
 # PE license — required. Either:
 #   - paste the value here (license.secret), OR
 #   - pre-create a Secret with `kubectl create secret generic tbmq-license \
