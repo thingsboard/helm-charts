@@ -38,6 +38,8 @@ annotations:
       description: "regcred Secret only renders when dockerAuth.username is set (allows users to bring their own pre-created pull secret)."
     - kind: fixed
       description: "Default ConfigMaps no longer render when existingConfigMap is set (previously created unused ConfigMaps)."
+    - kind: fixed
+      description: "Post-install Pod hook-delete-policy changed from hook-succeeded,hook-failed to hook-succeeded,before-hook-creation — failed install Pods now persist for log inspection and are auto-cleaned on the next helm install/upgrade."
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:

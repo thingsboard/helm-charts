@@ -187,19 +187,23 @@ remember overlays or `--set` flags between invocations.
 kubectl get pods -l app.kubernetes.io/instance=my-tbmq -n <namespace>
 ```
 
-The install pod (`my-tbmq-install-pod`) runs once, creates the schema, then exits. Helm deletes it
-immediately on completion (`hook-delete-policy: hook-succeeded,hook-failed`), so capture logs while
-the pod is still alive — the install hook has a 300s timeout. The `my-tbmq-tbmq-node-*` and
-`my-tbmq-tbmq-ie-*` StatefulSet pods should reach `Running` and pass readiness probes within a
-minute or two after the install pod succeeds.
+The install pod (`my-tbmq-install-pod`) runs once, creates the schema, then exits. The hook policy
+is `hook-succeeded,before-hook-creation`: Helm deletes the pod **only when it succeeds**; on
+failure the pod is **left in place** so you can inspect logs, and it is auto-cleaned the next time
+the hook runs (e.g., the next `helm upgrade`). The install hook has a 300s timeout. The
+`my-tbmq-tbmq-node-*` and `my-tbmq-tbmq-ie-*` StatefulSet pods should reach `Running` and pass
+readiness probes within a minute or two after the install pod succeeds.
 
 ```bash
+# While the pod runs:
 kubectl logs my-tbmq-install-pod -n <namespace> -f
+
+# If it has already finished and was restarted (restartPolicy: OnFailure):
+kubectl logs my-tbmq-install-pod -n <namespace> --previous
 ```
 
-If the pod is gone before you can grab logs, re-run the install with `--debug` so Helm streams hook
-output to your terminal, or inspect the broker pod logs after they crash-loop on the missing
-schema.
+If a successful install pod was deleted before you could grab logs, re-run with `helm install --debug`
+so Helm streams hook output to your terminal.
 
 ## Updating Configuration
 
@@ -220,18 +224,30 @@ helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
 
 ### Pod Restart Behavior
 
-When `enableChecksumAnnotations: true` (the default), pods automatically restart on `helm upgrade`
-when any of the following change:
+When `enableChecksumAnnotations: true` (the default), `helm upgrade` rolls Pods whenever any of
+their inputs change. The triggers differ between the broker and the IE because the IE does not
+connect to PostgreSQL or Redis and does not validate the PE license.
 
-- Java options ConfigMap (`conf` key)
-- Custom env ConfigMap (`tbmq.customEnv` / `tbmq-ie.customEnv`)
-- PostgreSQL connection ConfigMap and Secret
-- Redis connection ConfigMap and Secret
+**Broker (`tbmq-node`):**
+
+- Default Java options ConfigMap (`conf` key)
+- `tbmq.customEnv` ConfigMap
+- PostgreSQL connection ConfigMap and password Secret
+- Redis connection ConfigMap and password Secret
+- Kafka connection ConfigMap
+- License Secret (PE only — checksummed only when `license.secret` or `license.existingSecret` is set)
+
+**Integration Executor (`tbmq-ie`):**
+
+- Default Java options ConfigMap (`conf` key)
+- `tbmq-ie.customEnv` ConfigMap
 - Kafka connection ConfigMap
 
-Logback ConfigMap changes do **not** trigger restart. TBMQ is configured with
-`<configuration scan="true" scanPeriod="10 seconds">` and picks up logback changes within ~10
-seconds of the ConfigMap propagating to the pod.
+Logback ConfigMap changes do **not** trigger restart on either StatefulSet. Both broker and IE
+logback configs declare `<configuration scan="true" scanPeriod="10 seconds">` and pick up logback
+changes within ~10 seconds of the ConfigMap propagating to the Pod. `tbmq.enableChecksumAnnotations`
+and `tbmq-ie.enableChecksumAnnotations` are independent — set either to `false` to opt that
+StatefulSet out of automatic rolling on input changes.
 
 ## Upgrading
 
@@ -609,16 +625,24 @@ The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 
 | Parameter                       | Description                                                                                                                                                | Default                               |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| tbmq-ie.image.repository        | IE image. CE: `thingsboard/tbmq-integration-executor`. PE (via overlay): `thingsboard/tbmq-pe-integration-executor`.                                      | thingsboard/tbmq-integration-executor |
+| tbmq-ie.image.repository        | IE image. CE: `thingsboard/tbmq-integration-executor`. PE (via overlay): `thingsboard/tbmq-pe-integration-executor`.                                       | thingsboard/tbmq-integration-executor |
 | tbmq-ie.image.tag               | Image tag. CE default tracks the chart `appVersion`. PE pins `<appVersion>PE` via `values-pe.yaml`.                                                         | 2.3.0                                 |
+| tbmq-ie.imagePullSecret         | Pull secret name referenced by the IE StatefulSet only — independent of `tbmq.imagePullSecret`. The chart auto-creates **only one** Secret (named after `tbmq.imagePullSecret`, when `dockerAuth.username` is set). If `tbmq-ie.imagePullSecret` differs, pre-create that Secret yourself. | regcred                               |
+| tbmq-ie.imagePullPolicy         | Image pull policy.                                                                                                                                          | Always                                |
 | tbmq-ie.statefulSet.replicas    | Number of IE pods.                                                                                                                                          | 2                                     |
 | tbmq-ie.ports                   | HTTP 8082.                                                                                                                                                 |                                       |
 | tbmq-ie.readinessProbe          | Default: TCP `http`, period 20s.                                                                                                                            |                                       |
 | tbmq-ie.livenessProbe           | Default: TCP `http`, initialDelay 120s, period 20s.                                                                                                         |                                       |
 
+> All other `tbmq-ie.*` keys mirror their `tbmq.*` counterparts with the same defaults and behavior:
+> `statefulSet.annotations`, `annotations`, `nodeSelector`, `affinity`, `customEnv`,
+> `existingConfigMap`, `existingJavaOptsConfigMap`, `existingLogbackConfigMap`,
+> `enableChecksumAnnotations`, `restartPolicy`, `securityContext`, `resources`. The IE Pod does
+> **not** mount PostgreSQL, Redis, or PE license env vars — it only connects to Kafka.
+
 > **Note:** `tbmq-ie` is referenced in templates with `index .Values "tbmq-ie"` because of the
-> hyphen in the key name. When overriding via `--set`, escape the dot path:
-> `--set tbmq-ie.statefulSet.replicas=3`.
+> hyphen in the key name. The hyphen does not need escaping on the command line — use the
+> dotted path directly: `--set tbmq-ie.statefulSet.replicas=3`.
 
 ## Infrastructure Configuration
 

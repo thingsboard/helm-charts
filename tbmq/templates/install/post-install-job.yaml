@@ -13,7 +13,7 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
     {{- else }}
     "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
     "helm.sh/hook-timeout": "300s"
     {{- end }}
   labels:
