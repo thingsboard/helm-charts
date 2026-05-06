@@ -137,13 +137,15 @@ tbmq:
   # Example usage:
   #
   # customEnv:
-  #   SECURITY_MQTT_SSL_ENABLED: "true"
+  #   STATS_PRINT_INTERVAL_MS: "15000"
   #
-  # Even if `existingConfigMap` or `existingJavaOptsConfigMap` define `SECURITY_MQTT_SSL_ENABLED`,
+  # Even if `existingConfigMap` or `existingJavaOptsConfigMap` define `STATS_PRINT_INTERVAL_MS`,
   # the value from `customEnv` will take precedence.
-  customEnv: {
-    SECURITY_MQTT_BASIC_ENABLED: "true"
-  }
+  #
+  # Note: TBMQ 2.3.0 manages MQTT authentication providers (basic, SSL, JWT, HTTP)
+  # through the admin REST API, not via env vars. Older configs that set
+  # `SECURITY_MQTT_*_ENABLED` here had no effect on the running broker.
+  customEnv: { }
   # Name of an existing ConfigMap that will override TBMQ Java and Logback configurations.
   # If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).
   #
