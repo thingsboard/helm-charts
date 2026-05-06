@@ -249,6 +249,24 @@ tbmq:
     runAsNonRoot: true
     # File system group ID for permissions.
     fsGroup: 799
+  # Persistent storage for the broker /data directory. The PE license client writes
+  # its per-pod instance-data file here, and the license server logs each fresh
+  # instance against your license slot pool — so /data MUST survive Pod recreation
+  # for PE deployments. CE deployments do not persist anything to /data, so disabling
+  # persistence is safe for CE.
+  persistence:
+    # When true (default), /data is backed by a per-pod PVC created from a
+    # StatefulSet volumeClaimTemplate. When false, /data is an emptyDir
+    # (destroyed on Pod recreation — fine for CE, NOT recommended for PE).
+    enabled: true
+    # PVC size. 1Gi matches the official PE Kubernetes manifests
+    # (https://github.com/thingsboard/tbmq-pe-k8s).
+    size: "1Gi"
+    # StorageClass name. Empty means use the cluster's default StorageClass.
+    storageClassName: ""
+    # PVC access modes. ReadWriteOnce is correct for per-pod claims.
+    accessModes:
+      - ReadWriteOnce
   # Defines CPU/memory requests & limits.
   # Example:
   # resources:

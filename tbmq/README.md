@@ -618,6 +618,11 @@ Common causes:
 | **Security & resources**                |                                                                                                                                                            |                                       |
 | tbmq.securityContext                    | Defaults: `runAsUser: 799`, `runAsNonRoot: true`, `fsGroup: 799`.                                                                                          | (see values.yaml)                     |
 | tbmq.resources                          | CPU/memory requests and limits. Set explicitly for production.                                                                                             | { }                                   |
+| **Persistence**                         |                                                                                                                                                            |                                       |
+| tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). Required for PE so the license instance-data file survives Pod recreation; safe to leave on for CE. | true |
+| tbmq.persistence.size                   | PVC size. Defaults to 1Gi to match the official PE Kubernetes manifests.                                                                                      | "1Gi"                                 |
+| tbmq.persistence.storageClassName       | StorageClass name. Empty means use the cluster's default StorageClass.                                                                                       | ""                                    |
+| tbmq.persistence.accessModes            | PVC access modes. ReadWriteOnce is correct for per-pod claims.                                                                                              | ["ReadWriteOnce"]                     |
 
 ### TBMQ Integration Executor Parameters
 
@@ -643,6 +648,31 @@ The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 > **Note:** `tbmq-ie` is referenced in templates with `index .Values "tbmq-ie"` because of the
 > hyphen in the key name. The hyphen does not need escaping on the command line — use the
 > dotted path directly: `--set tbmq-ie.statefulSet.replicas=3`.
+
+### Persistence
+
+The broker StatefulSet provisions a per-pod PVC for `/data` via `volumeClaimTemplate`.
+This is required for **Professional Edition** deployments because the license client
+writes a per-pod instance-data file (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`)
+that the license server uses to identify each broker instance — losing the file on
+Pod recreation causes the broker to re-register as a fresh instance and counts toward
+your license slot pool.
+
+For Community Edition, nothing meaningful is persisted under `/data`, so disabling
+persistence is safe:
+
+```yaml
+tbmq:
+  persistence:
+    enabled: false
+```
+
+The Integration Executor StatefulSet, the install Pod, and the pre-upgrade Job
+continue to use `emptyDir` for `/data` — they don't carry per-instance state.
+
+**Cleanup.** `helm uninstall` does **not** delete PVCs created by `volumeClaimTemplate`.
+Reap them with `kubectl delete pvc -l app=<release>-tbmq-node -n <namespace>` or
+`kubectl delete namespace <namespace>` if you no longer need the data.
 
 ## Infrastructure Configuration
 
@@ -790,6 +820,4 @@ ConfigMaps, chart-managed Secrets, Ingress, and the load balancer Service). It d
   systems you deployed alongside TBMQ. Drop them explicitly if you no longer need them.
 - **Pre-existing Secrets** — anything referenced via `postgresql.existingSecret`,
   `redis.existingSecret`, or a pre-created `tbmq.imagePullSecret` is left in place.
-
-The broker and IE pods use `emptyDir` for logs and node-local data, so there are no PVCs created
-by this chart to clean up.
+- **Per-pod PVCs created from `volumeClaimTemplate`** — chart-managed `tbmq-node-data` PVCs are not deleted by `helm uninstall`. Drop them explicitly with `kubectl delete pvc -l app=<release>-tbmq-node -n <namespace>` or by deleting the whole namespace.

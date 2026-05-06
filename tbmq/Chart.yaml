@@ -14,6 +14,8 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
+    - kind: added
+      description: "Optional PVC for the broker /data directory (tbmq.persistence) — required for PE so the license instance-data file survives Pod recreation. Defaults to enabled, 1Gi, cluster default StorageClass, ReadWriteOnce. Set tbmq.persistence.enabled=false to keep the previous emptyDir behavior (safe for CE)."
     - kind: changed
       description: "Bumped TBMQ to 2.3.0 (CE images: 2.3.0; PE images: 2.3.0PE)."
     - kind: changed

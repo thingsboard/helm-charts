@@ -321,6 +321,17 @@ kubectl wait --for=condition=Ready pod/tbmq-tbmq-ie-0 \
 kubectl get pods -n thingsboard-mqtt-broker
 ```
 
+The broker StatefulSet now provisions a 1Gi PVC per Pod for `/data`. On Minikube the
+default `storage-provisioner` addon satisfies it automatically:
+
+```bash
+kubectl get pvc -n thingsboard-mqtt-broker -l app=tbmq-tbmq-node
+# Expected: tbmq-tbmq-node-data-tbmq-tbmq-node-0 Bound
+```
+
+To opt out (CE only — see chart README "Persistence"), set `tbmq.persistence.enabled=false`
+in `minikube-values.yaml`.
+
 > **Note on the install Pod:** the chart's post-install hook creates a one-shot
 > Pod named `tbmq-install-pod`. Helm deletes it as soon as it succeeds (or
 > fails) — `hook-delete-policy: hook-succeeded,hook-failed`. If you want to
