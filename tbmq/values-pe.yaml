@@ -1,16 +1,33 @@
 # TBMQ Professional Edition (PE) values overlay.
 #
-# Apply this file BEFORE your own values.yaml so that your overrides win on conflict:
+# Switches the broker and integration-executor images to the PE variants and pins
+# the matching PE-suffixed tags. All other configuration (infrastructure, replicas,
+# load balancer, etc.) comes from your own values.yaml — the templates and value
+# schema are identical between CE and PE.
+#
+# How to apply:
 #
 #   helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
 #     -f values-pe.yaml \
 #     -f values.yaml \
 #     --set installation.installDbSchema=true
 #
-# This file switches the broker and integration-executor images to the PE variants
-# and pins the matching PE-suffixed tags. All other configuration (infrastructure,
-# replicas, load balancer, etc.) comes from your own values.yaml — the templates
-# and value schema are identical between CE and PE.
+# Helm merges -f files in order, with later files overriding earlier ones. Listing
+# values-pe.yaml FIRST and your own values.yaml SECOND is intentional: it lets you
+# customize any key from values.yaml — including the image, if you need to point
+# at a private registry mirror — without editing this file.
+#
+# CAUTION: do NOT redefine `tbmq.image.repository`, `tbmq.image.tag`,
+# `tbmq-ie.image.repository`, or `tbmq-ie.image.tag` in your values.yaml unless you
+# explicitly intend to override the PE images. A CE-defaulted image block copied
+# from elsewhere will silently revert this overlay back to CE. If you only need a
+# different registry or tag, set just that single key — Helm deep-merges values,
+# so the PE keys you leave unset are preserved.
+#
+# To make this overlay always win regardless of what your values.yaml contains,
+# swap the file order so values-pe.yaml comes last:
+#
+#   -f values.yaml -f values-pe.yaml
 #
 # IMPORTANT: PE additionally REQUIRES a license. Set one of `license.secret` or
 # `license.existingSecret` in your own values.yaml (see README.md → "Professional
