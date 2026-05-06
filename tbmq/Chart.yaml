@@ -15,6 +15,8 @@ annotations:
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
     - kind: fixed
+      description: "tbmq-ie StatefulSet no longer hardcodes TB_SERVICE_INTEGRATIONS_SUPPORTED=ALL and TB_SERVICE_INTEGRATIONS_EXCLUDED=NONE as container env: entries. Container env: takes precedence over envFrom: in Kubernetes, so the previous hardcoding silently shadowed any user override via tbmq-ie.customEnv — contradicting the chart's documented \"customEnv always wins\" override hierarchy. Application defaults (ALL, NONE) are preserved; users can now tune both vars via tbmq-ie.customEnv."
+    - kind: fixed
       description: "Removed dead SECURITY_MQTT_BASIC_ENABLED entry from the default tbmq.customEnv map. TBMQ 2.3.0 manages MQTT auth providers (basic, SSL, JWT, HTTP) through the admin REST API, not env vars — the previous default had no effect on the running broker but suggested otherwise."
     - kind: added
       description: "Optional PVC for the broker /data directory (tbmq.persistence) — required for PE so the license instance-data file survives Pod recreation. Defaults to enabled, 1Gi, cluster default StorageClass, ReadWriteOnce. Set tbmq.persistence.enabled=false to keep the previous emptyDir behavior (safe for CE)."

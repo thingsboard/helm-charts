@@ -53,10 +53,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: TB_SERVICE_INTEGRATIONS_SUPPORTED
-              value: "ALL"
-            - name: TB_SERVICE_INTEGRATIONS_EXCLUDED
-              value: "NONE"
           envFrom:
             {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
             - configMapRef:
