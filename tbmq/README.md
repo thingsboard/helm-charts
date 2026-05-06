@@ -1,6 +1,6 @@
 # Helm Chart for TBMQ Cluster
 
-TBMQ is an open-source MQTT message broker capable of handling 4M+ concurrent client connections,
+TBMQ is a high-performance MQTT message broker capable of handling 4M+ concurrent client connections,
 delivering 3M+ messages per second per single cluster node with low latency. In cluster mode,
 TBMQ scales to 100M+ concurrently connected clients.
 
