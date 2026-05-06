@@ -17,3 +17,6 @@ CLAUDE.md
 Thumbs.db
 *.swp
 *~
+
+# E2E verification campaign working dir
+verification-evidence/
