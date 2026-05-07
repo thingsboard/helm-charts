@@ -234,33 +234,6 @@ helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
   -f values.yaml
 ```
 
-### Pod Restart Behavior
-
-When `enableChecksumAnnotations: true` (the default), `helm upgrade` rolls Pods whenever any of
-their inputs change. The triggers differ between the broker and the IE because the IE does not
-connect to PostgreSQL or Redis and does not validate the PE license.
-
-**Broker (`tbmq-node`):**
-
-- Default Java options ConfigMap (`conf` key)
-- `tbmq.customEnv` ConfigMap
-- PostgreSQL connection ConfigMap and password Secret
-- Redis connection ConfigMap and password Secret
-- Kafka connection ConfigMap
-- License Secret (PE only — checksummed only when `license.secret` or `license.existingSecret` is set)
-
-**Integration Executor (`tbmq-ie`):**
-
-- Default Java options ConfigMap (`conf` key)
-- `tbmq-ie.customEnv` ConfigMap
-- Kafka connection ConfigMap
-
-Logback ConfigMap changes do **not** trigger restart on either StatefulSet. Both broker and IE
-logback configs declare `<configuration scan="true" scanPeriod="10 seconds">` and pick up logback
-changes within ~10 seconds of the ConfigMap propagating to the Pod. `tbmq.enableChecksumAnnotations`
-and `tbmq-ie.enableChecksumAnnotations` are independent — set either to `false` to opt that
-StatefulSet out of automatic rolling on input changes.
-
 ## Upgrading
 
 A TBMQ chart upgrade may include a database schema migration when the `appVersion` changes. Always
