@@ -588,14 +588,6 @@ point `license.existingSecret` at it (see [PE install — Provide your license](
 CE images don't need a license — confirm you didn't pull the PE images (`thingsboard/tbmq-pe-*`)
 without configuring one.
 
-### MQTT clients get `Connection Refused: not authorised` (return code 5)
-
-No MQTT client credentials have been provisioned. TBMQ 2.3.0 ships with **no enabled MQTT auth
-providers by default**, and there is no env var to enable basic auth — credentials and provider
-state are managed exclusively through the admin REST API
-(`POST /api/mqtt/client/credentials`, after `POST /api/auth/login` as sysadmin). See the
-[TBMQ documentation](https://thingsboard.io/docs/mqtt-broker/) for the full provider model.
-
 ### Broker crash-loops with `License Error: CLUSTER_ID_MISMATCH(114)`
 
 The license server has bound your TBMQ license to a different cluster id than the one this broker
