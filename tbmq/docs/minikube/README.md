@@ -493,4 +493,7 @@ helm uninstall pgo -n thingsboard-mqtt-broker
 
 # Remove namespace
 kubectl delete namespace thingsboard-mqtt-broker
+
+# Tear down the Minikube cluster (reclaims VM/Docker resources)
+minikube delete
 ```
