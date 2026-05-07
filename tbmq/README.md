@@ -132,9 +132,14 @@ check the license, so they do **not** receive these env vars and do **not** depe
 
 - `TBMQ_LICENSE_SECRET` — read from the Secret above.
 - `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to a per-pod license cache file. The default
-  (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) places it on the chart's `/data` emptyDir
-  and namespaces it by pod name so multi-replica deployments don't race on a single file. Override
-  via `license.instanceDataFile` only if you mount a different writable path.
+  (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on the broker's `/data` directory,
+  which is backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
+  [Persistence](#persistence) below). `$(TB_SERVICE_ID)` namespaces the file by pod name so
+  multi-replica deployments don't race on a single file. **Keep persistence enabled for PE:**
+  if `/data` is an `emptyDir` and a Pod restarts, the broker re-registers as a fresh instance
+  with a new cluster id — burning a license slot and (for single-bind licenses) hitting
+  `CLUSTER_ID_MISMATCH(114)` on the next start. Override `license.instanceDataFile` only if you
+  mount a different writable path.
 
 ##### 2. Select the PE images
 
@@ -204,6 +209,46 @@ kubectl logs my-tbmq-install-pod -n <namespace> --previous
 
 If a successful install pod was deleted before you could grab logs, re-run with `helm install --debug`
 so Helm streams hook output to your terminal.
+
+### Step 5: Create MQTT Client Credentials
+
+TBMQ 2.3.0 manages MQTT authentication providers (basic, SSL, JWT, HTTP) through the admin REST API
+— there is no env-var or values-file toggle that enables a provider. After install, log in as the
+default admin and provision at least one MQTT client credential before any MQTT client can connect.
+
+```bash
+# Port-forward the broker HTTP API
+kubectl port-forward svc/my-tbmq-tbmq-node -n <namespace> 8083:8083 &
+
+# Log in (returns a JWT)
+TOKEN=$(curl -s -X POST http://localhost:8083/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"sysadmin@thingsboard.org","password":"sysadmin"}' \
+  | jq -r '.token')
+
+# Provision an MQTT client (basic auth, all topics allowed)
+CRED_VALUE=$(jq -nc --arg u "tbmq-user" --arg p "tbmq-password" \
+  '{clientId:null, userName:$u, password:$p, authRules:{pubAuthRulePatterns:[".*"], subAuthRulePatterns:[".*"]}}')
+curl -X POST http://localhost:8083/api/mqtt/client/credentials \
+  -H "X-Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "$(jq -nc --arg name "first-client" --arg cv "$CRED_VALUE" \
+        '{name:$name, clientType:"DEVICE", credentialsType:"MQTT_BASIC", credentialsValue:$cv}')"
+```
+
+Connect any MQTT client with the credentials you just created:
+
+```bash
+mosquitto_sub -h localhost -p 1883 -u tbmq-user -P tbmq-password -t test/topic &
+mosquitto_pub -h localhost -p 1883 -u tbmq-user -P tbmq-password -t test/topic -m hello
+```
+
+You can also create credentials through the TBMQ web UI at `http://localhost:8083`. Change the
+default admin password (`sysadmin@thingsboard.org` / `sysadmin`) immediately after first login.
+
+> Earlier TBMQ versions exposed env vars like `SECURITY_MQTT_BASIC_ENABLED` to toggle providers —
+> these are not recognized in 2.3.0. Tightening the auth rules (per-client topic patterns,
+> rotating credentials, enabling SSL/JWT/HTTP providers) is also REST-only; see the
+> [TBMQ documentation](https://thingsboard.io/docs/mqtt-broker/) for the full provider model.
 
 ## Updating Configuration
 
@@ -565,6 +610,50 @@ Common causes:
   in use (check the upgrade Pod's `image:` field — it should be `thingsboard/tbmq-pe-node:<tag>`).
 - **`upgrade.fromVersion=ce` left set on a follow-up PE → PE upgrade** → the upgrade job will try
   to migrate an already-PE database from CE and fail. Drop the flag.
+
+## Runtime Troubleshooting
+
+Symptoms you may hit on a running cluster (separate from the upgrade-time issues covered in
+[Troubleshooting Upgrades](#troubleshooting-upgrades) above).
+
+### Broker exits immediately with `License Error GENERAL_ERROR(300)`
+
+The broker logs:
+
+```
+ERROR o.t.m.b.d.s.BasicSubscriptionService - License secret is not provided!
+ERROR o.t.m.b.d.s.BasicSubscriptionService - Please provide license.secret property value in thingsboard-mqtt-broker.yml or set TBMQ_LICENSE_SECRET environment variable!
+INFO  o.t.m.b.d.s.BasicSubscriptionService - Terminating application due to critical License Error GENERAL_ERROR(300), exit code [-1]
+```
+
+PE images require a license value. Either set `license.secret` inline or pre-create a Secret and
+point `license.existingSecret` at it (see [PE install — Provide your license](#1-provide-your-license)).
+CE images don't need a license — confirm you didn't pull the PE images (`thingsboard/tbmq-pe-*`)
+without configuring one.
+
+### MQTT clients get `Connection Refused: not authorised` (return code 5)
+
+No MQTT client credentials have been provisioned. TBMQ 2.3.0 ships with **no enabled MQTT auth
+providers by default**, and there is no env var to enable basic auth — credentials and provider
+state are managed exclusively through the admin REST API. Follow
+[Step 5: Create MQTT Client Credentials](#step-5-create-mqtt-client-credentials).
+
+### Broker crash-loops with `License Error: CLUSTER_ID_MISMATCH(114)`
+
+The license server has bound your TBMQ license to a different cluster id than the one this broker
+is presenting. Common causes:
+
+- **Persistence disabled and Pod recreated.** Without `tbmq.persistence.enabled=true`, `/data` is
+  an `emptyDir` and the per-pod instance-data file (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`)
+  is wiped on every restart. The broker generates a new cluster id on the next start, but the
+  license server still holds the previous binding and rejects the new one. Re-enable
+  `tbmq.persistence` (the chart default).
+- **PVC was deleted between installs.** `kubectl delete pvc` (or `kubectl delete namespace`) wipes
+  the instance-data file. Deactivate the prior binding via your license-server admin before
+  reinstalling, or your fresh cluster id will collide with the previous one.
+- **License is bound to another TBMQ deployment.** Single-bind licenses can only activate against
+  one cluster id at a time. Deactivate the prior binding (or contact ThingsBoard) before installing
+  into a new cluster.
 
 ## Configuration Reference
 
