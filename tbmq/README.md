@@ -28,8 +28,8 @@ The chart deploys only TBMQ application components:
 - `tbmq-node` — broker StatefulSet (default 2 replicas). Exposes MQTT (1883), MQTTS (8883), MQTT-WS
   (8084), MQTT-WSS (8085), and an HTTP management API (8083).
 - `tbmq-ie` — Integration Executor StatefulSet (default 2 replicas). Exposes HTTP (8082).
-- Helm hooks for one-shot install and upgrade jobs that run TBMQ's database schema initializer or
-  migration tool.
+- Helm hooks for one-shot install Pod and upgrade Job that run TBMQ's database schema initializer
+  or migration tool.
 - Optional `Ingress` and `Service` resources for HTTP and MQTT load balancing
   (`nginx`, `aws`, `azure`, or `gcp` flavors).
 
@@ -71,7 +71,7 @@ At a minimum you need to set:
 
 - `postgresql.host` and credentials (or `existingSecret`)
 - `kafka.bootstrapServers`
-- `redis.connectionType` plus either `redis.host`/`redis.port` (standalone) or `redis.nodes` (cluster), and credentials if `usePassword: true`
+- `redis.nodes` (cluster mode is the default) — or `redis.connectionType: standalone` plus `redis.host`/`redis.port` — and credentials if `usePassword: true`
 
 See [Infrastructure Configuration](#infrastructure-configuration) for full parameter reference.
 
@@ -189,15 +189,20 @@ remember overlays or `--set` flags between invocations.
 ### Step 4: Verify the Install
 
 ```bash
-kubectl get pods -l app.kubernetes.io/instance=my-tbmq -n <namespace>
+# List the broker, integration executor, and install-pod resources
+kubectl get pods -n <namespace> -l 'app in (my-tbmq-tbmq-node,my-tbmq-tbmq-ie,install-job)'
 ```
 
-The install pod (`my-tbmq-install-pod`) runs once, creates the schema, then exits. The hook policy
-is `hook-succeeded,before-hook-creation`: Helm deletes the pod **only when it succeeds**; on
-failure the pod is **left in place** so you can inspect logs, and it is auto-cleaned the next time
-the hook runs (e.g., the next `helm upgrade`). The install hook has a 300s timeout. The
-`my-tbmq-tbmq-node-*` and `my-tbmq-tbmq-ie-*` StatefulSet pods should reach `Running` and pass
-readiness probes within a minute or two after the install pod succeeds.
+(The chart sets only the bare `app:` label — there is no `app.kubernetes.io/instance` selector to filter by release name.)
+
+The install pod (`my-tbmq-install-pod`) runs to completion (its `restartPolicy` is `OnFailure`,
+so a failed container restarts in-pod until it succeeds or the hook timeout fires), creates the
+schema, then exits. The hook policy is `hook-succeeded,before-hook-creation`: Helm deletes the
+pod **only when it succeeds**; on failure the pod is **left in place** so you can inspect logs,
+and it is auto-cleaned the next time the hook runs (e.g., the next `helm upgrade`). The install
+hook has a 300s timeout. The `my-tbmq-tbmq-node-*` and `my-tbmq-tbmq-ie-*` StatefulSet pods
+should reach `Running` and pass readiness probes within a minute or two after the install pod
+succeeds.
 
 ```bash
 # While the pod runs:
@@ -228,7 +233,7 @@ TOKEN=$(curl -s -X POST http://localhost:8083/api/auth/login \
 
 # Provision an MQTT client (basic auth, all topics allowed)
 CRED_VALUE=$(jq -nc --arg u "tbmq-user" --arg p "tbmq-password" \
-  '{clientId:null, userName:$u, password:$p, authRules:{pubAuthRulePatterns:[".*"], subAuthRulePatterns:[".*"]}}')
+  '{userName:$u, password:$p, authRules:{pubAuthRulePatterns:[".*"], subAuthRulePatterns:[".*"]}}')
 curl -X POST http://localhost:8083/api/mqtt/client/credentials \
   -H "X-Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d "$(jq -nc --arg name "first-client" --arg cv "$CRED_VALUE" \
@@ -351,13 +356,18 @@ differs.
    kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
    ```
 
-4. **Scale back up.** Helm scales the StatefulSets back to their configured replica counts as part
-   of the upgrade — no manual scale-up is needed unless you scaled down outside of Helm. If you
-   manually scaled `tbmq-ie` to 0 in step 1, scale it back:
+4. **Scale back up.** Because the chart's `replicas` value is unchanged across this upgrade,
+   Helm's 3-way merge **preserves the live `replicas: 0`** you set with `kubectl scale` in step 1
+   — neither StatefulSet will scale back automatically. Restore both manually after Helm reports
+   the upgrade succeeded:
 
    ```bash
-   kubectl scale statefulset/my-tbmq-tbmq-ie --replicas=2 -n <namespace>
+   kubectl scale statefulset/my-tbmq-tbmq-node --replicas=2 -n <namespace>
+   # If you also scaled tbmq-ie down in step 1:
+   kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=2 -n <namespace>
    ```
+
+   Use whatever replica counts your deployment runs at — `2` is the chart default.
 
 ### CE → PE Upgrade (Cross-Edition Migration)
 
@@ -388,7 +398,14 @@ What happens during this upgrade:
   switches the migration into CE→PE mode (rewrites the CE schema as PE).
 - After the migration succeeds, Helm rolls the `tbmq-node` and `tbmq-ie` StatefulSets onto the PE
   images.
-- Manually scale `tbmq-ie` back up if you scaled it down.
+- Manually scale both StatefulSets back to their original replica counts — Helm's 3-way merge
+  preserves the live `replicas: 0` you set with `kubectl scale` when the chart's `replicas` value
+  is unchanged across the upgrade, so neither StatefulSet scales back automatically:
+
+  ```bash
+  kubectl scale statefulset/my-tbmq-tbmq-node --replicas=2 -n <namespace>
+  kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=2 -n <namespace>
+  ```
 
 After the migration succeeds, **do not** carry `upgrade.fromVersion=ce` forward to subsequent
 PE → PE upgrades — drop the flag (or set it to `""`) on the next `helm upgrade`. Leaving it on
@@ -597,10 +614,11 @@ kubectl logs <upgrade-pod-name> -n <namespace> --previous
 
 Common causes:
 
-- **Connection refused** to PostgreSQL → check `postgresql.host`/`postgresql.port` and that the DB
-  is reachable from the TBMQ namespace. The Job's `wait-for-postgres` init container loops until
-  the host:port is reachable (it never times out on its own; the Helm hook timeout will fire after
-  600s).
+- **Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`** →
+  PostgreSQL is unreachable. The init container runs `until nc -z $host $port; do ... sleep 2; done`,
+  which retries silently (no "connection refused" line is printed) and never times out on its own —
+  the Helm hook timeout will fire after 600s. Check `postgresql.host`/`postgresql.port` and that
+  the DB is reachable from the TBMQ namespace.
 - **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
   the expected key.
 - **Hook timeout (10 minutes)** → for very large databases, the migration may exceed the default
@@ -676,7 +694,7 @@ is presenting. Common causes:
 | license.secret               | License value. When set, the chart creates a Secret `<release>-tbmq-license-secret`. Convenient for testing; the value lands in the helm release manifest.                           | ""                          |
 | license.existingSecret       | Name of a pre-existing Kubernetes Secret holding the license. Recommended for production. When set, the chart does NOT create a Secret of its own.                                   | ""                          |
 | license.existingSecretLicenseKey | Key inside `existingSecret` that holds the license value. Matches the convention from the official PE k8s manifests.                                                             | "license-key"               |
-| license.instanceDataFile     | Path to the per-pod license cache file. Default uses `$(TB_SERVICE_ID)` so each replica gets its own file under the chart's `/data` emptyDir.                                        | "/data/tbmq-instance-license-$(TB_SERVICE_ID).data" |
+| license.instanceDataFile     | Path to the per-pod license cache file. Default uses `$(TB_SERVICE_ID)` so each replica gets its own file under `/data`, which is PVC-backed by default (see `tbmq.persistence`).      | "/data/tbmq-instance-license-$(TB_SERVICE_ID).data" |
 
 ### TBMQ (Broker) Parameters
 
@@ -694,7 +712,7 @@ is presenting. Common causes:
 | tbmq.nodeSelector / tbmq.affinity       | Pod scheduling rules.                                                                                                                                      | { }                                   |
 | tbmq.restartPolicy                      | Pod restart policy.                                                                                                                                        | Always                                |
 | **Ports**                               |                                                                                                                                                            |                                       |
-| tbmq.ports                              | Container ports: HTTP 8083, HTTPS 443, MQTT 1883, MQTTS 8883, MQTT-WS 8084, MQTT-WSS 8085.                                                                 | (see values.yaml)                     |
+| tbmq.ports                              | Container ports: HTTP 8083, MQTT 1883, MQTTS 8883, MQTT-WS 8084, MQTT-WSS 8085.                                                                            | (see values.yaml)                     |
 | **Configuration**                       |                                                                                                                                                            |                                       |
 | tbmq.customEnv                          | Map of env vars applied to broker pods, install Pod, and upgrade Job. Wins over keys in any `existing*ConfigMap`.                                          | { }                                   |
 | tbmq.existingConfigMap                  | One ConfigMap providing both `conf` (Java opts) and `logback` (logging) keys. Highest priority — when set, the chart skips rendering its default ConfigMaps and ignores the two below. Applies to broker pods and the upgrade Job; the install Pod uses a dedicated minimal `*-install-config`. | ""                                    |
@@ -709,7 +727,7 @@ is presenting. Common causes:
 | tbmq.resources                          | CPU/memory requests and limits. Set explicitly for production.                                                                                             | { }                                   |
 | **Persistence**                         |                                                                                                                                                            |                                       |
 | tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). Required for PE so the license instance-data file survives Pod recreation; safe to leave on for CE. | true |
-| tbmq.persistence.size                   | PVC size. Defaults to 1Gi to match the official PE Kubernetes manifests.                                                                                      | "1Gi"                                 |
+| tbmq.persistence.size                   | PVC size. The PE license cache file is a few KB; 1Gi just leaves headroom for any future PE feature that may write to `/data`. The reference PE Kubernetes manifests request 100Mi — bumping this default does not affect compatibility. | "1Gi"                                 |
 | tbmq.persistence.storageClassName       | StorageClass name. Empty means use the cluster's default StorageClass.                                                                                       | ""                                    |
 | tbmq.persistence.accessModes            | PVC access modes. ReadWriteOnce is correct for per-pod claims.                                                                                              | ["ReadWriteOnce"]                     |
 
@@ -756,12 +774,20 @@ tbmq:
     enabled: false
 ```
 
-The Integration Executor StatefulSet, the install Pod, and the pre-upgrade Job
-continue to use `emptyDir` for `/data` — they don't carry per-instance state.
+The Integration Executor StatefulSet and the pre-upgrade Job continue to use `emptyDir`
+for `/data` — they don't carry per-instance state. The install Pod doesn't mount `/data`
+at all (its only volumes are the install ConfigMap and a logs `emptyDir`).
 
 **Cleanup.** `helm uninstall` does **not** delete PVCs created by `volumeClaimTemplate`.
-Reap them with `kubectl delete pvc -l app=<release>-tbmq-node -n <namespace>` or
-`kubectl delete namespace <namespace>` if you no longer need the data.
+The chart-managed PVCs are named `<release>-tbmq-node-data-<release>-tbmq-node-<ordinal>`
+(one per broker replica) and carry no `app=...` label, so reap them by name pattern:
+
+```bash
+kubectl get pvc -n <namespace> -o name | grep tbmq-node-data \
+  | xargs -r kubectl delete -n <namespace>
+```
+
+Or simply `kubectl delete namespace <namespace>` if you no longer need the data.
 
 ## Infrastructure Configuration
 
@@ -834,8 +860,10 @@ redis:
   usePassword: false
 ```
 
-In `cluster` mode, the chart automatically renders Lettuce/Jedis topology refresh settings into the
-Redis ConfigMap; in `standalone` mode those settings are omitted.
+In `cluster` mode, the chart automatically renders cluster-only keys (`REDIS_NODES`,
+`REDIS_MAX_REDIRECTS`, `REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG`, and the Lettuce/Jedis topology
+refresh tunables) into the Redis ConfigMap; in `standalone` mode those keys are omitted and only
+`REDIS_HOST`/`REDIS_PORT` are set.
 
 ## Load Balancer
 
@@ -909,4 +937,4 @@ ConfigMaps, chart-managed Secrets, Ingress, and the load balancer Service). It d
   systems you deployed alongside TBMQ. Drop them explicitly if you no longer need them.
 - **Pre-existing Secrets** — anything referenced via `postgresql.existingSecret`,
   `redis.existingSecret`, or a pre-created `tbmq.imagePullSecret` is left in place.
-- **Per-pod PVCs created from `volumeClaimTemplate`** — chart-managed `tbmq-node-data` PVCs are not deleted by `helm uninstall`. Drop them explicitly with `kubectl delete pvc -l app=<release>-tbmq-node -n <namespace>` or by deleting the whole namespace.
+- **Per-pod PVCs created from `volumeClaimTemplate`** — chart-managed `tbmq-node-data` PVCs are not deleted by `helm uninstall`. They carry no `app=...` label (the volumeClaimTemplate has none), so drop them explicitly by name pattern: `kubectl get pvc -n <namespace> -o name | grep tbmq-node-data | xargs -r kubectl delete -n <namespace>`, or just delete the whole namespace.
