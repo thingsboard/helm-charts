@@ -4,7 +4,7 @@ This guide walks you through deploying TBMQ on Minikube with:
 
 - **PostgreSQL** via [CrunchyData PGO](https://github.com/CrunchyData/postgres-operator) `6.0.1` (PostgreSQL 17)
 - **Kafka** via [Strimzi Operator](https://strimzi.io/) `0.50.0` (Apache Kafka 4.0.0, KRaft mode)
-- **Valkey** via [official Valkey Helm chart](https://github.com/valkey-io/valkey-helm) `0.9.3` (Valkey 9.0.1, standalone)
+- **Valkey** via [official Valkey Helm chart](https://github.com/valkey-io/valkey-helm) `0.8.1` (Valkey 8.0, standalone) — matches the canonical TBMQ v2.3.0 third-party reference (`valkey/valkey:8.0`)
 
 ## Prerequisites
 
@@ -231,7 +231,8 @@ helm repo update
 
 helm install valkey valkey/valkey \
   --namespace thingsboard-mqtt-broker \
-  --version 0.9.3
+  --version 0.8.1 \
+  --set image.tag=8.0
 ```
 
 Wait for the pod to be ready:
