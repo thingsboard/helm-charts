@@ -83,9 +83,14 @@ spec:
 EOF
 ```
 
-Wait for the cluster to be ready:
+Wait for the cluster to be ready. PGO may take a few seconds to create the Pods after the
+manifest is applied, and `kubectl wait` errors out with `no matching resources found` if it
+fires before any matching Pods exist — so wait for the Pods to appear first, then wait for
+them to be Ready:
 
 ```bash
+until kubectl get pod -l postgres-operator.crunchydata.com/cluster=tbmq-db \
+        -n thingsboard-mqtt-broker 2>/dev/null | grep -q tbmq-db; do sleep 3; done
 kubectl wait --for=condition=Ready pod -l postgres-operator.crunchydata.com/cluster=tbmq-db \
   -n thingsboard-mqtt-broker --timeout=300s
 ```
@@ -294,6 +299,13 @@ loadbalancer:
 ```
 
 ### Install the chart
+
+The install commands below use the relative path `../../` to point at the chart root, so run
+them from this guide's directory:
+
+```bash
+cd tbmq/docs/minikube
+```
 
 ```bash
 helm install tbmq ../../ -f minikube-values.yaml \
