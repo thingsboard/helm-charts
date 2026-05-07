@@ -100,10 +100,10 @@ PE deploys the same chart as CE. Two things differ:
 
 Make both changes by editing the `values.yaml` you exported in Step 2 — then run a single
 `helm install` against that file. **Do not** pass `values-pe.yaml` as a `-f` overlay alongside
-your `values.yaml`: depending on Helm's `-f` ordering, the CE-defaulted image keys in your
-`values.yaml` can silently override the overlay and you'll deploy CE images with no license
-enforcement. The repo's [`values-pe.yaml`](values-pe.yaml) is kept as a reference for which keys
-to set; this section walks through editing them in place.
+your `values.yaml`: the CE-defaulted image keys in your `values.yaml` will override the overlay
+and you'll deploy CE images with no license enforcement. [`values-pe.yaml`](values-pe.yaml) in
+the repo is a reference document showing which keys differ for PE — read it for the current
+canonical values, but edit your own `values.yaml` as below.
 
 ##### 1. Switch to PE images
 
@@ -134,19 +134,23 @@ Secret and referencing it from values:
 ```bash
 kubectl create namespace <namespace>
 kubectl create secret generic my-tbmq-license -n <namespace> \
-  --from-literal=license-key=YOUR_LICENSE_VALUE
+  --from-literal=license-key='YOUR_LICENSE_VALUE'
 ```
 
 ```yaml
 license:
   existingSecret: my-tbmq-license
-  # existingSecretLicenseKey defaults to "license-key" — match what you used above
+  # The chart reads the license from a key named "license-key" inside the Secret.
+  # If your Secret uses a different key, set existingSecretLicenseKey: <your-key>.
 ```
 
 Why this is the recommended path:
 
 - The license value never lives in `values.yaml` on disk, so the file is safe to keep in version
   control alongside the rest of your infra config.
+- Composes with sealed-secrets, External Secrets Operator, SOPS, Vault, or any other tool that
+  produces a Kubernetes Secret in the release's namespace — point `existingSecret` at the name
+  it produces and the chart picks it up unchanged.
 - Rotating the license is `kubectl edit secret` — no `helm upgrade` round-trip.
 - The Secret survives `helm uninstall`, so reinstalling the release does not require re-pasting
   the license value.
@@ -164,6 +168,9 @@ in the cluster (`sh.helm.release.v1.<name>.<rev>` Secret), and anyone with `get 
 permission in that namespace can read it back.
 
 ##### 3. Install
+
+Because every PE-specific change is in your `values.yaml`, the install command is identical to
+the CE one:
 
 ```bash
 helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
