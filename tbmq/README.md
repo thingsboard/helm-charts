@@ -217,51 +217,6 @@ kubectl logs my-tbmq-install-pod -n <namespace> --previous
 If a successful install pod was deleted before you could grab logs, re-run with `helm install --debug`
 so Helm streams hook output to your terminal.
 
-### Step 5: Create MQTT Client Credentials
-
-TBMQ 2.3.0 manages MQTT authentication providers (basic, SSL, JWT, HTTP) through the admin REST API
-— there is no env-var or values-file toggle that enables a provider. After install, log in as the
-default admin and provision at least one MQTT client credential before any MQTT client can connect.
-
-```bash
-# Port-forward the broker HTTP API
-kubectl port-forward svc/my-tbmq-tbmq-node -n <namespace> 8083:8083 &
-
-# Log in (returns a JWT)
-TOKEN=$(curl -s -X POST http://localhost:8083/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"sysadmin@thingsboard.org","password":"sysadmin"}' \
-  | jq -r '.token')
-
-# Provision an MQTT client (basic auth, all topics allowed)
-CRED_VALUE=$(jq -nc --arg u "tbmq-user" --arg p "tbmq-password" \
-  '{userName:$u, password:$p, authRules:{pubAuthRulePatterns:[".*"], subAuthRulePatterns:[".*"]}}')
-curl -X POST http://localhost:8083/api/mqtt/client/credentials \
-  -H "X-Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d "$(jq -nc --arg name "first-client" --arg cv "$CRED_VALUE" \
-        '{name:$name, clientType:"DEVICE", credentialsType:"MQTT_BASIC", credentialsValue:$cv}')"
-```
-
-Connect any MQTT client with the credentials you just created. If you don't already have
-an MQTT load balancer in front of the broker (or want to test without one), port-forward
-the MQTT port too:
-
-```bash
-# Port-forward the MQTT listener (separate from the 8083 forward above)
-kubectl port-forward svc/my-tbmq-tbmq-node -n <namespace> 1883:1883 &
-
-mosquitto_sub -h localhost -p 1883 -u tbmq-user -P tbmq-password -t test/topic &
-mosquitto_pub -h localhost -p 1883 -u tbmq-user -P tbmq-password -t test/topic -m hello
-```
-
-You can also create credentials through the TBMQ web UI at `http://localhost:8083`. Change the
-default admin password (`sysadmin@thingsboard.org` / `sysadmin`) immediately after first login.
-
-> Earlier TBMQ versions exposed env vars like `SECURITY_MQTT_BASIC_ENABLED` to toggle providers —
-> these are not recognized in 2.3.0. Tightening the auth rules (per-client topic patterns,
-> rotating credentials, enabling SSL/JWT/HTTP providers) is also REST-only; see the
-> [TBMQ documentation](https://thingsboard.io/docs/mqtt-broker/) for the full provider model.
-
 ## Updating Configuration
 
 Routine configuration changes — scaling replicas, adjusting resource limits, modifying load balancer
@@ -664,8 +619,9 @@ without configuring one.
 
 No MQTT client credentials have been provisioned. TBMQ 2.3.0 ships with **no enabled MQTT auth
 providers by default**, and there is no env var to enable basic auth — credentials and provider
-state are managed exclusively through the admin REST API. Follow
-[Step 5: Create MQTT Client Credentials](#step-5-create-mqtt-client-credentials).
+state are managed exclusively through the admin REST API
+(`POST /api/mqtt/client/credentials`, after `POST /api/auth/login` as sysadmin). See the
+[TBMQ documentation](https://thingsboard.io/docs/mqtt-broker/) for the full provider model.
 
 ### Broker crash-loops with `License Error: CLUSTER_ID_MISMATCH(114)`
 
