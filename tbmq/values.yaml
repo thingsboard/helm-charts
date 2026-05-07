@@ -70,9 +70,12 @@ license:
   existingSecretLicenseKey: "license-key"
 
   # Filesystem path where the license client caches its instance data file. Must be
-  # writable by the container user (799). The default puts each pod's cache file under
-  # the chart's `/data` emptyDir, namespaced by `$(TB_SERVICE_ID)` so multi-replica
-  # deployments don't race on a single file.
+  # writable by the container user (799). The default puts each pod's cache file
+  # under `/data` — backed by a per-pod PVC when `tbmq.persistence.enabled` is true
+  # (default), or by an `emptyDir` when persistence is disabled. The path is
+  # namespaced by `$(TB_SERVICE_ID)` so multi-replica deployments don't race on a
+  # single file. Persistence MUST stay enabled for PE — losing the cache file binds
+  # the next-launched pod to a new license slot on the license server.
   instanceDataFile: "/data/tbmq-instance-license-$(TB_SERVICE_ID).data"
 
 # Section to configure TBMQ service.
@@ -98,8 +101,6 @@ tbmq:
   ports:
     - name: http
       value: 8083
-    - name: https
-      value: 443
     - name: mqtt
       value: 1883
     - name: mqtts
@@ -261,8 +262,10 @@ tbmq:
     # StatefulSet volumeClaimTemplate. When false, /data is an emptyDir
     # (destroyed on Pod recreation — fine for CE, NOT recommended for PE).
     enabled: true
-    # PVC size. 1Gi matches the official PE Kubernetes manifests
-    # (https://github.com/thingsboard/tbmq-pe-k8s).
+    # PVC size. The PE license cache file itself is a few KB — 1Gi just leaves
+    # comfortable headroom for any future PE features that may write to /data.
+    # The reference PE Kubernetes manifests (https://github.com/thingsboard/tbmq-pe-k8s)
+    # request 100Mi; bumping this default does not affect compatibility.
     size: "1Gi"
     # StorageClass name. Empty means use the cluster's default StorageClass.
     storageClassName: ""
@@ -386,10 +389,10 @@ tbmq-ie:
   #     <configuration scan="true" scanPeriod="10 seconds">
   #         <appender name="fileLogAppender"
   #                   class="ch.qos.logback.core.rolling.RollingFileAppender">
-  #             <file>/var/log/thingsboard-mqtt-broker/${TB_SERVICE_ID}/thingsboard-mqtt-broker.log</file>
+  #             <file>/var/log/tbmq-integration-executor/${TB_SERVICE_ID}/tbmq-integration-executor.log</file>
   #             <rollingPolicy
   #                     class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-  #                 <fileNamePattern>/var/log/thingsboard-mqtt-broker/${TB_SERVICE_ID}/thingsboard-mqtt-broker.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+  #                 <fileNamePattern>/var/log/tbmq-integration-executor/${TB_SERVICE_ID}/tbmq-integration-executor.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
   #                 <maxFileSize>100MB</maxFileSize>
   #                 <maxHistory>30</maxHistory>
   #                 <totalSizeCap>3GB</totalSizeCap>
