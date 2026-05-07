@@ -92,19 +92,47 @@ helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
 
 #### Professional Edition (PE)
 
-PE deploys exactly the same chart as CE — only the broker and integration-executor images differ
-(`thingsboard/tbmq-pe-node` and `thingsboard/tbmq-pe-integration-executor`), and **PE additionally
-requires a license**.
+PE deploys the same chart as CE. Two things differ:
 
-##### 1. Provide your license
+1. The broker and integration-executor images are PE variants (`thingsboard/tbmq-pe-node` and
+   `thingsboard/tbmq-pe-integration-executor`).
+2. PE requires a license.
 
-You can either let the chart create a Secret from a value you supply, or point the chart at a
-Secret you've already created.
+Make both changes by editing the `values.yaml` you exported in Step 2 — then run a single
+`helm install` against that file. **Do not** pass `values-pe.yaml` as a `-f` overlay alongside
+your `values.yaml`: depending on Helm's `-f` ordering, the CE-defaulted image keys in your
+`values.yaml` can silently override the overlay and you'll deploy CE images with no license
+enforcement. The repo's [`values-pe.yaml`](values-pe.yaml) is kept as a reference for which keys
+to set; this section walks through editing them in place.
 
-**Recommended (production):** pre-create a Kubernetes Secret with your license, then reference
-it from values:
+##### 1. Switch to PE images
+
+Find the `tbmq.image` and `tbmq-ie.image` blocks in your `values.yaml` and change `repository`
+and `tag` to the PE values:
+
+```yaml
+tbmq:
+  image:
+    repository: thingsboard/tbmq-pe-node                  # was: thingsboard/tbmq-node
+    tag: 2.3.0PE                                          # was: 2.3.0
+
+tbmq-ie:
+  image:
+    repository: thingsboard/tbmq-pe-integration-executor  # was: thingsboard/tbmq-integration-executor
+    tag: 2.3.0PE                                          # was: 2.3.0
+```
+
+PE tags match the chart `appVersion` with a `PE` suffix (e.g. `2.3.0` → `2.3.0PE`). The CE and PE
+image tags are **not** interchangeable. The canonical reference values for the current chart
+version are in [`values-pe.yaml`](values-pe.yaml).
+
+##### 2. Provide your license
+
+**Recommended (production):** keep the license out of `values.yaml` by pre-creating a Kubernetes
+Secret and referencing it from values:
 
 ```bash
+kubectl create namespace <namespace>
 kubectl create secret generic my-tbmq-license -n <namespace> \
   --from-literal=license-key=YOUR_LICENSE_VALUE
 ```
@@ -115,22 +143,44 @@ license:
   # existingSecretLicenseKey defaults to "license-key" — match what you used above
 ```
 
-**Quick (test / dev):** paste the license value into your values file and the chart will create
-the Secret for you (`<release>-tbmq-license-secret`):
+Why this is the recommended path:
+
+- The license value never lives in `values.yaml` on disk, so the file is safe to keep in version
+  control alongside the rest of your infra config.
+- Rotating the license is `kubectl edit secret` — no `helm upgrade` round-trip.
+- The Secret survives `helm uninstall`, so reinstalling the release does not require re-pasting
+  the license value.
+
+**Alternative (test / dev):** paste the license value into your `values.yaml` and the chart will
+render the Secret for you (`<release>-tbmq-license-secret`):
 
 ```yaml
 license:
   secret: YOUR_LICENSE_VALUE
 ```
 
-You can also pass the license value via `--set license.secret=…` on the install command — but
-remember it lands in the helm release manifest stored inside the cluster.
+This is fine for quick experiments, but the value lands inside the helm release manifest stored
+in the cluster (`sh.helm.release.v1.<name>.<rev>` Secret), and anyone with `get secrets`
+permission in that namespace can read it back.
 
-Only the broker StatefulSet validates the license, so the chart injects two env vars there.
-The IE StatefulSet, the install Pod, and the pre-upgrade Job all run code paths that do **not**
-check the license, so they do **not** receive these env vars and do **not** depend on the Secret.
+##### 3. Install
 
-- `TBMQ_LICENSE_SECRET` — read from the Secret above.
+```bash
+helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
+  -f values.yaml \
+  --set installation.installDbSchema=true
+```
+
+> **Tip:** `my-tbmq` is the **Helm release name**. Pick any name. It is used as the prefix for
+> all deployed resources and as the reference for future `helm` commands against this release.
+
+##### How the chart wires the license
+
+Only the broker StatefulSet validates the license, so the chart injects two license env vars
+**only** there. The IE StatefulSet, the install Pod, and the pre-upgrade Job do not consume the
+license Secret and do not depend on it.
+
+- `TBMQ_LICENSE_SECRET` — read from the Secret you provided (inline or via `existingSecret`).
 - `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to the per-pod local cache of the license client's
   response. The default (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on `/data`,
   backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
@@ -142,51 +192,6 @@ check the license, so they do **not** receive these env vars and do **not** depe
 > The TBMQ cluster id that the license server binds to lives in PostgreSQL
 > (`tbmq_cluster.cluster_id`, generated once at install). It is not stored in `/data` and is
 > unaffected by Pod recreation.
-
-##### 2. Select the PE images
-
-Two equivalent ways:
-
-**Option A — apply the bundled `values-pe.yaml` overlay (recommended):**
-
-```bash
-helm pull tbmq-helm-chart/tbmq-cluster --untar --untardir /tmp
-
-helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
-  -f /tmp/tbmq-cluster/values-pe.yaml \
-  -f values.yaml \
-  --set installation.installDbSchema=true
-```
-
-When installing from a local chart directory, the overlay is right there:
-
-```bash
-helm install my-tbmq ./tbmq \
-  -f tbmq/values-pe.yaml \
-  -f values.yaml \
-  --set installation.installDbSchema=true
-```
-
-**Option B — inline overrides:**
-
-```bash
-helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
-  -f values.yaml \
-  --set tbmq.image.repository=thingsboard/tbmq-pe-node \
-  --set tbmq.image.tag=<appVersion>PE \
-  --set tbmq-ie.image.repository=thingsboard/tbmq-pe-integration-executor \
-  --set tbmq-ie.image.tag=<appVersion>PE \
-  --set installation.installDbSchema=true
-```
-
-Either form must be repeated on every subsequent `helm upgrade` for this release — Helm does not
-remember overlays or `--set` flags between invocations.
-
-> **Note on tags:** `values-pe.yaml` pins `<appVersion>PE` (e.g., `2.3.0PE`) — that's the convention
-> the PE images use on Docker Hub. The CE/PE image tags are not interchangeable.
-
-> **Tip:** `my-tbmq` is the **Helm release name**. Pick any name. It is used as the prefix for all
-> deployed resources and as the reference for future `helm` commands against this release.
 
 ### Step 4: Verify the Install
 
@@ -295,60 +300,52 @@ differs.
    kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
    ```
 
-4. **Scale back up.** Because the chart's `replicas` value is unchanged across this upgrade,
-   Helm's 3-way merge **preserves the live `replicas: 0`** you set with `kubectl scale` in step 1
-   — neither StatefulSet will scale back automatically. Restore both manually after Helm reports
-   the upgrade succeeded:
-
-   ```bash
-   kubectl scale statefulset/my-tbmq-tbmq-node --replicas=2 -n <namespace>
-   # If you also scaled tbmq-ie down in step 1:
-   kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=2 -n <namespace>
-   ```
-
-   Use whatever replica counts your deployment runs at — `2` is the chart default.
+   Helm restores both StatefulSets to the chart's declared `replicas` value (default `2`) as part
+   of the upgrade — no manual scale-back is needed.
 
 ### CE → PE Upgrade (Cross-Edition Migration)
 
-To migrate an existing CE deployment to PE **on the same TBMQ version**, set
-`upgrade.fromVersion=ce` in addition to the standard upgrade flags. This sets the `FROM_VERSION=ce`
-env var on the upgrade job (which the PE entrypoint script forwards as
-`-Dinstall.upgrade.from_version=ce` to the install application), triggering the PE-specific schema
-and data transformations on top of the existing CE data.
+Migrating an existing CE release to PE **on the same TBMQ version** is a two-edit change to your
+existing `values.yaml` followed by one `helm upgrade` with the cross-edition flag. The flag sets
+`FROM_VERSION=ce` on the upgrade Job (forwarded by the PE entrypoint as
+`-Dinstall.upgrade.from_version=ce`), triggering the PE-specific schema and data transformations
+on top of the existing CE data.
 
-```bash
-# 1. Scale broker (and IE) to 0
-kubectl scale statefulset/my-tbmq-tbmq-node --replicas=0 -n <namespace>
-kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=0 -n <namespace>
+1. **Edit your existing `values.yaml`** to switch to the PE images and add a license. Both edits
+   are exactly the same as for a fresh PE install — see
+   [Switch to PE images](#1-switch-to-pe-images) and
+   [Provide your license](#2-provide-your-license). Do not pass `values-pe.yaml` as a `-f`
+   overlay alongside this file.
 
-# 2. Upgrade with PE overlay AND cross-edition flag
-helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
-  -f /tmp/tbmq-cluster/values-pe.yaml \
-  -f values.yaml \
-  --set upgrade.upgradeDbSchema=true \
-  --set upgrade.fromVersion=ce
-```
+2. **Scale broker and IE to 0** so nothing is connected to the schema while it migrates:
+
+   ```bash
+   kubectl scale statefulset/my-tbmq-tbmq-node --replicas=0 -n <namespace>
+   kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=0 -n <namespace>
+   ```
+
+3. **Run the upgrade** with the cross-edition flag:
+
+   ```bash
+   helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
+     -f values.yaml \
+     --set upgrade.upgradeDbSchema=true \
+     --set upgrade.fromVersion=ce
+   ```
 
 What happens during this upgrade:
 
-- The pre-upgrade Job uses the **PE** broker image (because the PE overlay is in effect) with
-  `UPGRADE_TB=true` and `FROM_VERSION=ce`. The PE entrypoint script reads `FROM_VERSION` and
+- The pre-upgrade Job uses the **PE** broker image (because your `values.yaml` now points at PE)
+  with `UPGRADE_TB=true` and `FROM_VERSION=ce`. The PE entrypoint reads `FROM_VERSION` and
   appends `-Dinstall.upgrade.from_version=ce` to the install application command line, which
   switches the migration into CE→PE mode (rewrites the CE schema as PE).
 - After the migration succeeds, Helm rolls the `tbmq-node` and `tbmq-ie` StatefulSets onto the PE
-  images.
-- Manually scale both StatefulSets back to their original replica counts — Helm's 3-way merge
-  preserves the live `replicas: 0` you set with `kubectl scale` when the chart's `replicas` value
-  is unchanged across the upgrade, so neither StatefulSet scales back automatically:
-
-  ```bash
-  kubectl scale statefulset/my-tbmq-tbmq-node --replicas=2 -n <namespace>
-  kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=2 -n <namespace>
-  ```
+  images and restores both to the chart's declared `replicas` value — no manual scale-back is
+  needed.
 
 After the migration succeeds, **do not** carry `upgrade.fromVersion=ce` forward to subsequent
 PE → PE upgrades — drop the flag (or set it to `""`) on the next `helm upgrade`. Leaving it on
-will cause the upgrade job to attempt a CE→PE migration against an already-PE database on every
+will cause the upgrade Job to attempt a CE→PE migration against an already-PE database on every
 release, which will fail.
 
 ### Upgrading from chart version 1.x to 2.0.0 (TBMQ 2.2.0 → 2.3.0)
