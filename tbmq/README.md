@@ -359,184 +359,44 @@ bring your own third-party infrastructure. This aligns the Helm deployment with 
 v2.3.0 third-party migration described in the
 [official upgrade instructions](https://thingsboard.io/docs/mqtt-broker/install/upgrade-instructions/#third-party-component-updates-in-v230).
 
-#### Why third-party components changed in v2.3.0
-
-TBMQ v2.3.0 moves every third-party component off Bitnami images and onto official open-source
-alternatives. The change is the same regardless of how you deploy TBMQ (Docker Compose, raw
-manifests, or Helm), but with the Helm chart it also forces a chart-structure change because
-chart 1.x bundled those Bitnami images as subcharts and chart 2.0.0 no longer ships them at all.
-
 | Component        | TBMQ v2.2.0 (chart 1.x bundled)       | TBMQ v2.3.0 (chart 2.0.0 — bring your own) |
 |------------------|---------------------------------------|--------------------------------------------|
 | **PostgreSQL**   | `bitnami/postgresql` (PostgreSQL 16)  | `postgres:17` (operator or self-managed)   |
 | **Kafka**        | `bitnamilegacy/kafka:3.7.0` (KRaft)   | `apache/kafka:4.0.0` (official image)      |
 | **Redis/Valkey** | `bitnamilegacy/redis:7.2.5` (cluster) | `valkey/valkey:8.0` (Redis-compatible)     |
 
-The motivation (Bitnami catalog changes, image hardening, long-term maintenance) is documented in
-the upstream upgrade-instructions page linked above. From the chart's perspective, the result is
-that chart 2.0.0 has **no `postgresql:`, `kafka:`, or `redis-cluster:` subchart blocks** — only
-top-level `postgresql:`, `kafka:`, and `redis:` connection sections.
+Chart 2.0.0 has no `postgresql:`, `kafka:`, or `redis-cluster:` subchart blocks — only top-level
+`postgresql:`, `kafka:`, and `redis:` connection sections that point at your existing or newly
+provisioned infrastructure.
+
+> **Always back up your PostgreSQL database before upgrading**, regardless of which path you take.
 
 #### Two upgrade paths
 
-You have two options when moving from chart 1.x to chart 2.0.0. **Always back up your PostgreSQL
-database first**, regardless of which path you choose.
+**Option A — Keep the existing in-cluster Bitnami stack.** Annotate every Bitnami-rendered
+resource in the chart 1.x release with `helm.sh/resource-policy: keep` so `helm upgrade` to chart
+2.0.0 does not delete them, then point chart 2.0.0's top-level `postgresql:` / `kafka:` / `redis:`
+sections at the still-running in-cluster Services and reuse the Bitnami-created Secrets. The
+schema migration runs as the standard pre-upgrade Job. This path keeps PostgreSQL on major version
+16 and leaves the Bitnami Pods detached from Helm — long-term, plan to migrate to the official
+open-source images (Option B).
 
-##### Option A — Keep the existing in-cluster Bitnami stack
+> Run `helm get manifest <release> -n <namespace>` first to see the exact list of subchart
+> resources in your release and annotate based on that output — names depend on your release name
+> and the exact subchart versions you originally installed. Missing a resource means
+> `helm upgrade` will delete it.
 
-If your cluster already runs the Bitnami subchart Pods (PostgreSQL, Kafka, Redis Cluster) deployed
-by chart 1.x and you want to keep them in place for now, you can detach them from Helm management
-and have chart 2.0.0 connect to them as **external** services.
+**Option B — Provision a fresh third-party stack and restore data.** The cleaner long-term path:
+provision the v2.3.0 reference stack (PostgreSQL 17, Apache Kafka 4.0.0, Valkey 8.0) outside the
+Helm release, migrate your data onto it, then run the chart 2.0.0 upgrade pointing at the new
+infrastructure. PostgreSQL is straightforward (`pg_dump` / `pg_restore`). Kafka and Redis also
+hold persistent TBMQ state — their on-disk formats are not directly reusable across the image
+change, so plan those migrations explicitly rather than assuming the new instances can be started
+empty. The [Minikube guide](docs/minikube/README.md) walks through provisioning one such stack
+end-to-end (it does not cover data migration).
 
-1. **Annotate every Bitnami subchart resource** with `helm.sh/resource-policy: keep` so the
-   `helm upgrade` to chart 2.0.0 does **not** delete them. With chart 1.x's default release name
-   `my-tbmq-cluster`, the resources to annotate are typically:
-
-   ```bash
-   NS=tbmq                  # your namespace
-   REL=my-tbmq-cluster      # your release name
-   for res in \
-     networkpolicy/${REL}-kafka networkpolicy/${REL}-postgresql networkpolicy/${REL}-redis \
-     poddisruptionbudget/${REL}-kafka-broker poddisruptionbudget/${REL}-postgresql \
-     serviceaccount/${REL}-kafka-provisioning serviceaccount/${REL}-kafka \
-     serviceaccount/${REL}-postgresql serviceaccount/${REL}-redis \
-     secret/${REL}-kafka-kraft-cluster-id secret/${REL}-postgresql secret/${REL}-redis \
-     configmap/${REL}-kafka-controller-configuration configmap/${REL}-kafka-scripts \
-     configmap/${REL}-redis-default configmap/${REL}-redis-scripts \
-     service/${REL}-kafka-controller-headless service/${REL}-kafka \
-     service/${REL}-postgresql-hl service/${REL}-postgresql \
-     service/${REL}-redis-headless service/${REL}-redis \
-     statefulset/${REL}-kafka-controller statefulset/${REL}-postgresql statefulset/${REL}-redis ; do
-     kubectl annotate -n "$NS" "$res" helm.sh/resource-policy=keep --overwrite
-   done
-   ```
-
-   StatefulSet PVCs are created via `volumeClaimTemplates` and are not in the Helm manifest —
-   they survive the upgrade automatically and do not need annotation. Run
-   `helm get manifest <release> -n <namespace>` to confirm the exact list of subchart resources in
-   your release before running the loop.
-
-2. **Build a `values.yaml` for chart 2.0.0** pointing the new top-level sections at the existing
-   in-cluster Bitnami Services. Use the credentials Bitnami already created — do not create new
-   Secrets:
-
-   ```yaml
-   tbmq:
-     image:
-       tag: 2.3.0
-   tbmq-ie:
-     image:
-       tag: 2.3.0
-
-   postgresql:
-     host: "my-tbmq-cluster-postgresql"
-     port: 5432
-     database: "thingsboard_mqtt_broker"
-     username: "postgres"
-     existingSecret: "my-tbmq-cluster-postgresql"
-     existingSecretPasswordKey: "postgres-password"
-
-   kafka:
-     bootstrapServers: "my-tbmq-cluster-kafka:9092"
-
-   redis:
-     connectionType: "cluster"
-     nodes: "my-tbmq-cluster-redis-headless:6379"
-     usePassword: true
-     existingSecret: "my-tbmq-cluster-redis"
-     existingSecretPasswordKey: "redis-password"
-
-   loadbalancer:
-     type: "nginx"
-     http:
-       enabled: true
-     mqtt:
-       enabled: true
-   ```
-
-3. **Run the upgrade** with the new chart and the standard upgrade flag:
-
-   ```bash
-   helm upgrade my-tbmq-cluster tbmq-helm-chart/tbmq-cluster \
-     --version 2.0.0 \
-     -f values.yaml \
-     --set upgrade.upgradeDbSchema=true \
-     -n tbmq
-   ```
-
-   Helm will:
-   - Run the pre-upgrade Job (`my-tbmq-cluster-upgrade-<rev>`) on the new TBMQ 2.3.0 image. The
-     install application logs `Starting TBMQ Upgrade from version 2.2.0 to 2.3.0 ...` and applies
-     the schema migration.
-   - In-place update the `tbmq-node` and `tbmq-ie` StatefulSets onto the 2.3.0 image
-     (selectors and `serviceName` are unchanged across chart versions, so this is a rolling
-     restart, not a recreate).
-   - Skip the annotated Bitnami StatefulSets / Services / Secrets / etc. — they keep running
-     untouched.
-
-4. **Verify**:
-
-   ```bash
-   # Pre-upgrade Job log shows the schema migration
-   kubectl logs job/my-tbmq-cluster-upgrade-<rev> -n tbmq | grep "Starting TBMQ Upgrade"
-
-   # Broker is on the new image
-   kubectl get pod my-tbmq-cluster-tbmq-node-0 -n tbmq \
-     -o jsonpath='{.spec.containers[0].image}'   # → thingsboard/tbmq-node:2.3.0
-
-   # Schema bumped
-   PGPW=$(kubectl get secret my-tbmq-cluster-postgresql -n tbmq \
-     -o jsonpath='{.data.postgres-password}' | base64 -d)
-   kubectl exec -n tbmq my-tbmq-cluster-postgresql-0 -- bash -c \
-     "PGPASSWORD='$PGPW' psql -U postgres -d thingsboard_mqtt_broker -c \
-       'SELECT * FROM tb_schema_settings;'"
-   # → schema_version=2003000, product=CE
-   ```
-
-5. **Notes / caveats specific to this path:**
-
-   - The chart 1.x `regcred` Secret was rendered unconditionally; chart 2.0.0 only renders it when
-     `dockerAuth.username` is set. Helm therefore deletes it on upgrade. The broker still has
-     `imagePullSecrets: regcred` in its Pod spec, but Kubernetes only logs a warning and pulls the
-     public image normally. Pre-create `regcred` yourself (or set `tbmq.imagePullSecret` to a
-     different name) if you actually use a private registry.
-   - You are now responsible for the lifecycle of the Bitnami Pods. They are no longer tied to the
-     Helm release; future `helm uninstall` will not remove them. Long-term, plan to migrate to the
-     official open-source images per the upstream upgrade instructions (Option B).
-   - This path keeps the **PostgreSQL major version at 16** (whatever Bitnami shipped in chart 1.x).
-     The upstream third-party plan moves new deployments to PostgreSQL 17. Existing data volumes
-     are compatible, but a `pg_upgrade` to 17 is the recommended long-term action.
-
-##### Option B — Take backups, provision a fresh third-party stack, restore data
-
-The cleaner long-term path is to move your data onto the v2.3.0 reference third-party stack
-(official Postgres 17, Apache Kafka 4.0.0, Valkey 8.0) and let Helm uninstall the old Bitnami
-release entirely. The high-level shape — **provided as guidance only, not as a runnable script** —
-is:
-
-- **Create full backups** before touching anything: a logical PostgreSQL dump (`pg_dump`) of the
-  TBMQ database, plus snapshots of any Kafka/Redis volumes you care about. Note that Kafka and
-  Redis state on the old Bitnami volumes is **not directly reusable** with the new images — the
-  internal data directories and volume layouts differ — so the practical migration path for those
-  two is "start from new, empty volumes and lose in-flight messages / cache." Persisted data lives
-  in PostgreSQL.
-- **Provision the new third-party stack** outside the Helm release: e.g., the CrunchyData PGO
-  operator for PostgreSQL 17, the Strimzi operator for Apache Kafka 4.0.0, and the Valkey Helm
-  chart (or any equivalent of your choice). The `tbmq/docs/minikube` guide in this repository
-  walks through one such stack on Minikube.
-- **Restore the PostgreSQL backup** into the new instance (`pg_restore` or replay the SQL dump).
-  Kafka topics are recreated on first connection by TBMQ. Redis is a cache and re-warms naturally.
-- **Build a chart 2.0.0 `values.yaml`** that points `postgresql:`, `kafka:`, and `redis:` at your
-  newly provisioned services (with their own Secrets), then run the same `helm upgrade` command as
-  Option A — the schema migration logic is identical.
-- **After verifying the upgraded cluster is healthy**, `helm uninstall` the old chart 1.x release
-  cleanly. Because the Bitnami StatefulSets are still part of that old release (Option B does
-  **not** annotate them with `keep`), uninstall will tear them down along with their PVCs. Do
-  this only after you have confirmed the new stack is the source of truth.
-
-This option is more disruptive but lands you on the supported v2.3.0 third-party baseline. If you
-need detailed assistance with the data migration —
-[contact ThingsBoard](https://thingsboard.io/docs/contact-us/) for guidance.
+For detailed assistance with either path,
+[contact ThingsBoard](https://thingsboard.io/docs/contact-us/).
 
 ### Troubleshooting Upgrades
 
