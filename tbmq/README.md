@@ -131,17 +131,17 @@ The IE StatefulSet, the install Pod, and the pre-upgrade Job all run code paths 
 check the license, so they do **not** receive these env vars and do **not** depend on the Secret.
 
 - `TBMQ_LICENSE_SECRET` — read from the Secret above.
-- `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to a per-pod license cache file. The default
-  (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on the broker's `/data` directory,
-  which is backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
-  [Persistence](#persistence) below). `$(TB_SERVICE_ID)` is set to the pod name (via the
-  downward API), so each replica gets its own file path — and, more importantly, presents its
-  own stable cluster id to the license server (one license slot per cluster id). **Keep
-  persistence enabled for PE:** if `/data` is an `emptyDir` and a Pod is recreated, the cache
-  file is wiped and the broker re-registers as a fresh instance with a new cluster id —
-  burning a license slot and (for single-bind licenses) hitting `CLUSTER_ID_MISMATCH(114)` on
-  the next start. Override `license.instanceDataFile` only if you mount a different writable
-  path.
+- `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to the per-pod local cache of the license client's
+  response. The default (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on `/data`,
+  backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
+  [Persistence](#persistence) below). `$(TB_SERVICE_ID)` is the pod name (downward API), so each
+  replica gets its own cache file. Persisting `/data` lets the broker reuse the cached license
+  info on restart instead of re-fetching from the license server each time. Override
+  `license.instanceDataFile` only if you mount a different writable path.
+
+> The TBMQ cluster id that the license server binds to lives in PostgreSQL
+> (`tbmq_cluster.cluster_id`, generated once at install). It is not stored in `/data` and is
+> unaffected by Pod recreation.
 
 ##### 2. Select the PE images
 
@@ -450,20 +450,26 @@ without configuring one.
 
 ### Broker crash-loops with `License Error: CLUSTER_ID_MISMATCH(114)`
 
-The license server has bound your TBMQ license to a different cluster id than the one this broker
-is presenting. Common causes:
+The license server has bound your TBMQ license to a different cluster id than the one this
+broker is presenting. The cluster id lives in PostgreSQL (`tbmq_cluster.cluster_id`, generated
+once at install), so a mismatch means that row has changed since the license was activated.
+Common causes:
 
-- **Persistence disabled and Pod recreated.** Without `tbmq.persistence.enabled=true`, `/data` is
-  an `emptyDir` and the per-pod instance-data file (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`)
-  is wiped on every restart. The broker generates a new cluster id on the next start, but the
-  license server still holds the previous binding and rejects the new one. Re-enable
-  `tbmq.persistence` (the chart default).
-- **PVC was deleted between installs.** `kubectl delete pvc` (or `kubectl delete namespace`) wipes
-  the instance-data file. Deactivate the prior binding via your license-server admin before
-  reinstalling, or your fresh cluster id will collide with the previous one.
-- **License is bound to another TBMQ deployment.** Single-bind licenses can only activate against
-  one cluster id at a time. Deactivate the prior binding (or contact ThingsBoard) before installing
-  into a new cluster.
+- **PostgreSQL was wiped or recreated.** A fresh database gets a fresh `tbmq_cluster.cluster_id`
+  on the next install. The license server still holds the prior binding and rejects the new
+  cluster id. Deactivate the prior binding via your license-server admin (or contact
+  ThingsBoard) before reinstalling, or restore the original database.
+- **DB was restored from a non-matching backup.** Restoring an older or different cluster's
+  backup brings back a different `tbmq_cluster.cluster_id`. Either restore the matching backup
+  or deactivate the binding and let the new cluster id register.
+- **Same license is being activated against a different deployment.** Single-bind licenses can
+  only activate against one cluster id at a time. Deactivate the prior binding before
+  installing into a new cluster.
+
+Pod recreation, `helm upgrade`, and `/data` being an `emptyDir` do **not** trigger this error —
+the cluster id is not stored under `/data`. Losing the per-pod license cache file forces the
+broker to re-fetch license info from the license server on the next start, but does not change
+the cluster id.
 
 ## Configuration Reference
 
@@ -551,11 +557,11 @@ The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 ### Persistence
 
 The broker StatefulSet provisions a per-pod PVC for `/data` via `volumeClaimTemplate`.
-This is required for **Professional Edition** deployments because the license client
-writes a per-pod instance-data file (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`)
-that the license server uses to identify each broker instance — losing the file on
-Pod recreation causes the broker to re-register as a fresh instance and counts toward
-your license slot pool.
+**Professional Edition** deployments should keep this enabled (the chart default): the license
+client writes a per-pod license-info cache to `/data/tbmq-instance-license-$(TB_SERVICE_ID).data`,
+and persisting it lets the broker reuse the cached response on restart instead of re-fetching
+from the license server every time. The TBMQ cluster id itself lives in PostgreSQL, not under
+`/data`, so losing the cache does not change cluster identity or burn a license slot.
 
 For Community Edition, nothing meaningful is persisted under `/data`, so disabling
 persistence is safe:

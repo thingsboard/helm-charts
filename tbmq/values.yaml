@@ -69,13 +69,15 @@ license:
   # https://github.com/thingsboard/tbmq-pe-k8s).
   existingSecretLicenseKey: "license-key"
 
-  # Filesystem path where the license client caches its instance data file. Must be
-  # writable by the container user (799). The default puts each pod's cache file
-  # under `/data` — backed by a per-pod PVC when `tbmq.persistence.enabled` is true
-  # (default), or by an `emptyDir` when persistence is disabled. The path is
+  # Filesystem path where the license client writes its per-pod license-info cache.
+  # Must be writable by the container user (799). The default puts each pod's cache
+  # file under `/data` — backed by a per-pod PVC when `tbmq.persistence.enabled` is
+  # true (default), or by an `emptyDir` when persistence is disabled. The path is
   # namespaced by `$(TB_SERVICE_ID)` so multi-replica deployments don't race on a
-  # single file. Persistence MUST stay enabled for PE — losing the cache file binds
-  # the next-launched pod to a new license slot on the license server.
+  # single file. Keep persistence enabled for PE so the broker can reuse the cache
+  # on restart instead of re-fetching from the license server every time. The TBMQ
+  # cluster id itself lives in PostgreSQL (`tbmq_cluster.cluster_id`), not in this
+  # file — wiping the file does not change cluster identity.
   instanceDataFile: "/data/tbmq-instance-license-$(TB_SERVICE_ID).data"
 
 # Section to configure TBMQ service.
@@ -253,10 +255,11 @@ tbmq:
     # File system group ID for permissions.
     fsGroup: 799
   # Persistent storage for the broker /data directory. The PE license client writes
-  # its per-pod instance-data file here, and the license server logs each fresh
-  # instance against your license slot pool — so /data MUST survive Pod recreation
-  # for PE deployments. CE deployments do not persist anything to /data, so disabling
-  # persistence is safe for CE.
+  # its per-pod license-info cache here. Keep persistence enabled for PE so the
+  # broker can reuse the cache on restart instead of re-fetching from the license
+  # server. The TBMQ cluster id is stored in PostgreSQL, not under /data, so /data
+  # being wiped does not by itself change cluster identity. CE deployments do not
+  # persist anything meaningful to /data, so disabling persistence is safe for CE.
   persistence:
     # When true (default), /data is backed by a per-pod PVC created from a
     # StatefulSet volumeClaimTemplate. When false, /data is an emptyDir
