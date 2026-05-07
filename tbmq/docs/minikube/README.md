@@ -2,9 +2,9 @@
 
 This guide walks you through deploying TBMQ on Minikube with:
 
-- **PostgreSQL** via [CrunchyData PGO](https://github.com/CrunchyData/postgres-operator) (PostgreSQL 17)
-- **Kafka** via [Strimzi Operator](https://strimzi.io/) (Apache Kafka 4.0.0, KRaft mode)
-- **Valkey** via [official Valkey Helm chart](https://github.com/valkey-io/valkey-helm) (standalone)
+- **PostgreSQL** via [CrunchyData PGO](https://github.com/CrunchyData/postgres-operator) `6.0.1` (PostgreSQL 17)
+- **Kafka** via [Strimzi Operator](https://strimzi.io/) `0.50.0` (Apache Kafka 4.0.0, KRaft mode)
+- **Valkey** via [official Valkey Helm chart](https://github.com/valkey-io/valkey-helm) `0.9.3` (Valkey 9.0.1, standalone)
 
 ## Prerequisites
 
@@ -32,6 +32,7 @@ kubectl create namespace thingsboard-mqtt-broker
 
 ```bash
 helm install pgo oci://registry.developers.crunchydata.com/crunchydata/pgo \
+  --version 6.0.1 \
   --namespace thingsboard-mqtt-broker
 ```
 
