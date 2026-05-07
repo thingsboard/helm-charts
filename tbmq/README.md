@@ -134,12 +134,14 @@ check the license, so they do **not** receive these env vars and do **not** depe
 - `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to a per-pod license cache file. The default
   (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on the broker's `/data` directory,
   which is backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
-  [Persistence](#persistence) below). `$(TB_SERVICE_ID)` namespaces the file by pod name so
-  multi-replica deployments don't race on a single file. **Keep persistence enabled for PE:**
-  if `/data` is an `emptyDir` and a Pod restarts, the broker re-registers as a fresh instance
-  with a new cluster id — burning a license slot and (for single-bind licenses) hitting
-  `CLUSTER_ID_MISMATCH(114)` on the next start. Override `license.instanceDataFile` only if you
-  mount a different writable path.
+  [Persistence](#persistence) below). `$(TB_SERVICE_ID)` is set to the pod name (via the
+  downward API), so each replica gets its own file path — and, more importantly, presents its
+  own stable cluster id to the license server (one license slot per cluster id). **Keep
+  persistence enabled for PE:** if `/data` is an `emptyDir` and a Pod is recreated, the cache
+  file is wiped and the broker re-registers as a fresh instance with a new cluster id —
+  burning a license slot and (for single-bind licenses) hitting `CLUSTER_ID_MISMATCH(114)` on
+  the next start. Override `license.instanceDataFile` only if you mount a different writable
+  path.
 
 ##### 2. Select the PE images
 
@@ -240,9 +242,14 @@ curl -X POST http://localhost:8083/api/mqtt/client/credentials \
         '{name:$name, clientType:"DEVICE", credentialsType:"MQTT_BASIC", credentialsValue:$cv}')"
 ```
 
-Connect any MQTT client with the credentials you just created:
+Connect any MQTT client with the credentials you just created. If you don't already have
+an MQTT load balancer in front of the broker (or want to test without one), port-forward
+the MQTT port too:
 
 ```bash
+# Port-forward the MQTT listener (separate from the 8083 forward above)
+kubectl port-forward svc/my-tbmq-tbmq-node -n <namespace> 1883:1883 &
+
 mosquitto_sub -h localhost -p 1883 -u tbmq-user -P tbmq-password -t test/topic &
 mosquitto_pub -h localhost -p 1883 -u tbmq-user -P tbmq-password -t test/topic -m hello
 ```
@@ -319,12 +326,16 @@ differs.
 
    ```bash
    kubectl scale statefulset/my-tbmq-tbmq-node --replicas=0 -n <namespace>
-   # Recommended on minor/major upgrades that touch IE-related tables:
+   # Recommended on TBMQ version bumps (broker ↔ IE protocol coupling):
    kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=0 -n <namespace>
    ```
 
-   Scaling `tbmq-ie` is optional for routine config-only changes but recommended whenever a schema
-   migration runs (the IE talks to the same database).
+   The IE doesn't connect to PostgreSQL itself, so the schema migration doesn't directly affect
+   it. Scaling it down is still recommended on TBMQ version bumps, because the IE communicates
+   with the broker over Kafka and the message contract / API surface can change between releases
+   — leaving the IE running against a freshly upgraded broker (or a broker that's been scaled to
+   zero) can produce noisy errors. For routine config-only `helm upgrade`s on the same TBMQ
+   version you can leave the IE running.
 
 2. **Run the upgrade.** The `upgrade.upgradeDbSchema=true` flag triggers the pre-upgrade Helm hook
    that runs the migration:
