@@ -60,8 +60,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: TB_SERVICE_SINGLETON_MODE
-              value: {{ if gt (int .Values.tbmq.statefulSet.replicas) 1 }}"false"{{ else }}"true"{{ end }}
             - name: HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE
               value: "false"
             {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
