@@ -236,9 +236,6 @@ kubectl logs my-tbmq-install-pod -n <namespace> -f
 kubectl logs my-tbmq-install-pod -n <namespace> --previous
 ```
 
-If a successful install pod was deleted before you could grab logs, re-run with `helm install --debug`
-so Helm streams hook output to your terminal.
-
 ## Updating Configuration
 
 Routine configuration changes — scaling replicas, adjusting resource limits, modifying load balancer
@@ -423,17 +420,18 @@ kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
 kubectl logs <upgrade-pod-name> -n <namespace>
 ```
 
-> The Job's pod has `restartPolicy: Never` and `backoffLimit: 3` — on failure the Job creates a
-> brand-new pod rather than restarting the container in place, so `kubectl logs --previous`
-> doesn't apply here. List all attempts with `kubectl get pods -n <namespace> -l job-name=my-tbmq-upgrade-<revision>`.
+> The Job has `backoffLimit: 3`, and its pod template has `restartPolicy: Never` — on failure the
+> Job creates a brand-new pod rather than restarting the container in place, so `kubectl logs
+> --previous` doesn't apply here. List all attempts with `kubectl get pods -n <namespace> -l job-name=my-tbmq-upgrade-<revision>`.
 
 Common causes:
 
 - **Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`** →
-  PostgreSQL is unreachable. The init container runs `until nc -z $host $port; do ... sleep 2; done`,
-  which retries silently (no "connection refused" line is printed) and never times out on its own —
-  the Helm hook timeout will fire after 600s. Check `postgresql.host`/`postgresql.port` and that
-  the DB is reachable from the TBMQ namespace.
+  PostgreSQL is unreachable. The init container runs `until nc -z $host $port; do echo waiting for
+  postgres; sleep 2; done` — it swallows `nc`'s underlying error (no "connection refused" line
+  surfaces) and only echoes `waiting for postgres` between retries, and it never times out on its
+  own — the Helm hook timeout will fire after 600s. Check `postgresql.host`/`postgresql.port` and
+  that the DB is reachable from the TBMQ namespace.
 - **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
   the expected key.
 - **Hook timeout (10 minutes)** → for very large databases, the migration may exceed the default
