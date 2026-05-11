@@ -7,7 +7,7 @@ metadata:
   namespace: {{ $namespace }}
   labels:
     name: {{ $releaseName }}-tbmq-custom-env
-data:
+data: {{ if not .Values.tbmq.customEnv }}{}{{ end }}
   {{- range $key, $val := .Values.tbmq.customEnv }}
-  {{ $key }}: {{ tpl $val $ | quote }}
+  {{ $key }}: {{ tpl (toString $val) $ | quote }}
   {{- end }}

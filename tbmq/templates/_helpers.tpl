@@ -225,7 +225,6 @@ license-key
 
 {{/*Init container that will slow deployment and let Service deploy after all scripts in the container exit successfully or timeout.*/}}
 {{- define "tbmq.initcontainers" }}
-{{- $context:= index . "context" | default . }}
 {{- $query := index . "pg_query" | default "Select count(*) from tb_schema_settings;" }}
 - name: validate-db
   image: thingsboard/toolbox:1.13.0
