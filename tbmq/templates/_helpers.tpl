@@ -73,80 +73,53 @@
 {{- end -}}
 {{- end }}
 
-{{/*Return redis cluster configurations environment variables for tbmq services*/}}
+{{/*Return redis configurations environment variables for tbmq services*/}}
 {{- define "tbmq.redis.configuration.ref"}}
 - configMapRef:
     name: {{ .Release.Name }}-redis-config
 {{- end}}
 
-{{/*Returns redis cluster secret name*/}}
+{{/*Returns redis secret name*/}}
 {{- define "tbmq.redis.secretName" -}}
-{{- $redis := index .Values "redis-cluster" -}}
-{{- if $redis.enabled -}}
-{{- if $redis.existingSecret -}}
-{{- $redis.existingSecret -}}
-{{- else if $redis.fullnameOverride -}}
-{{- $redis.fullnameOverride -}}
-{{- else if $redis.nameOverride -}}
-{{- printf "%s-%s" .Release.Name $redis.nameOverride -}}
+{{- if .Values.redis.existingSecret -}}
+{{- .Values.redis.existingSecret -}}
 {{- else -}}
-{{- printf "%s-redis-cluster" .Release.Name -}}
-{{- end -}}
-{{- else -}}
-{{- $external := index .Values "external-redis-cluster" -}}
-{{- if $external.existingSecret -}}
-{{- $external.existingSecret -}}
-{{- else -}}
-{{- printf "%s-redis-cluster-external" .Release.Name -}}
-{{- end -}}
+{{- printf "%s-redis-secret" .Release.Name -}}
 {{- end -}}
 {{- end -}}
 
-{{/*Returns redis cluster secret key*/}}
+{{/*Returns redis secret key*/}}
 {{- define "tbmq.redis.secretKey" -}}
-{{- $redis := index .Values "redis-cluster" -}}
-{{- if $redis.enabled -}}
-{{- if $redis.existingSecret -}}
-{{ $redis.existingSecretPasswordKey | default "REDIS_PASSWORD" -}}
+{{- if .Values.redis.existingSecret -}}
+{{- .Values.redis.existingSecretPasswordKey | default "redis-password" -}}
 {{- else -}}
 redis-password
-{{- end -}}
-{{- else -}}
-{{- $external := index .Values "external-redis-cluster" -}}
-{{- if $external.existingSecret -}}
-{{- $external.existingSecretPasswordKey | default "REDIS_PASSWORD" -}}
-{{- else -}}
-redis-password
-{{- end -}}
 {{- end -}}
 {{- end -}}
 
 {{/*Returns if Redis should use password*/}}
 {{- define "tbmq.redis.passwordEnabled" -}}
-{{- $redis := index .Values "redis-cluster" -}}
-{{- if $redis.enabled -}}
-{{- $redis.usePassword -}}
-{{- else -}}
-{{- $external := index .Values "external-redis-cluster" -}}
-{{ $external.usePassword -}}
-{{ end -}}
-{{ end -}}
+{{- .Values.redis.usePassword -}}
+{{- end -}}
+
+{{/*Return redis connection type*/}}
+{{- define "tbmq.redis.connectionType" -}}
+{{- .Values.redis.connectionType | default "cluster" -}}
+{{- end -}}
+
+{{/*Return redis host (standalone mode)*/}}
+{{- define "tbmq.redis.host" -}}
+{{- .Values.redis.host -}}
+{{- end -}}
+
+{{/*Return redis port (standalone mode)*/}}
+{{- define "tbmq.redis.port" -}}
+{{- .Values.redis.port | default 6379 -}}
+{{- end -}}
 
 {{/*Return redis cluster nodes*/}}
 {{- define "tbmq.redis.nodes" -}}
-{{- $redis := index .Values "redis-cluster" -}}
-{{- if $redis.enabled }}
-{{- if index .Values "redis-cluster" "fullnameOverride" }}
-{{- printf "%s-headless:6379" (index .Values "redis-cluster" "fullnameOverride") -}}
-{{- else if index .Values "redis-cluster" "nameOverride" }}
-{{- printf "%s-%s-headless:6379" .Release.Name (index .Values "redis-cluster" "nameOverride") -}}
-{{- else }}
-{{- printf "%s-redis-cluster-headless:6379" .Release.Name -}}
-{{- end }}
-{{- else -}}
-{{- $external := index .Values "external-redis-cluster" -}}
-{{- $external.nodes -}}
-{{- end }}
+{{- .Values.redis.nodes -}}
 {{- end }}
 
 {{/*Return postgresql configurations environment variables for tbmq services*/}}
@@ -157,89 +130,40 @@ redis-password
 
 {{/*Return postgresql secret name*/}}
 {{- define "tbmq.postgres.secretName" -}}
-{{- if not .Values.postgresql.enabled -}}
-{{- if empty .Values.externalPostgresql.existingSecret -}}
-{{- printf "%s-postgres-external" .Release.Name -}}
+{{- if .Values.postgresql.existingSecret -}}
+{{- .Values.postgresql.existingSecret -}}
 {{- else -}}
-{{- .Values.externalPostgresql.existingSecret -}}
-{{- end -}}
-{{- else if .Values.postgresql.auth.existingSecret -}}
-{{- .Values.postgresql.auth.existingSecret -}}
-{{- else if .Values.postgresql.fullnameOverride -}}
-{{- .Values.postgresql.fullnameOverride -}}
-{{- else if .Values.postgresql.nameOverride -}}
-{{- printf "%s-%s" .Release.Name .Values.postgresql.nameOverride -}}
-{{- else -}}
-{{- printf "%s-postgresql" .Release.Name -}}
+{{- printf "%s-postgres-secret" .Release.Name -}}
 {{- end -}}
 {{- end -}}
 
 {{/*Return postgresql secret key*/}}
 {{- define "tbmq.postgres.secretKey" -}}
-{{- if not .Values.postgresql.enabled -}}
-{{- if empty .Values.externalPostgresql.existingSecret -}}
-external-postgres-password
+{{- if .Values.postgresql.existingSecret -}}
+{{- .Values.postgresql.existingSecretPasswordKey | default "postgres-password" -}}
 {{- else -}}
-{{- .Values.externalPostgresql.existingSecretPasswordKey -}}
-{{- end -}}
-{{- else if .Values.postgresql.auth.existingSecret -}}
-{{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
-{{- .Values.postgresql.auth.secretKeys.adminPasswordKey -}}
-{{- else -}}
-{{- .Values.postgresql.auth.secretKeys.userPasswordKey -}}
-{{- end -}}
-{{- else -}}
-{{- if and .Values.postgresql.auth.enablePostgresUser (not .Values.postgresql.auth.username) -}}
 postgres-password
-{{- else -}}
-password
-{{- end -}}
 {{- end -}}
 {{- end -}}
 
 {{/*Return postgres host*/}}
 {{- define "tbmq.postgres.host" -}}
-{{- if .Values.postgresql.enabled -}}
-  {{- if .Values.postgresql.fullnameOverride }}
-    {{- .Values.postgresql.fullnameOverride -}}
-  {{- else if .Values.postgresql.nameOverride }}
-    {{- printf "%s-%s" .Release.Name .Values.postgresql.nameOverride -}}
-  {{- else }}
-    {{- printf "%s-postgresql" .Release.Name -}}
-  {{- end }}
-{{- else }}
-  {{- .Values.externalPostgresql.host -}}
-{{- end }}
+{{- .Values.postgresql.host -}}
 {{- end }}
 
+{{/*Return postgres port*/}}
 {{- define "tbmq.postgres.port" -}}
-{{- if .Values.postgresql.enabled -}}
-5432
-{{- else -}}
-{{- .Values.externalPostgresql.port -}}
-{{- end -}}
+{{- .Values.postgresql.port | default 5432 -}}
 {{- end }}
 
 {{/*Return postgres database name*/}}
 {{- define "tbmq.postgres.database" -}}
-{{- if .Values.postgresql.enabled -}}
-{{- .Values.postgresql.auth.database -}}
-{{- else -}}
-{{- .Values.externalPostgresql.database -}}
-{{- end -}}
+{{- .Values.postgresql.database -}}
 {{- end }}
 
 {{/*Return postgres username*/}}
 {{- define "tbmq.postgres.username" -}}
-{{- if .Values.postgresql.enabled -}}
-    {{- if .Values.postgresql.auth.username -}}
-        {{- .Values.postgresql.auth.username -}}
-    {{- else -}}
-        postgres
-    {{- end }}
-{{- else -}}
-{{- .Values.externalPostgresql.username -}}
-{{- end -}}
+{{- .Values.postgresql.username | default "postgres" -}}
 {{- end }}
 
 {{/*Return kafka configurations environment variables for tbmq services*/}}
@@ -248,19 +172,50 @@ password
     name: {{ .Release.Name }}-kafka-config
 {{- end}}
 
-{{/*Return kafka servers environment variables for tbmq services*/}}
-{{- define "tbmq.kafka.servers" -}}
-{{- if .Values.kafka.enabled -}}
-{{- if .Values.kafka.fullnameOverride }}
-{{- printf "%s:9092" .Values.kafka.fullnameOverride -}}
-{{- else if .Values.kafka.nameOverride -}}
-{{- printf "%s-%s:9092" .Release.Name .Values.kafka.nameOverride -}}
-{{- else }}
-{{- printf "%s-kafka:9092" .Release.Name -}}
+{{/*Whether PE license env injection is enabled — true when either license.secret or license.existingSecret is set*/}}
+{{- define "tbmq.license.enabled" -}}
+{{- if or .Values.license.secret .Values.license.existingSecret -}}true{{- end -}}
 {{- end -}}
+
+{{/*Return the name of the Secret that holds the PE license value*/}}
+{{- define "tbmq.license.secretName" -}}
+{{- if .Values.license.existingSecret -}}
+{{ .Values.license.existingSecret }}
 {{- else -}}
-{{- .Values.externalKafka.bootstrapServers -}}
+{{ printf "%s-tbmq-license-secret" .Release.Name }}
 {{- end -}}
+{{- end -}}
+
+{{/*Return the key inside the license Secret that holds the license value*/}}
+{{- define "tbmq.license.secretKey" -}}
+{{- if .Values.license.existingSecret -}}
+{{ .Values.license.existingSecretLicenseKey | default "license-key" }}
+{{- else -}}
+license-key
+{{- end -}}
+{{- end -}}
+
+{{/*Return the filesystem path used by the license client for its per-pod instance data file*/}}
+{{- define "tbmq.license.instanceDataFile" -}}
+{{ .Values.license.instanceDataFile | default "/data/tbmq-instance-license-$(TB_SERVICE_ID).data" }}
+{{- end -}}
+
+{{/*Render the TBMQ_LICENSE_SECRET + TBMQ_LICENSE_INSTANCE_DATA_FILE env entries when license is configured*/}}
+{{- define "tbmq.license.env" -}}
+{{- if eq (include "tbmq.license.enabled" .) "true" }}
+- name: TBMQ_LICENSE_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tbmq.license.secretName" . }}
+      key: {{ include "tbmq.license.secretKey" . }}
+- name: TBMQ_LICENSE_INSTANCE_DATA_FILE
+  value: {{ include "tbmq.license.instanceDataFile" . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*Return kafka bootstrap servers*/}}
+{{- define "tbmq.kafka.servers" -}}
+{{- .Values.kafka.bootstrapServers -}}
 {{- end -}}
 
 {{/*Return tbmq image pull secret*/}}
@@ -270,7 +225,6 @@ password
 
 {{/*Init container that will slow deployment and let Service deploy after all scripts in the container exit successfully or timeout.*/}}
 {{- define "tbmq.initcontainers" }}
-{{- $context:= index . "context" | default . }}
 {{- $query := index . "pg_query" | default "Select count(*) from tb_schema_settings;" }}
 - name: validate-db
   image: thingsboard/toolbox:1.13.0
@@ -281,6 +235,8 @@ password
       value: "30"
     - name: PGHOST
       value: {{ include "tbmq.postgres.host" . | quote }}
+    - name: PGPORT
+      value: {{ include "tbmq.postgres.port" . | quote }}
     - name: PGDATABASE
       value: {{ include "tbmq.postgres.database" . | quote }}
     - name: PGUSER

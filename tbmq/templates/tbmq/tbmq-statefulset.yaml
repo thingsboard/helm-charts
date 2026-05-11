@@ -24,7 +24,11 @@ spec:
         checksum/postgres-config: {{ include (print $.Template.BasePath "/postgres/postgres-configmap.yaml") . | sha256sum }}
         checksum/postgres-secret: {{ include (print $.Template.BasePath "/postgres/postgres-secret.yaml") . | sha256sum }}
         checksum/redis-config: {{ include (print $.Template.BasePath "/redis/redis-configmap.yaml") . | sha256sum }}
+        checksum/redis-secret: {{ include (print $.Template.BasePath "/redis/redis-secret.yaml") . | sha256sum }}
         checksum/kafka-config: {{ include (print $.Template.BasePath "/kafka/kafka-configmap.yaml") . | sha256sum }}
+        {{- if eq (include "tbmq.license.enabled" .) "true" }}
+        checksum/license-secret: {{ include (print $.Template.BasePath "/license-secret.yaml") . | sha256sum }}
+        {{- end }}
         {{- end }}
         {{- with .Values.tbmq.annotations }}
           {{- toYaml . | nindent 8 }}
@@ -56,8 +60,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: TB_SERVICE_SINGLETON_MODE
-              value: {{ if gt (int .Values.tbmq.statefulSet.replicas) 1 }}"false"{{ else }}"true"{{ end }}
             - name: HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE
               value: "false"
             {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
@@ -89,6 +91,7 @@ spec:
                   name: {{ include "tbmq.redis.secretName" . }}
                   key: {{ include "tbmq.redis.secretKey" . }}
             {{- end }}
+            {{- include "tbmq.license.env" . | nindent 12 }}
           envFrom:
             {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
             {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
@@ -143,5 +146,21 @@ spec:
         {{- end }}
         - name: {{ $releaseName }}-tbmq-node-logs
           emptyDir: { }
+        {{- if not .Values.tbmq.persistence.enabled }}
         - name: {{ printf "%s-tbmq-node-data" $releaseName }}
           emptyDir: { }
+        {{- end }}
+  {{- if .Values.tbmq.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ printf "%s-tbmq-node-data" $releaseName }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.tbmq.persistence.accessModes | nindent 10 }}
+        {{- with .Values.tbmq.persistence.storageClassName }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.tbmq.persistence.size }}
+  {{- end }}

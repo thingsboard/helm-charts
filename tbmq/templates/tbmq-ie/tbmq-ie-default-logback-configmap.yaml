@@ -1,5 +1,5 @@
 {{- $tbmqIe := index .Values "tbmq-ie" }}
-{{- if empty $tbmqIe.existingLogbackConfigMap }}
+{{- if and (empty $tbmqIe.existingConfigMap) (empty $tbmqIe.existingLogbackConfigMap) }}
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
 apiVersion: v1

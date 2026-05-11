@@ -1,0 +1,46 @@
+# PE license — required. Either:
+#   - paste the value here (license.secret), OR
+#   - pre-create a Secret with `kubectl create secret generic tbmq-license \
+#       --from-literal=license-key=YOUR_VALUE -n thingsboard-mqtt-broker`
+#     and set `license.existingSecret: tbmq-license` instead.
+license:
+  secret: ""
+  # existingSecret: tbmq-license
+
+tbmq:
+  image:
+    repository: thingsboard/tbmq-pe-node
+    tag: 2.3.0PE
+  statefulSet:
+    replicas: 1
+
+tbmq-ie:
+  image:
+    repository: thingsboard/tbmq-pe-integration-executor
+    tag: 2.3.0PE
+  statefulSet:
+    replicas: 1
+
+postgresql:
+  host: "tbmq-db-primary"
+  port: 5432
+  database: "thingsboard_mqtt_broker"
+  username: "postgres"
+  existingSecret: "tbmq-db-pguser-postgres"
+  existingSecretPasswordKey: "password"
+
+kafka:
+  bootstrapServers: "tbmq-kafka-kafka-bootstrap:9092"
+
+redis:
+  connectionType: "standalone"
+  host: "valkey"
+  port: 6379
+  usePassword: false
+
+loadbalancer:
+  type: "nginx"
+  http:
+    enabled: true
+  mqtt:
+    enabled: true

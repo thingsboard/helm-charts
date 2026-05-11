@@ -1,645 +1,787 @@
 # Helm Chart for TBMQ Cluster
 
-TBMQ represents an open-source MQTT message broker with the capacity to handle 4M+ concurrent client connections, 
-supporting a minimum of 3M messages per second throughput per single cluster node with low latency delivery. 
-In the cluster mode, its capabilities are further enhanced, enabling it to support more than 100M concurrently connected clients.
+TBMQ is a high-performance MQTT message broker capable of handling 4M+ concurrent client connections,
+delivering 3M+ messages per second per single cluster node with low latency. In cluster mode,
+TBMQ scales to 100M+ concurrently connected clients.
+
+This chart deploys a TBMQ cluster on Kubernetes. The same chart supports both editions of TBMQ:
+
+- **Community Edition (CE)** — open-source, default images.
+- **Professional Edition (PE)** — commercial edition with additional features. Enabled by switching
+  the broker and integration-executor images to the PE variants in your `values.yaml` and supplying
+  a license. All templates, configuration keys, and operational behavior are identical between
+  editions. See [Professional Edition (PE)](#professional-edition-pe) under "Installing" for the
+  exact edits.
 
 **Documentation & Resources:**
 
- - 🔗 TBMQ [Documentation](https://thingsboard.io/products/mqtt-broker/)
- - 💻 TBMQ GitHub [Repository](https://github.com/thingsboard/tbmq)
- - 💻 ThinsBoard Charts GitHub [Repository](https://github.com/thingsboard/helm-charts)
+- TBMQ [Documentation](https://thingsboard.io/products/mqtt-broker/)
+- TBMQ GitHub [Repository](https://github.com/thingsboard/tbmq)
+- ThingsBoard Charts GitHub [Repository](https://github.com/thingsboard/helm-charts)
 
-> **📜 Trademarks:** This software listing is packaged by TBMQ Team. 
-The respective trademarks mentioned in the offering are owned by the respective companies, and use of them does not imply any affiliation or endorsement.
+> **Trademarks:** This software listing is packaged by the TBMQ Team. The respective trademarks
+> mentioned in the offering are owned by the respective companies, and use of them does not imply
+> any affiliation or endorsement.
 
-## Introduction
+## Architecture
 
-This chart bootstraps a TBMQ deployment on a [Kubernetes](https://kubernetes.io/) cluster using the [Helm](https://helm.sh/) package manager.
+The chart deploys only TBMQ application components:
+
+- `tbmq-node` — broker StatefulSet (default 2 replicas). Exposes MQTT (1883), MQTTS (8883), MQTT-WS
+  (8084), MQTT-WSS (8085), and an HTTP management API (8083).
+- `tbmq-ie` — Integration Executor StatefulSet (default 2 replicas). Exposes HTTP (8082).
+- Helm hooks for one-shot install Pod and upgrade Job that run TBMQ's database schema initializer
+  or migration tool.
+- Optional `Ingress` and `Service` resources for HTTP and MQTT load balancing
+  (`nginx`, `aws`, `azure`, or `gcp` flavors).
+
+Infrastructure dependencies — PostgreSQL, Kafka, and a Redis-compatible cache — must be deployed
+separately. Use whatever fits your environment: operators (CrunchyData PGO, Strimzi, Valkey
+Operator), managed services (RDS, MSK, ElastiCache), or raw manifests. The chart connects to your
+existing instances via the values you provide.
 
 ## Prerequisites
 
 - Kubernetes 1.23+
 - Helm 3.8.0+
-- PV provisioner support in the underlying infrastructure
+- Persistent Volume provisioner — required by default for the broker's per-pod `/data` PVC
+  (`tbmq.persistence.enabled: true`) and by whatever infrastructure components you run that use
+  PVs. CE-only deployments can disable broker persistence (`tbmq.persistence.enabled: false`) if
+  no PV provisioner is available — see [Persistence](#persistence) for the trade-offs and why PE
+  should keep it on.
+- An external PostgreSQL instance (with an empty database created for TBMQ)
+- An external Kafka cluster
+- An external Redis-compatible cache (Redis, Valkey, Dragonfly, etc.) — standalone or cluster
 
-## Installing the Chart
+For a working step-by-step example using Minikube with CrunchyData PGO, Strimzi Kafka, and Valkey,
+see the [Minikube Deployment Guide](docs/minikube/README.md).
 
-To install TBMQ using this Helm chart, follow these steps:
+## Installing
 
 ### Step 1: Add the TBMQ Helm Repository
-
-Before installing the chart, add the TBMQ Helm repository to your local Helm client:
 
 ```bash
 helm repo add tbmq-helm-chart https://helm.thingsboard.io/tbmq
 helm repo update
 ```
 
-### Step 2: Retrieve and Modify Default Chart Values
+### Step 2: Prepare Your `values.yaml`
 
-To customize your TBMQ deployment, retrieve the default `values.yaml` file from the Helm repository and modify it according to your requirements:
+Export the chart defaults as a starting point, then edit it to match your environment:
 
 ```bash
 helm show values tbmq-helm-chart/tbmq-cluster > values.yaml
 ```
 
-Edit the `values.yaml` file to configure TBMQ specific sections along with sub-charts included as a dependencies.
-E.g., `redis-cluster`, `kafka`, `postgresql`.
+At a minimum you need to set:
 
-> ⚠️ **Warning:** Do not modify `installation.installDbSchema` directly in the `values.yaml`. This parameter is only required during 
-the first installation to initialize the TBMQ database schema. Instead, we will pass it explicitly using `--set` option in the `helm install` command.
+- `postgresql.host` and credentials (or `existingSecret`)
+- `kafka.bootstrapServers`
+- `redis.nodes` (cluster mode is the default) — or `redis.connectionType: standalone` plus `redis.host`/`redis.port` — and credentials if `usePassword: true`
 
-### Step 3: Run the Installation Command
+See [Infrastructure Configuration](#infrastructure-configuration) for full parameter reference.
 
-After modifying the `values.yaml` file, install TBMQ using the following command:
+> **Important:** Do not set `installation.installDbSchema: true` in `values.yaml`. Pass it via
+> `--set` on the `helm install` command instead. Persisting it in your values file means the install
+> pod will also run on every subsequent `helm upgrade` (because the post-install hook is also bound
+> to `post-upgrade` to allow recovery from a forgotten flag).
+
+### Step 3: Install
+
+#### Community Edition (CE)
 
 ```bash
-helm install my-tbmq-cluster tbmq-helm-chart/tbmq-cluster -f values.yaml --set installation.installDbSchema=true
+helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
+  -f values.yaml \
+  --set installation.installDbSchema=true
 ```
 
-> 💡 **Tip:** `my-tbmq-cluster` is the **Helm release name**. You can change it to any name of your choice, which will be used to reference this deployment in future Helm commands.
+#### Professional Edition (PE)
 
-## Updating configuration
+PE installs from the same chart as CE. You configure PE by making two edits to the `values.yaml` you exported in Step 2:
 
-You can update your TBMQ deployment configuration — for example, scaling replicas or changing resource limits — 
-by modifying `values.yaml` and applying the changes using the `helm upgrade` command:
+1. Switch the broker and integration-executor images to the PE variants
+   (`thingsboard/tbmq-pe-node` and `thingsboard/tbmq-pe-integration-executor`).
+2. Provide a license.
+
+Both edits are detailed below. After making them, run the `helm install` command as for CE.
+
+> The repo ships [`values-pe.yaml`](values-pe.yaml) as a **reference** for the canonical PE image
+> repositories and tags at the current chart version. Copy those values into your `values.yaml`
+> in Step 1; do not pass `values-pe.yaml` itself as a `-f` overlay alongside your file.
+
+##### 1. Switch to PE images
+
+Find the `tbmq.image` and `tbmq-ie.image` blocks in your `values.yaml` and change `repository`
+and `tag` to the PE values:
+
+```yaml
+tbmq:
+  image:
+    repository: thingsboard/tbmq-pe-node                  # was: thingsboard/tbmq-node
+    tag: 2.3.0PE                                          # was: 2.3.0
+
+tbmq-ie:
+  image:
+    repository: thingsboard/tbmq-pe-integration-executor  # was: thingsboard/tbmq-integration-executor
+    tag: 2.3.0PE                                          # was: 2.3.0
+```
+
+PE tags match the chart `appVersion` with a `PE` suffix (e.g. `2.3.0` → `2.3.0PE`). The CE and PE
+image tags are **not** interchangeable. The canonical reference values for the current chart
+version are in [`values-pe.yaml`](values-pe.yaml).
+
+##### 2. Provide your license
+
+**Recommended (production):** keep the license out of `values.yaml` by pre-creating a Kubernetes
+Secret and referencing it from values:
 
 ```bash
-helm upgrade my-tbmq-cluster tbmq-helm-chart/tbmq-cluster -f values.yaml
+kubectl create namespace <namespace>
+kubectl create secret generic my-tbmq-license -n <namespace> \
+  --from-literal=license-key='YOUR_LICENSE_VALUE'
+```
+
+```yaml
+license:
+  existingSecret: my-tbmq-license
+  # The chart reads the license from a key named "license-key" inside the Secret.
+  # If your Secret uses a different key, set existingSecretLicenseKey: <your-key>.
+```
+
+Why this is the recommended path:
+
+- The license value never lives in `values.yaml` on disk, so the file is safe to keep in version
+  control alongside the rest of your infra config.
+- Composes with sealed-secrets, External Secrets Operator, SOPS, Vault, or any other tool that
+  produces a Kubernetes Secret in the release's namespace — point `existingSecret` at the name
+  it produces and the chart picks it up unchanged.
+- Rotating the license is `kubectl edit secret` — no `helm upgrade` round-trip.
+- The Secret survives `helm uninstall`, so reinstalling the release does not require re-pasting
+  the license value.
+
+**Alternative (test / dev):** paste the license value into your `values.yaml` and the chart will
+render the Secret for you (`<release>-tbmq-license-secret`):
+
+```yaml
+license:
+  secret: YOUR_LICENSE_VALUE
+```
+
+This is fine for quick experiments, but the value lands inside the helm release manifest stored
+in the cluster (`sh.helm.release.v1.<name>.<rev>` Secret), and anyone with `get secrets`
+permission in that namespace can read it back.
+
+##### 3. Install
+
+Because every PE-specific change is in your `values.yaml`, the install command is identical to
+the CE one:
+
+```bash
+helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
+  -f values.yaml \
+  --set installation.installDbSchema=true
+```
+
+> **Tip:** `my-tbmq` is the **Helm release name**. Pick any name. It is used as the prefix for
+> all deployed resources and as the reference for future `helm` commands against this release.
+
+##### How the chart wires the license
+
+Only the broker StatefulSet validates the license, so the chart injects two license env vars
+**only** there. The IE StatefulSet, the install Pod, and the pre-upgrade Job do not consume the
+license Secret and do not depend on it.
+
+- `TBMQ_LICENSE_SECRET` — read from the Secret you provided (inline or via `existingSecret`).
+- `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to the per-pod local cache of the license client's
+  activation response. The default (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on
+  `/data`, backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
+  [Persistence](#persistence) below). `$(TB_SERVICE_ID)` is the pod name (downward API), so each
+  replica gets its own cache file. Persisting `/data` lets the broker check in against its
+  existing license instance on restart; **without the cache file, the broker re-activates as a
+  fresh instance on every start, consuming a new slot against the license's instance cap** (see
+  [Persistence](#persistence) for the full explanation). Override `license.instanceDataFile` only
+  if you mount a different writable path.
+
+> The TBMQ cluster id that the license server binds to lives in PostgreSQL
+> (`tbmq_cluster.cluster_id`, generated once at install). It is not stored in `/data` and is
+> unaffected by Pod recreation.
+
+### Step 4: Verify the Install
+
+```bash
+# List the broker, integration executor, and install-pod resources
+kubectl get pods -n <namespace> -l 'app in (my-tbmq-tbmq-node,my-tbmq-tbmq-ie,install-job)'
+```
+
+(The chart sets only the bare `app:` label — there is no `app.kubernetes.io/instance` selector to filter by release name.)
+
+The install pod (`my-tbmq-install-pod`) runs to completion (its `restartPolicy` is `OnFailure`,
+so a failed container restarts in-pod until it succeeds or the hook timeout fires), creates the
+schema, then exits. The hook policy is `hook-succeeded,before-hook-creation`: Helm deletes the
+pod **only when it succeeds**; on failure the pod is **left in place** so you can inspect logs,
+and it is auto-cleaned the next time the hook runs (e.g., the next `helm upgrade`). The install
+hook has a 300s timeout.
+
+The `my-tbmq-tbmq-node-*` (broker) pods block in their `validate-db` init container until the
+schema exists, so they reach `Running` within a minute or two **after** the install pod succeeds.
+The `my-tbmq-tbmq-ie-*` pods have no PostgreSQL dependency and may already be `Running` before
+the install pod completes.
+
+```bash
+# While the pod runs:
+kubectl logs my-tbmq-install-pod -n <namespace> -f
+
+# If it has already finished and was restarted (restartPolicy: OnFailure):
+kubectl logs my-tbmq-install-pod -n <namespace> --previous
+```
+
+## Updating Configuration
+
+Routine configuration changes — scaling replicas, adjusting resource limits, modifying load balancer
+annotations, etc. — are applied via `helm upgrade` against the same release. The command is the
+same for CE and PE; your `values.yaml` already encodes which edition you're running:
+
+```bash
+helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -f values.yaml
 ```
 
 ## Upgrading
 
-When moving to a new TBMQ chart release, a database schema migration is required. To ensure consistency, TBMQ nodes must be temporarily scaled down before applying the upgrade.
+A TBMQ chart upgrade may include a database schema migration when the `appVersion` changes. Always
+back up your PostgreSQL database before upgrading.
 
-### Backup and restore (Optional)
+### Backup (Recommended)
 
-While backing up your PostgreSQL database is highly recommended, it is optional before proceeding with the upgrade.
+Follow the procedure documented by your PostgreSQL provider (operator, cloud-managed service, or
+self-managed instance) to create a logical or physical backup before proceeding.
 
- - If you are using the built-in Bitnami PostgreSQL, follow the official Bitnami backup and restore [documentation](https://artifacthub.io/packages/helm/bitnami/postgresql#backup-and-restore).
- - If you are using an external PostgreSQL (for example, AWS RDS, Google Cloud SQL, or Azure Database), please follow the instructions provided by your cloud provider.
+### Standard Upgrade Procedure
 
-### Upgrading to 1.1.0
+The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades — the commands below are
+identical for both, because your `values.yaml` already encodes which edition you're running.
 
-This chart upgrade includes a TBMQ application version bump from 2.1.0 to 2.2.0. 
-Before proceeding, please review the TBMQ [release notes](https://thingsboard.io/docs/mqtt-broker/releases/) for detailed information on the latest changes.
+1. **Scale `tbmq-node` (and optionally `tbmq-ie`) to 0 replicas** so no application is reading or
+   writing while the schema migration runs:
 
-> ⚠️ **Warning:** Starting with this release, TBMQ Helm charts use Bitnami Legacy images (bitnamilegacy/*) for PostgreSQL, Redis, and Kafka due to upcoming [Bitnami registry changes](https://github.com/bitnami/charts/issues/35164) on August 28th 2025.
+   ```bash
+   kubectl scale statefulset/my-tbmq-tbmq-node --replicas=0 -n <namespace>
+   # Recommended on TBMQ version bumps (broker ↔ IE protocol coupling):
+   kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=0 -n <namespace>
+   ```
 
-#### Step 1: Update the repo and ensure version 1.1.0 is available
+   The IE doesn't connect to PostgreSQL itself, so the schema migration doesn't directly affect
+   it. Scaling it down is still recommended on TBMQ version bumps, because the IE communicates
+   with the broker over Kafka and the message contract / API surface can change between releases
+   — leaving the IE running against a freshly upgraded broker (or a broker that's been scaled to
+   zero) can produce noisy errors. For routine config-only `helm upgrade`s on the same TBMQ
+   version you can leave the IE running.
+
+2. **Run the upgrade.** The `upgrade.upgradeDbSchema=true` flag triggers the pre-upgrade Helm hook
+   that runs the migration:
+
+   ```bash
+   helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
+     --version <new-chart-version> \
+     -f values.yaml \
+     --set upgrade.upgradeDbSchema=true
+   ```
+
+   > **Note on PE image tags:** your `values.yaml` pins `tbmq.image.tag` and `tbmq-ie.image.tag`
+   > from when you first exported it. When bumping the chart version, also update those tags in
+   > your file to match the new chart `appVersion` (`<appVersion>` for CE, `<appVersion>PE` for
+   > PE). The canonical PE tags for the target chart version are in
+   > [`values-pe.yaml`](values-pe.yaml) at that chart tag.
+
+3. **Verify the migration completed.** The migration runs as a Kubernetes Job named
+   `my-tbmq-upgrade-<revision>` and is automatically deleted 5 minutes after it finishes
+   (`ttlSecondsAfterFinished: 300`). Tail its logs while it runs:
+
+   ```bash
+   kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
+   ```
+
+   Helm restores both StatefulSets to the chart's declared `replicas` value (default `2`) as part
+   of the upgrade — no manual scale-back is needed.
+
+### CE → PE Upgrade (Cross-Edition Migration)
+
+Migrating an existing CE release to PE **on the same TBMQ version** is a two-edit change to your
+existing `values.yaml` followed by one `helm upgrade` with the cross-edition flag. The flag sets
+`FROM_VERSION=ce` on the upgrade Job (forwarded by the PE entrypoint as
+`-Dinstall.upgrade.from_version=ce`), triggering the PE-specific schema and data transformations
+on top of the existing CE data.
+
+1. **Edit your existing `values.yaml`** to switch to the PE images and add a license. Both edits
+   are exactly the same as for a fresh PE install — see
+   [Switch to PE images](#1-switch-to-pe-images) and
+   [Provide your license](#2-provide-your-license). Do not pass `values-pe.yaml` as a `-f`
+   overlay alongside this file.
+
+2. **Scale broker and IE to 0** so nothing is connected to the schema while it migrates:
+
+   ```bash
+   kubectl scale statefulset/my-tbmq-tbmq-node --replicas=0 -n <namespace>
+   kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=0 -n <namespace>
+   ```
+
+3. **Run the upgrade** with the cross-edition flag:
+
+   ```bash
+   helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
+     -f values.yaml \
+     --set upgrade.upgradeDbSchema=true \
+     --set upgrade.fromVersion=ce
+   ```
+
+What happens during this upgrade:
+
+- The pre-upgrade Job uses the **PE** broker image (because your `values.yaml` now points at PE)
+  with `UPGRADE_TB=true` and `FROM_VERSION=ce`. The PE entrypoint reads `FROM_VERSION` and
+  appends `-Dinstall.upgrade.from_version=ce` to the install application command line, which
+  switches the migration into CE→PE mode (rewrites the CE schema as PE).
+- After the migration succeeds, Helm rolls the `tbmq-node` and `tbmq-ie` StatefulSets onto the PE
+  images and restores both to the chart's declared `replicas` value — no manual scale-back is
+  needed.
+
+After the migration succeeds, **do not** carry `upgrade.fromVersion=ce` forward to subsequent
+PE → PE upgrades — drop the flag (or set it to `""`) on the next `helm upgrade`. Leaving it on
+will cause the upgrade Job to attempt a CE→PE migration against an already-PE database on every
+release, which will fail.
+
+### Upgrading from chart version 1.x to 2.0.0 (TBMQ 2.2.0 → 2.3.0)
+
+Chart version 2.0.0 is a **breaking change**. All Bitnami subchart dependencies (PostgreSQL, Kafka,
+Redis Cluster) that earlier chart versions bundled have been removed — the chart now expects you to
+bring your own third-party infrastructure. This aligns the Helm deployment with the broader TBMQ
+v2.3.0 third-party migration described in the
+[official upgrade instructions](https://thingsboard.io/docs/mqtt-broker/install/upgrade-instructions/#third-party-component-updates-in-v230).
+
+| Component        | TBMQ v2.2.0 (chart 1.x bundled)       | TBMQ v2.3.0 (chart 2.0.0 — bring your own) |
+|------------------|---------------------------------------|--------------------------------------------|
+| **PostgreSQL**   | `bitnami/postgresql` (PostgreSQL 16)  | `postgres:17` (operator or self-managed)   |
+| **Kafka**        | `bitnamilegacy/kafka:3.7.0` (KRaft)   | `apache/kafka:4.0.0` (official image)      |
+| **Redis/Valkey** | `bitnamilegacy/redis:7.2.5` (cluster) | `valkey/valkey:8.0` (Redis-compatible)     |
+
+Chart 2.0.0 has no `postgresql:`, `kafka:`, or `redis-cluster:` subchart blocks — only top-level
+`postgresql:`, `kafka:`, and `redis:` connection sections that point at your existing or newly
+provisioned infrastructure.
+
+> **Always back up your PostgreSQL database before upgrading**, regardless of which path you take.
+
+> **Set `tbmq.persistence.enabled: false` in your chart 2.0.0 upgrade values.** Chart 2.0.0 adds a
+> per-pod `volumeClaimTemplate` for `/data` on the broker StatefulSet (default
+> `tbmq.persistence.enabled: true`). Chart 1.x had no such template (its `/data` was an `emptyDir`),
+> and `volumeClaimTemplates` is one of the immutable fields on an existing StatefulSet — adding it
+> in place makes `helm upgrade` fail with
+> `StatefulSet ... is invalid: spec: Forbidden: updates to statefulset spec for fields other than ... are forbidden`.
+> Chart 1.x deployments are CE-only, so disabling persistence on the upgrade is safe (there is no
+> PE license cache to preserve).
+>
+> The pre-upgrade schema migration Job runs **before** the StatefulSet patch. If you hit this error
+> on a first attempt the schema is already at the target version, and re-running the upgrade with
+> `--set upgrade.upgradeDbSchema=true` will fail its already-upgraded check
+> (`database already upgraded to current version`). Retry without `upgradeDbSchema` (and with
+> `tbmq.persistence.enabled: false`).
+>
+> Enabling `tbmq.persistence` later (e.g. before a CE→PE migration on the chart 2.0.0 CE release)
+> hits the same immutable-field rule. Take a maintenance window, delete the broker StatefulSet with
+> `kubectl delete statefulset <release>-tbmq-node -n <namespace> --cascade=orphan` (this leaves the
+> running Pod up while the StatefulSet is gone), then `helm upgrade` with
+> `tbmq.persistence.enabled: true` to recreate it with the `volumeClaimTemplate`.
+
+#### Two upgrade paths
+
+**Option A — Keep the existing in-cluster Bitnami stack.** Annotate every Bitnami-rendered
+resource in the chart 1.x release with `helm.sh/resource-policy: keep` so `helm upgrade` to chart
+2.0.0 does not delete them, then point chart 2.0.0's top-level `postgresql:` / `kafka:` / `redis:`
+sections at the still-running in-cluster Services and reuse the Bitnami-created Secrets. The
+schema migration runs as the standard pre-upgrade Job. This path keeps PostgreSQL on major version
+16 and leaves the Bitnami Pods detached from Helm — long-term, plan to migrate to the official
+open-source images (Option B).
+
+> Run `helm get manifest <release> -n <namespace>` first to see the exact list of subchart
+> resources in your release and annotate based on that output — names depend on your release name
+> and the exact subchart versions you originally installed. Missing a resource means
+> `helm upgrade` will delete it.
+
+**Option B — Provision a fresh third-party stack.** The cleaner long-term path: provision the
+v2.3.0 reference stack (PostgreSQL 17, Apache Kafka 4.0.0, Valkey 8.0) outside the Helm release,
+then run the chart 2.0.0 upgrade pointing at the new infrastructure.
+
+PostgreSQL must carry over (`pg_dump` / `pg_restore`, or the operator equivalent) — it holds the
+TBMQ schema and cluster id. For Kafka and Redis you have a choice:
+
+- **Migrate the data.** Choose this if you need to preserve any persisted-but-undelivered MQTT
+  messages and the in-cluster MQTT state held outside PostgreSQL. The image transitions
+  (`bitnamilegacy/kafka:3.7.0` → `apache/kafka:4.0.0` and `bitnamilegacy/redis:7.2.5` →
+  `valkey/valkey:8.0`) do not permit direct volume reuse, so plan a logical export/replay rather
+  than a PV swap.
+- **Start Kafka and Redis empty.** A valid choice when you accept that any
+  persisted-but-undelivered messages are either already delivered or will be dropped. MQTT
+  clients reconnect to the new cluster on their own and their subscriptions get re-established as
+  they come back online — no operator action required for that.
+
+The [Minikube guide](docs/minikube/README.md) walks through provisioning one such stack
+end-to-end (it does not cover Kafka or Redis data migration).
+
+For detailed assistance with either path,
+[contact ThingsBoard](https://thingsboard.io/docs/contact-us/).
+
+### Troubleshooting Upgrades
+
+The pre-upgrade migration Job spawns a Pod named `my-tbmq-upgrade-<revision>-<random>`. The Job
+itself has `ttlSecondsAfterFinished: 300`, so both Job and Pod are deleted 5 minutes after the
+migration finishes — successful or not. Watch logs while the Job runs, or capture them quickly
+once it terminates:
 
 ```bash
-helm repo update
-helm search repo tbmq-helm-chart/tbmq-cluster --versions | grep 1.1.0
+kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
+# or, if the Pod has already finished but hasn't been TTL-reaped yet:
+kubectl logs <upgrade-pod-name> -n <namespace>
 ```
 
-Expected output:
+> The Job has `backoffLimit: 3`, and its pod template has `restartPolicy: Never` — on failure the
+> Job creates a brand-new pod rather than restarting the container in place, so `kubectl logs
+> --previous` doesn't apply here. List all attempts with `kubectl get pods -n <namespace> -l job-name=my-tbmq-upgrade-<revision>`.
 
-```bash
-tbmq-helm-chart/tbmq-cluster	1.1.0        	2.2.0         	Helm chart for TBMQ cluster.    
+Common causes:
+
+- **Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`** →
+  PostgreSQL is unreachable. The init container runs `until nc -z $host $port; do echo waiting for
+  postgres; sleep 2; done` — it swallows `nc`'s underlying error (no "connection refused" line
+  surfaces) and only echoes `waiting for postgres` between retries, and it never times out on its
+  own — the Helm hook timeout will fire after 600s. Check `postgresql.host`/`postgresql.port` and
+  that the DB is reachable from the TBMQ namespace.
+- **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
+  the expected key.
+- **Hook timeout (10 minutes)** → for very large databases, the migration may exceed the default
+  600s timeout. Roll back (`helm rollback`) and re-run after addressing the performance bottleneck
+  (e.g., increase resources, run `VACUUM`/`ANALYZE` first).
+- **CE → PE migration failed** → confirm `upgrade.fromVersion=ce` was set AND that the PE image is
+  in use (check the upgrade Pod's `image:` field — it should be `thingsboard/tbmq-pe-node:<tag>`).
+- **`upgrade.fromVersion=ce` left set on a follow-up PE → PE upgrade** → the upgrade job will try
+  to migrate an already-PE database from CE and fail. Drop the flag.
+
+## Runtime Troubleshooting
+
+Symptoms you may hit on a running cluster (separate from the upgrade-time issues covered in
+[Troubleshooting Upgrades](#troubleshooting-upgrades) above).
+
+### Broker exits immediately with `License Error GENERAL_ERROR(300)`
+
+The broker logs:
+
+```
+ERROR o.t.m.b.d.s.BasicSubscriptionService - License secret is not provided!
+ERROR o.t.m.b.d.s.BasicSubscriptionService - Please provide license.secret property value in thingsboard-mqtt-broker.yml or set TBMQ_LICENSE_SECRET environment variable!
+INFO  o.t.m.b.d.s.BasicSubscriptionService - Terminating application due to critical License Error GENERAL_ERROR(300), exit code [-1]
 ```
 
-This confirms that chart version `1.1.0` is available in your local Helm repository cache.
+PE images require a license value. Either set `license.secret` inline or pre-create a Secret and
+point `license.existingSecret` at it (see [PE install — Provide your license](#2-provide-your-license)).
+CE images don't need a license — confirm you didn't pull the PE images (`thingsboard/tbmq-pe-*`)
+without configuring one.
 
-#### Step 2: Scale down TBMQ node replicas
+### Broker crash-loops with `License Error: CLUSTER_ID_MISMATCH(114)`
 
-Before applying the `helm upgrade` command,
-please scale down the running TBMQ nodes to 0 replicas
-to avoid running mixed versions during the database schema upgrade:
+The license server has bound your TBMQ license to a different cluster id than the one this
+broker is presenting. The cluster id lives in PostgreSQL (`tbmq_cluster.cluster_id`, generated
+once at install), so a mismatch means that row has changed since the license was activated.
+Common causes:
 
-```bash
-kubectl -n <namespace_name> scale statefulset/my-tbmq-cluster-tbmq-node --replicas=0
-```
+- **PostgreSQL was wiped or recreated.** A fresh database gets a fresh `tbmq_cluster.cluster_id`
+  on the next install. The license server still holds the prior binding and rejects the new
+  cluster id. Deactivate the prior binding via your license-server admin (or contact
+  ThingsBoard) before reinstalling, or restore the original database.
+- **DB was restored from a non-matching backup.** Restoring an older or different cluster's
+  backup brings back a different `tbmq_cluster.cluster_id`. Either restore the matching backup
+  or deactivate the binding and let the new cluster id register.
+- **Same license is being activated against a different deployment.** Single-bind licenses can
+  only activate against one cluster id at a time. Deactivate the prior binding before
+  installing into a new cluster.
 
-This ensures that no TBMQ nodes are connected to PostgreSQL while the database schema upgrade runs.
+Pod recreation, `helm upgrade`, and `/data` being an `emptyDir` do **not** trigger this error —
+the cluster id is not stored under `/data`. Losing the per-pod license cache file forces the
+broker to re-activate against the license server on the next start; that does **not** change the
+cluster id, but it does consume a fresh instance slot against the license's instance cap (see
+[Persistence](#persistence) — sustained cache loss can eventually exhaust the cap and require a
+license-server admin to clear stale instance bindings).
 
-#### Step 3: Run the upgrade:
-
-```bash
-helm upgrade my-tbmq-cluster tbmq-helm-chart/tbmq-cluster \
-  --version 1.1.0 \
-  -f values.yaml \
-  --set upgrade.upgradeDbSchema=true
-```
-
-Example output:
-
-```bash
-Release "my-tbmq-cluster" has been upgraded. Happy Helming!
-NAME: my-tbmq-cluster
-LAST DEPLOYED: Thu Aug 21 15:04:28 2025
-NAMESPACE: tbmq
-STATUS: deployed
-REVISION: 2
-TEST SUITE: None
-NOTES:
-TBMQ Cluster my-tbmq-cluster will be deployed in few minutes.
-Info:
-    Namespace: tbmq
-```
-
-### Troubleshooting
-
-During the upgrade process, the chart creates a temporary pod to run the upgrade job, e.g., `my-tbmq-cluster-upgrade-3-r4cn6`.
-If the upgrade fails, e.g., due to CrashLoopBackOff or a timeout while waiting for hook completion, you can inspect the upgrade pod logs to understand what went wrong:
-
-```bash
-kubectl -n <namespace_name> logs -f my-tbmq-cluster-upgrade-3-r4cn6
-```
-
-> ⚠️ **Warning:** Upgrade pods have a short lifetime (ttlSecondsAfterFinished: 300), so they are automatically cleaned up 5 minutes after completion. Make sure to check the logs promptly.
-
-## Configuration and Parameters
-
-This section describes the configurable parameters of the TBMQ Helm chart. The `values.yaml` file includes settings for TBMQ itself and its required dependencies.
+## Configuration Reference
 
 ### Global Parameters
 
-These parameters apply to the overall chart, such as image pull credentials and installation behavior.
+| Parameter                    | Description                                                                                                                                                                          | Default                     |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
+| **Docker Authentication**    |                                                                                                                                                                                      |                             |
+| dockerAuth.registry          | Docker registry for TBMQ images. Used only when supplying credentials.                                                                                                               | https://index.docker.io/v1/ |
+| dockerAuth.username          | Docker username. When set, the chart creates a pull Secret named `tbmq.imagePullSecret` (default `regcred`). When empty, no Secret is created — useful when you pre-create your own. | ""                          |
+| dockerAuth.password          | Docker password. Used together with `dockerAuth.username` to populate the chart-managed pull Secret.                                                                                 | ""                          |
+| **Installation**             |                                                                                                                                                                                      |                             |
+| installation.installDbSchema | Initializes the TBMQ DB schema. Pass via `--set` on first install only. The post-install hook is also bound to `post-upgrade` for recovery scenarios.                                | false                       |
+| installation.argocd          | Replaces Helm install/upgrade hooks with ArgoCD `Sync` hook annotations on the install pod.                                                                                          | false                       |
+| **Upgrade**                  |                                                                                                                                                                                      |                             |
+| upgrade.upgradeDbSchema      | Runs the DB migration during `helm upgrade` (pre-upgrade hook). Ignored on first install.                                                                                            | false                       |
+| upgrade.argocd               | Replaces Helm pre-upgrade hooks with ArgoCD `PreSync` hook annotations on the upgrade job.                                                                                           | false                       |
+| upgrade.fromVersion          | Edition the upgrade is migrating FROM. Set to `"ce"` only for CE → PE cross-edition upgrades. Leave empty for same-edition upgrades.                                                 | ""                          |
+| **License (PE only)**        | Required for PE; ignored for CE (when both `secret` and `existingSecret` are empty, the chart skips license wiring).                                                                 |                             |
+| license.secret               | License value. When set, the chart creates a Secret `<release>-tbmq-license-secret`. Convenient for testing; the value lands in the helm release manifest.                           | ""                          |
+| license.existingSecret       | Name of a pre-existing Kubernetes Secret holding the license. Recommended for production. When set, the chart does NOT create a Secret of its own.                                   | ""                          |
+| license.existingSecretLicenseKey | Key inside `existingSecret` that holds the license value. Matches the convention from the official PE k8s manifests.                                                             | "license-key"               |
+| license.instanceDataFile     | Path to the per-pod license cache file. Default uses `$(TB_SERVICE_ID)` so each replica gets its own file under `/data`, which is PVC-backed by default (see `tbmq.persistence`).      | "/data/tbmq-instance-license-$(TB_SERVICE_ID).data" |
 
-- **dockerAuth** – Configures authentication for pulling images from a private Docker registry. 
-By default, TBMQ images are publicly available, but authentication settings can be provided if using a private registry.
-- **installation** – Controls the installation options, including database schema initialization and [ArgoCD](https://argoproj.github.io/cd/) support.
-- **upgrade** – Controls the upgrade options, including database schema upgrade and [ArgoCD](https://argoproj.github.io/cd/) support.
+### TBMQ (Broker) Parameters
 
-Please refer to the table below for parameter descriptions and default values.
-
-| **Parameter**                | **Description**                                                                                                                                                                                                                                                                                                                                                                                                      | **Default Value**           |
-|------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
-| **Docker Authentication**    |                                                                                                                                                                                                                                                                                                                                                                                                                      |                             |
-| dockerAuth.registry          | Docker registry for TBMQ images.                                                                                                                                                                                                                                                                                                                                                                                     | https://index.docker.io/v1/ |
-| dockerAuth.username          | Docker username on which pull secret will be created.                                                                                                                                                                                                                                                                                                                                                                | ""                          |
-| dockerAuth.password          | Docker user password on which pull secret will be created.                                                                                                                                                                                                                                                                                                                                                           | ""                          |
-| **Installation options**     |                                                                                                                                                                                                                                                                                                                                                                                                                      |                             |
-| installation.installDbSchema | This field is responsible for the installation process of TBMQ PostgreSQL database schema.                                                                                                                                                                                                                                                                                                                           | false                       |
-| installation.argocd          | Enables ArgoCD-specific Helm annotations for managing TBMQ deployments with ArgoCD. When set to true, the chart applies the following ArgoCD hooks: <pre><br/> argocd.argoproj.io/hook: Sync  – Ensures that the Helm release is treated as a sync hook. <br/> argocd.argoproj.io/hook-delete-policy: HookSucceeded – Automatically removes the hook resources once the sync operation completes successfully.</pre> | false                       |
-| **Upgrade options**          |                                                                                                                                                                                                                                                                                                                                                                                                                      |                             |
-| upgrade.upgradeDbSchema      | This field is responsible for the upgrade process of TBMQ PostgreSQL database schema. It will be ignored if the Helm release is not in the "upgrade" state.                                                                                                                                                                                                                                                          | false                       |
-| upgrade.argocd               | Enables ArgoCD-specific Helm annotations for managing TBMQ deployments with ArgoCD. When set to true, the chart applies the following ArgoCD hooks: <pre><br/> argocd.argoproj.io/hook: PreSync  – Ensures that the Helm release is treated as a pre-sync hook. Executed before the main sync phase begins.                                                                                                          | false                       |
-
-## TBMQ-Specific Parameters
-
-This section describes the configuration options for the **TBMQ** and its **Integration Executor** component.
-
-### TBMQ parameters
-
-| **Parameter**                               | **Description**                                                                                                                                                                                                                                                | **Default Value**                       |
-|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
-| **Image Configuration**                     |                                                                                                                                                                                                                                                                |                                         |
-| tbmq.image.repository                       | Docker image repository for TBMQ node.                                                                                                                                                                                                                         | thingsboard/tbmq-node                   |
-| tbmq.image.tag                              | Image tag/version.                                                                                                                                                                                                                                             | 2.2.0                                   |
-| tbmq.imagePullSecret                        | Kubernetes secret for pulling private images.                                                                                                                                                                                                                  | regcred                                 |
-| tbmq.imagePullPolicy                        | Image pull policy.                                                                                                                                                                                                                                             | Always                                  |
-| **Scaling & Deployment**                    |                                                                                                                                                                                                                                                                |                                         |
-| tbmq.statefulSet.replicas                   | Number of TBMQ broker instances.                                                                                                                                                                                                                               | 2                                       |
-| tbmq.statefulSet.annotations                | Custom annotations applied to the StatefulSet resource (metadata.annotations). These are useful for CI/CD tools, Helm diff, audit tracking, etc.                                                                                                               | { }                                     |
-| **Ports configuration**                     |                                                                                                                                                                                                                                                                |                                         |
-| tbmq.ports.http                             | HTTP API Port                                                                                                                                                                                                                                                  | 8083                                    |
-| tbmq.ports.https                            | HTTPS API Port                                                                                                                                                                                                                                                 | 443`                                    |
-| tbmq.ports.mqtt                             | MQTT Broker Port                                                                                                                                                                                                                                               | 1883                                    |
-| tbmq.ports.mqtts                            | MQTT Secure Port (TLS)                                                                                                                                                                                                                                         | 8883                                    |
-| tbmq.ports.mqtt-ws                          | MQTT over WebSockets Port                                                                                                                                                                                                                                      | 8084                                    |
-| tbmq.ports.mqtt-wss                         | MQTT over Secure WebSockets Port (TLS)                                                                                                                                                                                                                         | 8085                                    |
-| **Pods Scheduling, Restart options**        |                                                                                                                                                                                                                                                                |                                         |
-| tbmq.nodeSelector                           | Node selector for choosing nodes for scheduling pods. See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.                                                                                                           | { }                                     |
-| tbmq.affinity                               | Affinity for choosing nodes for scheduling pods. See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.                                                                                                                | { }                                     |
-| tbmq.enableChecksumAnnotations              | Controls whether Helm automatically restarts TBMQ pods when ConfigMaps or Secrets change.                                                                                                                                                                      | true                                    |
-| tbmq.annotations                            | Custom annotations applied to the TBMQ pods (spec.template.metadata.annotations). These are commonly used for service discovery (e.g., Prometheus scraping), config checksum triggers, or logging agents.                                                      | true                                    |
-| tbmq.restartPolicy                          | Defines the restart policy for TBMQ pods.                                                                                                                                                                                                                      |                                         |
-| **Environment, JVM and Logging Parameters** |                                                                                                                                                                                                                                                                |                                         |
-| tbmq.customEnv                              | Custom environment variables that are always applied, regardless of configuration source. These variables will be appended to the container environment and will override any conflicting variables set in `existingConfigMap` or `existingJavaOptsConfigMap`. | { SECURITY_MQTT_BASIC_ENABLED: "true" } |
-| tbmq.existingConfigMap                      | Name of an existing ConfigMap that will override TBMQ Java and Logback configurations. If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).                                                              | ""                                      |
-| tbmq.existingJavaOptsConfigMap              | Name of an existing TBMQ Java options config map. This ConfigMap should contain a key named `conf` with Java options.                                                                                                                                          | ""                                      |
-| tbmq.existingLogbackConfigMap               | Name of an existing TBMQ logback config map. This ConfigMap should contain a key named `logback` with the logging configuration.                                                                                                                               | ""                                      |
-| **Health Checks**                           |                                                                                                                                                                                                                                                                |                                         |
-| tbmq.readinessProbe.tcpSocket.port          | Port checked to determine readiness.                                                                                                                                                                                                                           | 1883                                    |
-| tbmq.readinessProbe.timeoutSeconds          | Maximum time to wait before considering the check failed.                                                                                                                                                                                                      | 10s                                     |
-| tbmq.readinessProbe.initialDelaySeconds     | Delay before the first readiness probe.                                                                                                                                                                                                                        | 30s                                     |
-| tbmq.readinessProbe.periodSeconds           | Interval between probe executions.                                                                                                                                                                                                                             | 20s                                     |
-| tbmq.readinessProbe.successThreshold        | Minimum number of successes before marking pod as "ready".                                                                                                                                                                                                     | 1                                       |
-| tbmq.readinessProbe.failureThreshold        | Number of failures before the pod is removed from service endpoints.                                                                                                                                                                                           | 5                                       |
-| tbmq.livenessProbe.tcpSocket.port           | Port checked to determine liveness.                                                                                                                                                                                                                            | 1883                                    |
-| tbmq.livenessProbe.timeoutSeconds           | Maximum time to wait before considering the check failed.                                                                                                                                                                                                      | 10s                                     |
-| tbmq.livenessProbe.initialDelaySeconds      | Delay before the first liveness probe.                                                                                                                                                                                                                         | 60s                                     |
-| tbmq.livenessProbe.periodSeconds            | Interval between probe executions.                                                                                                                                                                                                                             | 10s                                     |
-| tbmq.livenessProbe.successThreshold         | Minimum number of successes before marking pod as "alive".                                                                                                                                                                                                     | 1                                       |
-| tbmq.livenessProbe.failureThreshold         | Number of consecutive failures before restarting the pod.                                                                                                                                                                                                      | 10                                      |
-| **Security Context**                        |                                                                                                                                                                                                                                                                |                                         |
-| tbmq.securityContext.runAsUser              | User ID to run the container.                                                                                                                                                                                                                                  | 799                                     |
-| tbmq.securityContext.runAsNonRoot           | Enforces non-root execution.                                                                                                                                                                                                                                   | true                                    |
-| tbmq.securityContext.fsGroup                | File system group ID for permissions.                                                                                                                                                                                                                          | 799                                     |
-| **Resources allocation**                    |                                                                                                                                                                                                                                                                |                                         |
-| tbmq.resources                              | Defines CPU/memory requests & limits. See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#pod-level-resource-specification for more details.                                                                                    | { }                                     |
+| Parameter                               | Description                                                                                                                                                | Default                                 |
+|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| **Image**                               |                                                                                                                                                            |                                       |
+| tbmq.image.repository                   | Broker image repository. CE: `thingsboard/tbmq-node`. PE: `thingsboard/tbmq-pe-node`.                                                                      | thingsboard/tbmq-node                 |
+| tbmq.image.tag                          | Image tag. CE default tracks the chart `appVersion`. PE: `<appVersion>PE` (e.g. `2.3.0PE`).                                                                | 2.3.0                                 |
+| tbmq.imagePullSecret                    | Pull secret name referenced by the broker StatefulSet, install Pod, and upgrade Job. Auto-created from `dockerAuth.username`/`password` if those are set; otherwise expected to exist in the namespace already. | regcred                               |
+| tbmq.imagePullPolicy                    | Image pull policy.                                                                                                                                         | Always                                |
+| **Scaling**                             |                                                                                                                                                            |                                       |
+| tbmq.statefulSet.replicas               | Number of broker pods.                                                                                                                                     | 2                                     |
+| tbmq.statefulSet.annotations            | Annotations applied to the StatefulSet resource (CI/CD, audit, etc.).                                                                                      | { }                                   |
+| tbmq.annotations                        | Annotations applied to broker pods (Prometheus scrape, sidecars, etc.).                                                                                    | { }                                   |
+| tbmq.nodeSelector / tbmq.affinity       | Pod scheduling rules.                                                                                                                                      | { }                                   |
+| tbmq.restartPolicy                      | Pod restart policy.                                                                                                                                        | Always                                |
+| **Ports**                               |                                                                                                                                                            |                                       |
+| tbmq.ports                              | Container ports: HTTP 8083, MQTT 1883, MQTTS 8883, MQTT-WS 8084, MQTT-WSS 8085.                                                                            | (see values.yaml)                     |
+| **Configuration**                       |                                                                                                                                                            |                                       |
+| tbmq.customEnv                          | Map of env vars applied to broker pods, install Pod, and upgrade Job. Wins over keys in any `existing*ConfigMap`.                                          | { }                                   |
+| tbmq.existingConfigMap                  | One ConfigMap providing both `conf` (Java opts) and `logback` (logging) keys. Highest priority — when set, the chart skips rendering its default ConfigMaps and ignores the two below. Applies to broker pods and the upgrade Job; the install Pod uses a dedicated minimal `*-install-config`. | ""                                    |
+| tbmq.existingJavaOptsConfigMap          | ConfigMap with a `conf` key providing Java options. Used only when `existingConfigMap` is empty.                                                           | ""                                    |
+| tbmq.existingLogbackConfigMap           | ConfigMap with a `logback` key providing logback XML. Used only when `existingConfigMap` is empty.                                                          | ""                                    |
+| tbmq.enableChecksumAnnotations          | Auto-restart pods on relevant ConfigMap/Secret changes during `helm upgrade`. Logback is intentionally excluded — TBMQ hot-reloads logback every 10s.       | true                                  |
+| **Health checks**                       |                                                                                                                                                            |                                       |
+| tbmq.readinessProbe                     | Default: TCP 1883, initialDelay 30s, period 20s, failure threshold 5.                                                                                      | (see values.yaml)                     |
+| tbmq.livenessProbe                      | Default: TCP 1883, initialDelay 60s, period 10s, failure threshold 10.                                                                                     | (see values.yaml)                     |
+| **Security & resources**                |                                                                                                                                                            |                                       |
+| tbmq.securityContext                    | Defaults: `runAsUser: 799`, `runAsNonRoot: true`, `fsGroup: 799`.                                                                                          | (see values.yaml)                     |
+| tbmq.resources                          | CPU/memory requests and limits. Set explicitly for production.                                                                                             | { }                                   |
+| **Persistence**                         |                                                                                                                                                            |                                       |
+| tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). **Strongly recommended for PE**: without persisted `/data`, each Pod restart re-activates against the license server as a new instance and consumes a fresh slot against the license cap (the license client has no automatic stale-instance cleanup — see [Persistence](#persistence)). Cluster id itself lives in PostgreSQL, not `/data`. Safe to leave on for CE. | true |
+| tbmq.persistence.size                   | PVC size. The PE license cache file is a few KB; 1Gi just leaves headroom for any future PE feature that may write to `/data`. The reference PE Kubernetes manifests request 100Mi — bumping this default does not affect compatibility. | "1Gi"                                 |
+| tbmq.persistence.storageClassName       | StorageClass name. Empty means use the cluster's default StorageClass.                                                                                       | ""                                    |
+| tbmq.persistence.accessModes            | PVC access modes. ReadWriteOnce is correct for per-pod claims.                                                                                              | ["ReadWriteOnce"]                     |
 
 ### TBMQ Integration Executor Parameters
 
-| **Parameter**                               | **Description**                                                                                                                                                                                                                                                | **Default Value**                     |
-|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| **Image Configuration**                     |                                                                                                                                                                                                                                                                |                                       |
-| tbmq-ie.image.repository                    | Docker image repository for TBMQ-IE node.                                                                                                                                                                                                                      | thingsboard/tbmq-integration-executor |
-| tbmq-ie.image.tag                           | Image tag/version.                                                                                                                                                                                                                                             | 2.2.0                                 |
-| tbmq-ie.imagePullSecret                     | Kubernetes secret for pulling private images.                                                                                                                                                                                                                  | regcred                               |
-| tbmq-ie.imagePullPolicy                     | Image pull policy.                                                                                                                                                                                                                                             | Always                                |
-| **Scaling & Deployment**                    |                                                                                                                                                                                                                                                                |                                       |
-| tbmq-ie.statefulSet.replicas                | Number of TBMQ-IE instances.                                                                                                                                                                                                                                   | 2                                     |
-| tbmq-ie.statefulSet.annotations             | Custom annotations applied to the StatefulSet resource (metadata.annotations). These are useful for CI/CD tools, Helm diff, audit tracking, etc.                                                                                                               | { }                                   |
-| **Ports configuration**                     |                                                                                                                                                                                                                                                                |                                       |
-| tbmq-ie.ports.http                          | HTTP API Port                                                                                                                                                                                                                                                  | 8082                                  |
-| **Pods Scheduling, Restart options**        |                                                                                                                                                                                                                                                                |                                       |
-| tbmq-ie.nodeSelector                        | Node selector for choosing nodes for scheduling pods. See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.                                                                                                           | { }                                   |
-| tbmq-ie.affinity                            | Affinity for choosing nodes for scheduling pods. See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.                                                                                                                | { }                                   |                                                                                                                                                                                                                                                                                     |
-| tbmq-ie.enableChecksumAnnotations           | Controls whether Helm automatically restarts TBMQ IE pods when ConfigMaps or Secrets change.                                                                                                                                                                   | true                                  |                                                                                                                                                                                                                                                                                     |
-| tbmq-ie.annotations                         | Custom annotations applied to the TBMQ pods (spec.template.metadata.annotations). These are commonly used for service discovery (e.g., Prometheus scraping), config checksum triggers, or logging agents.                                                      | true                                  |                                                                                                                                                                                                                                                                                     |
-| tbmq-ie.restartPolicy                       | Defines the restart policy for TBMQ IE pods.                                                                                                                                                                                                                   |                                       |                                                                                                                                                                                                                                                                                     |
-| **Environment, JVM and Logging Parameters** |                                                                                                                                                                                                                                                                |                                       |
-| tbmq-ie.customEnv                           | Custom environment variables that are always applied, regardless of configuration source. These variables will be appended to the container environment and will override any conflicting variables set in `existingConfigMap` or `existingJavaOptsConfigMap`. | { }                                   |
-| tbmq-ie.existingConfigMap                   | Name of an existing ConfigMap that will override TBMQ-IE Java and Logback configurations. If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).                                                           | ""                                    |
-| tbmq-ie.existingJavaOptsConfigMap           | Name of an existing TBMQ-IE Java options config map. This ConfigMap should contain a key named `conf` with Java options.                                                                                                                                       | ""                                    |
-| tbmq-ie.existingLogbackConfigMap            | Name of an existing TBMQ-IE logback config map. This ConfigMap should contain a key named `logback` with the logging configuration.                                                                                                                            | ""                                    |
-| **Health Checks**                           |                                                                                                                                                                                                                                                                |                                       |
-| tbmq-ie.readinessProbe.tcpSocket.port       | Port checked to determine readiness.                                                                                                                                                                                                                           | http                                  |
-| tbmq-ie.readinessProbe.periodSeconds        | Interval between probe executions.                                                                                                                                                                                                                             | 20s                                   |
-| tbmq-ie.livenessProbe.tcpSocket.port        | Port checked to determine liveness.                                                                                                                                                                                                                            | http                                  |
-| tbmq-ie.livenessProbe.initialDelaySeconds   | Delay before the first liveness probe.                                                                                                                                                                                                                         | 120s                                  |
-| tbmq-ie.livenessProbe.periodSeconds         | Interval between probe executions.                                                                                                                                                                                                                             | 20s                                   |
-| **Security Context**                        |                                                                                                                                                                                                                                                                |                                       |
-| tbmq-ie.securityContext.runAsUser           | User ID to run the container.                                                                                                                                                                                                                                  | 799                                   |
-| tbmq-ie.securityContext.runAsNonRoot        | Enforces non-root execution.                                                                                                                                                                                                                                   | true                                  |
-| tbmq-ie.securityContext.fsGroup             | File system group ID for permissions.                                                                                                                                                                                                                          | 799                                   |
-| **Resources allocation**                    |                                                                                                                                                                                                                                                                |                                       |
-| tbmq-ie.resources                           | Defines CPU/memory requests & limits. See https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#pod-level-resource-specification for more details.                                                                                    | { }                                   |
+The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 
-## Infrastructure Services for TBMQ
+| Parameter                       | Description                                                                                                                                                | Default                               |
+|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| tbmq-ie.image.repository        | IE image. CE: `thingsboard/tbmq-integration-executor`. PE: `thingsboard/tbmq-pe-integration-executor`.                                                     | thingsboard/tbmq-integration-executor |
+| tbmq-ie.image.tag               | Image tag. CE default tracks the chart `appVersion`. PE: `<appVersion>PE` (e.g. `2.3.0PE`).                                                                | 2.3.0                                 |
+| tbmq-ie.imagePullSecret         | Pull secret name referenced by the IE StatefulSet only — independent of `tbmq.imagePullSecret`. The chart auto-creates **only one** Secret (named after `tbmq.imagePullSecret`, when `dockerAuth.username` is set). If `tbmq-ie.imagePullSecret` differs, pre-create that Secret yourself. | regcred                               |
+| tbmq-ie.imagePullPolicy         | Image pull policy.                                                                                                                                          | Always                                |
+| tbmq-ie.statefulSet.replicas    | Number of IE pods.                                                                                                                                          | 2                                     |
+| tbmq-ie.ports                   | HTTP 8082.                                                                                                                                                 |                                       |
+| tbmq-ie.readinessProbe          | Default: TCP `http`, period 20s.                                                                                                                            |                                       |
+| tbmq-ie.livenessProbe           | Default: TCP `http`, initialDelay 120s, period 20s.                                                                                                         |                                       |
 
-TBMQ relies on several external services to handle persistence, message routing, and caching. 
-This Helm chart provides built-in support for deploying these dependencies using [Bitnami](https://bitnami.com/) Helm charts, 
-while also allowing you to connect to existing external services.
+> All other `tbmq-ie.*` keys mirror their `tbmq.*` counterparts with the same defaults and behavior:
+> `statefulSet.annotations`, `annotations`, `nodeSelector`, `affinity`, `customEnv`,
+> `existingConfigMap`, `existingJavaOptsConfigMap`, `existingLogbackConfigMap`,
+> `enableChecksumAnnotations`, `restartPolicy`, `securityContext`, `resources`. The IE Pod does
+> **not** mount PostgreSQL, Redis, or PE license env vars — it only connects to Kafka.
 
-Currently, the chart supports the following options:
+> **Note:** `tbmq-ie` is referenced in templates with `index .Values "tbmq-ie"` because of the
+> hyphen in the key name. The hyphen does not need escaping on the command line — use the
+> dotted path directly: `--set tbmq-ie.statefulSet.replicas=3`.
 
-- **PostgreSQL** – Use the bundled Bitnami PostgreSQL chart, or connect TBMQ to an existing external PostgreSQL instance.
-- **Redis Cluster** – Use the bundled Bitnami Redis Cluster chart, or connect TBMQ to an existing external Redis cluster by providing connection parameters and credentials.
-- **Kafka** – Use the bundled Bitnami Kafka chart, or connect TBMQ to an existing external Kafka cluster.
+### Persistence
 
-### Configuring Bitnami Sub-Charts
+The broker StatefulSet provisions a per-pod PVC for `/data` via `volumeClaimTemplate`.
+**Professional Edition** deployments should keep this enabled (the chart default). The license
+client writes a per-pod activation-response cache to
+`/data/tbmq-instance-license-$(TB_SERVICE_ID).data` on first start. On subsequent starts:
 
-This Helm chart exposes only the settings required for deployment and the ones considered essential for configuring
-a high-availability (HA) setup based on current use cases and our practical experience.
-These parameters are included by default in `values.yaml` to simplify the update process for K8S administrators.
+- **With the cache file present**, the broker calls `checkInstance` against the license server,
+  reusing its existing `instanceId`. No new slot is consumed.
+- **With the cache file missing**, the broker calls `activateInstance` and the license server
+  issues a **fresh** `instanceId`, counting against the license's instance cap
+  (`MAX_PROD_INSTANCES`).
 
-You can find the exposed settings in the corresponding sections of `values.yaml` such as `postgresql`, `kafka` and `redis-cluster`.
-For advanced customization, you can override any parameter of the Bitnami sub-charts by specifying chart supported keys under the respective section. 
-These values will be passed directly to the underlying Bitnami chart.
+The TBMQ cluster id itself lives in PostgreSQL (`tbmq_cluster.cluster_id`), not under `/data`,
+so cache loss does **not** change cluster identity or trigger `CLUSTER_ID_MISMATCH`. But the
+license client has no automatic mechanism to free up slots held by instances that no longer
+exist, so repeated activations from sustained cache loss accumulate on the license server until they
+exhaust the cap. Once exhausted, new pods cannot activate and a license-server admin has to
+clear the stale instance bindings before the cluster can recover. Persisting `/data` avoids the
+problem entirely.
 
-### Bitnami Kafka 
-
-TBMQ uses Kafka as a core component for handling message persistence and delivery, particularly for scalability and fault tolerance.
-
-This Helm chart integrates Bitnami Kafka, which provides a Kubernetes-native deployment with built-in HA (high availability) support.
-By default, this chart deploys a 3-node Kafka cluster, ensuring fault tolerance and efficient message distribution.
-Users can fine-tune Kafka's configuration to align with their persistence and durability requirements.
-
-Please refer to the table below to review exposed parameters, their descriptions, and default values.
-
-| **Parameter**                                       | **Description**                                                                                                                                                                                                          | **Default Value**                                                                                                                                                                                     |
-|-----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Kafka Deployment Settings**                       |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| kafka.enabled                                       | Whether to deploy Bitnami Kafka as part of the chart. If set to `false`, the chart will use `externalKafka` configuration instead.                                                                                       | true                                                                                                                                                                                                  |
-| kafka.nameOverride                                  | Override default Kafka cluster name.                                                                                                                                                                                     | "kafka"                                                                                                                                                                                               |
-| kafka.image.repository                              | Docker image repository for Kafka. Defaults to the Bitnami Legacy registry to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164                   | bitnamilegacy/kafka                                                                                                                                                                                   |
-| kafka.heapOpts                                      | Java heap size configuration for Kafka nodes.                                                                                                                                                                            | -Xmx1024m -Xms1024m                                                                                                                                                                                   |
-| kafka.controller.replicaCount                       | Number of Kafka controller nodes.                                                                                                                                                                                        | 3                                                                                                                                                                                                     |
-| kafka.controller.resources                          | Defines CPU/memory requests & limits for Kafka pods.                                                                                                                                                                     | 3                                                                                                                                                                                                     |
-| **Kafka Configuration Parameters**                  |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| kafka.extraConfig                                   | Additional Kafka configuration appended to the default settings.                                                                                                                                                         | <pre>auto.create.topics.enable=false<br/>default.replication.factor=2<br/>offsets.topic.replication.factor=3<br/>transaction.state.log.replication.factor=3<br/>transaction.state.log.min.isr=2</pre> |
-| **Kafka Listeners**                                 |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| listeners.client.protocol                           | Security protocol for the Kafka client listener.                                                                                                                                                                         | PLAINTEXT                                                                                                                                                                                             |
-| listeners.controller.protocol                       | Security protocol for the Kafka controller listener.                                                                                                                                                                     | PLAINTEXT                                                                                                                                                                                             |
-| listeners.interbroker.protocol                      | Security protocol for the Kafka inter-broker listener.                                                                                                                                                                   | PLAINTEXT                                                                                                                                                                                             |
-| listeners.external.protocol                         | Security protocol for the Kafka external listener.                                                                                                                                                                       | PLAINTEXT                                                                                                                                                                                             |
-| **Kafka High Availability & Pod Scheduling**        |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| kafka.controller.podAntiAffinityPreset              | Ensures Kafka brokers are scheduled on different nodes. Allowed values: soft or hard.                                                                                                                                    | soft                                                                                                                                                                                                  |
-| kafka.controller.affinity                           | Custom node affinity rules for Kafka controllers.                                                                                                                                                                        | { }                                                                                                                                                                                                   |
-| kafka.controller.nodeSelector                       | Inter-broker communication.                                                                                                                                                                                              | { }                                                                                                                                                                                                   |
-| kafka.controller.nodeAffinityPreset.type            | Node affinity preset type. Allowed values: "soft" or "hard".                                                                                                                                                             | ""                                                                                                                                                                                                    |
-| kafka.controller.nodeAffinityPreset.key             | Node label key for affinity. Ignored if `kafka.controller.affinity` is set.                                                                                                                                              | ""                                                                                                                                                                                                    |
-| kafka.controller.nodeAffinityPreset.values          | Node label values to match. Ignored if `kafka.controller.affinity` is set.                                                                                                                                               | ""                                                                                                                                                                                                    |
-| **Pod Disruption Budget (PDB)**                     |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| kafka.controller.pdb.create                         | Enables Pod Disruption Budget for Kafka. See https://kubernetes.io/docs/concepts/workloads/pods/disruptions/ for more details.                                                                                           | false                                                                                                                                                                                                 |
-| kafka.controller.pdb.maxUnavailable                 | Max number of pods that can be unavailable after the eviction. You can specify an integer or a percentage by setting the value to a string representation of a percentage (e.g. "50%"). It will be disabled if set to 0. | 1                                                                                                                                                                                                     |
-| **Kafka Storage Configuration**                     |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| kafka.controller.persistence.existingClaim          | Use an existing Persistent Volume Claim.                                                                                                                                                                                 | ""                                                                                                                                                                                                    |
-| kafka.controller.persistence.storageClass           | Storage class for Persistent Volume Claims. If undefined (the default) or set to null, no storageClassName spec is set, choosing the default provisioner e.g., gp2 on AWS, standard on GKE).                             | ""                                                                                                                                                                                                    |
-| kafka.controller.persistence.accessModes            | Persistent Volume Access Modes.                                                                                                                                                                                          | ReadWriteOnce                                                                                                                                                                                         |
-| kafka.controller.persistence.size                   | Size of data volume.                                                                                                                                                                                                     | 8Gi                                                                                                                                                                                                   |
-| **External Access**                                 |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| kafka.externalAccess.autoDiscovery.image.repository | Helper image repository for external access auto‑discovery. Uses Bitnami Legacy to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164              | bitnamilegacy/kubectl                                                                                                                                                                                 |
-| **Volume Permissions**                              |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| kafka.volumePermissions.image.repository            | Helper image repository for volume permissions. Uses Bitnami Legacy to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164                          | bitnamilegacy/os-shell                                                                                                                                                                                |
-| **Monitoring & Metrics**                            |                                                                                                                                                                                                                          |                                                                                                                                                                                                       |
-| kafka.metrics.jmx.enabled                           | Enable JMX metrics for Prometheus monitoring.                                                                                                                                                                            | false                                                                                                                                                                                                 |
-| kafka.metrics.jmx.image.repository                  | JMX exporter image repository for Prometheus metrics. Uses Bitnami Legacy to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164                    | bitnamilegacy/jmx-exporter                                                                                                                                                                            |
-| kafka.metrics.jmx.kafkaJmxPort                      | JMX exporter port for Kafka metrics.                                                                                                                                                                                     | 5555                                                                                                                                                                                                  |
-| kafka.metrics.jmx.resources                         | Define resources for the JMX exporter.                                                                                                                                                                                   | { }                                                                                                                                                                                                   |
-
-🔗 See official Bitnami Kafka Artifact Hub [page](https://artifacthub.io/packages/helm/bitnami/kafka/29.3.4) for more details.
-
-### Bitnami Redis Cluster
-
-TBMQ uses Redis Cluster as persistent message storage and caching mechanism with low-latency access.
-This Helm chart integrates Bitnami Redis Cluster, providing a highly available (HA) and scalable deployment for distributed caching.
-
-By default, this chart deploys a 6-node Redis Cluster:
-
- - 3 master nodes for write operations.
- - 3 replica nodes to ensure redundancy and data replication.
-
-This setup guarantees fault tolerance, automatic failover, and scalability.
-
-Please refer to the table below to review exposed parameters descriptions and their default values.
-
-| **Parameter**                                                  | **Description**                                                                                                                                                                                                          | **Default Value**            |
-|----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
-| **General Configuration**                                      |                                                                                                                                                                                                                          |                              |
-| redis-cluster.enabled                                          | Whether to deploy Bitnami Redis Cluster as part of the chart. If set to `false`, the chart will use `external-redis-cluster` configuration instead.                                                                      | true                         |
-| redis-cluster.nameOverride                                     | Override default Redis cluster name.                                                                                                                                                                                     | "redis"                      |
-| redis-cluster.image.repository                                 | Docker image repository for Redis Cluster. Defaults to the Bitnami Legacy registry to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164           | bitnamilegacy/redis-cluster  |
-| redis-cluster.password                                         | Redis password (ignored if existingSecret set). Defaults to a random 10-character alphanumeric string if not set and usePassword is true.                                                                                | "myredispassword"            |
-| redis-cluster.existingSecret                                   | Name of existing secret object (for password authentication)                                                                                                                                                             | ""                           |
-| redis-cluster.existingSecretPasswordKey                        | Name of key containing password to be retrieved from the existing secret                                                                                                                                                 | ""                           |
-| **Pod Disruption Budget (PDB)**                                |                                                                                                                                                                                                                          |                              |
-| redis-cluster.pdb.create                                       | Enables Pod Disruption Budget for Redis. See https://kubernetes.io/docs/tasks/run-application/configure-pdb/ for more details.                                                                                           | false                        |
-| redis-cluster.pdb.maxUnavailable                               | Max number of pods that can be unavailable after the eviction. You can specify an integer or a percentage by setting the value to a string representation of a percentage (e.g. "50%"). It will be disabled if set to 0. | 1                            |
-| **Redis StatefulSet Configuration**                            |                                                                                                                                                                                                                          |                              |
-| redis-cluster.redis.useAOFPersistence                          | Enables Append-Only File (AOF) persistence mode. See https://redis.io/topics/persistence#append-only-file and https://redis.io/topics/cluster-tutorial#creating-and-using-a-redis-cluster for more details.              | "yes"                        |
-| redis-cluster.redis.resources                                  | Defines CPU/memory requests & limits. (essential for production workloads)                                                                                                                                               | { }                          |
-| redis-cluster.redis.podAntiAffinityPreset                      | Redis pod anti-affinity. Allowed values: soft or hard. See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity for more details.                               | soft                         |
-| redis-cluster.redis.nodeAffinityPreset.type                    | Node affinity preset type. Ignored if `redis.affinity` is set. Allowed values: "soft" or "hard".                                                                                                                         | ""                           |
-| redis-cluster.redis.nodeAffinityPreset.key                     | Node label key for affinity. Ignored if `redis.affinity` is set.                                                                                                                                                         | ""                           |
-| redis-cluster.redis.nodeAffinityPreset.values                  | Node label values to match. Ignored if `redis.affinity` is set.                                                                                                                                                          | []                           |
-| redis-cluster.redis.nodeSelector                               | Assigns Redis pods to specific nodes. See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.                                                                                     | { }                          |
-| redis-cluster.redis.affinity                                   | Custom affinity rules for Redis pods. See https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity for more details.                                                                | { }                          |
-| **Redis Storage Configuration**                                |                                                                                                                                                                                                                          |                              |
-| redis-cluster.persistence.storageClass                         | Storage class for Persistent Volume Claims. If undefined (the default) or set to null, no storageClassName spec is set, choosing the default provisioner e.g., gp2 on AWS, standard on GKE).                             | ""                           |
-| redis-cluster.persistence.accessModes                          | Persistent Volume Access Modes.                                                                                                                                                                                          | ReadWriteOnce                |
-| redis-cluster.persistence.size                                 | Size of data volume.                                                                                                                                                                                                     | 8Gi                          |
-| **Persistent Volume Retention Policy**                         |                                                                                                                                                                                                                          |                              |
-| redis-cluster.persistentVolumeClaimRetentionPolicy.enabled     | Controls if and how PVCs are deleted during the lifecycle of a StatefulSet.                                                                                                                                              | false                        |
-| redis-cluster.persistentVolumeClaimRetentionPolicy.whenScaled  | Volume retention behavior when the replica count of the StatefulSet is reduced.                                                                                                                                          | Retain                       |
-| redis-cluster.persistentVolumeClaimRetentionPolicy.whenDeleted | Volume retention behavior that applies when the StatefulSet is deleted.                                                                                                                                                  | Retain                       |
-| **Cluster Settings**                                           |                                                                                                                                                                                                                          |                              |
-| redis-cluster.cluster.nodes                                    | Total Redis nodes (includes both masters and replicas). Hence, nodes = numberOfMasterNodes + numberOfMasterNodes * replicas. The number of master nodes should always be >= 3, otherwise cluster creation will fail.     | 6                            |
-| redis-cluster.cluster.replicas                                 | Number of replicas for every master in the cluster. 1 means that we want a replica for every master created.                                                                                                             | 1                            |
-| **Cluster Updates Settings**                                   |                                                                                                                                                                                                                          |                              |
-| redis-cluster.cluster.update.addNodes                          | Boolean to specify if you want to add nodes after the upgrade. Setting this to true a hook will add nodes to the Redis cluster after the upgrade. `currentNumberOfNodes` and `currentNumberOfReplicas` is required.      | false                        |
-| redis-cluster.cluster.update.currentNumberOfNodes              | Number of currently deployed Redis nodes.                                                                                                                                                                                | 6                            |
-| redis-cluster.cluster.update.currentNumberOfReplicas           | Number of currently deployed Redis replicas.                                                                                                                                                                             | 1                            |
-| redis-cluster.cluster.update.newExternalIPs                    | External IPs obtained from the services for the new nodes to add to the cluster.                                                                                                                                         | []                           |
-| **Volume Permissions**                                         |                                                                                                                                                                                                                          |                              |
-| redis-cluster.volumePermissions.image.repository               | Helper image repository for volume permissions. Uses Bitnami Legacy to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164                          | bitnamilegacy/os-shell       |
-| **Monitoring & Metrics**                                       |                                                                                                                                                                                                                          |                              |
-| redis-cluster.metrics.enabled                                  | Enables Redis Prometheus Exporter for monitoring.                                                                                                                                                                        | false                        |
-| redis-cluster.metrics.image.repository                         | Redis exporter image repository for Prometheus metrics. Uses Bitnami Legacy to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164                  | bitnamilegacy/redis-exporter |
-| redis-cluster.metrics.resources                                | Resource limits/requests for the exporter.                                                                                                                                                                               | { }                          |
-| **Sysctl InitContainer**                                       |                                                                                                                                                                                                                          |                              |
-| redis-cluster.sysctlImage.repository                           | Init image repository for sysctl tuning. Uses Bitnami Legacy to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164                                 | bitnamilegacy/os-shell       |
-
-🔗 See official Bitnami Redis Cluster Artifact Hub [page](https://artifacthub.io/packages/helm/bitnami/redis-cluster/10.3.0) for more details.
-
-### Bitnami PostgreSQL
-
-TBMQ uses a PostgreSQL database to store different entities such as users, user credentials, MQTT client credentials, statistics, WebSocket connections, WebSocket subscriptions, and others.
-
-Please refer to the table below to review exposed parameters descriptions and their default values.
-
-| **Parameter**                                 | **Description**                                                                                                                                                                                             | **Default Value**               |
-|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|
-| **General setting**                           |                                                                                                                                                                                                             |                                 |
-| postgresql.enabled                            | Whether to deploy Bitnami PostgreSQL as part of the chart. If set to `false`, the chart will use `externalPostgresql` configuration instead.                                                                | true                            |
-| postgresql.nameOverride                       | Override the name of the PostgreSQL deployment.                                                                                                                                                             | "postgresql"                    |
-| postgresql.image.repository                   | Docker image repository for PostgreSQL. Defaults to the Bitnami Legacy registry to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164 | bitnamilegacy/postgresql        |
-| **Authentication configuration**              |                                                                                                                                                                                                             |                                 |
-| postgresql.auth.enablePostgresUser            | Assign a password to the "postgres" admin user. Otherwise, remote access will be blocked for this user.                                                                                                     | true                            |
-| postgresql.auth.postgresPassword              | Password for the "postgres" admin user. Ignored if `auth.existingSecret` is provided.                                                                                                                       | ""                              |
-| postgresql.auth.username                      | Username for PostgreSQL authentication.                                                                                                                                                                     | "postgres"                      |
-| postgresql.auth.password                      | Password for PostgreSQL authentication (change for production).                                                                                                                                             | "postgres"                      |
-| postgresql.auth.existingSecret                | Name of existing secret to use for PostgreSQL credentials.                                                                                                                                                  | ""                              |
-| postgresql.auth.secretKeys.adminPasswordKey   | Name of key in existing secret to use for PostgreSQL credentials. Only used when `auth.existingSecret` is set.                                                                                              | postgres-password               |
-| postgresql.auth.secretKeys.userPasswordKey    | Name of key in existing secret to use for PostgreSQL credentials. Only used when `auth.existingSecret` is set.                                                                                              | password                        |
-| postgresql.auth.database                      | PostgreSQL database name for TBMQ.                                                                                                                                                                          | "thingsboard_mqtt_broker"       |
-| **Primary Resources allocation**              |                                                                                                                                                                                                             |                                 |
-| postgresql.primary.resources                  | Resource requests/limits for primary PostgreSQL service                                                                                                                                                     | { }                             |
-| **Primary Pods Scheduling**                   |                                                                                                                                                                                                             |                                 |
-| postgresql.primary.nodeSelector               | Node labels for PostgreSQL primary pods assignment                                                                                                                                                          | { }                             |
-| **Primary Storage Configuration**             |                                                                                                                                                                                                             |                                 |
-| postgresql.primary.persistence.storageClass   | Storage class for Persistent Volume Claims. If undefined (the default) or set to null, no storageClassName spec is set, choosing the default provisioner e.g., gp2 on AWS, standard on GKE).                | ""                              |
-| postgresql.primary.persistence.accessModes    | PVC Access Mode for PostgreSQL volume.                                                                                                                                                                      | ReadWriteOnce                   |
-| postgresql.primary.persistence.size           | Size of data volume.                                                                                                                                                                                        | 8Gi                             |
-| **Backup Configuration**                      |                                                                                                                                                                                                             |                                 |
-| postgresql.backup.enabled                     | Enable daily logical dumps of the database.                                                                                                                                                                 | false                           |
-| postgresql.backup.cronjob.schedule            | Cron schedule for backups (@daily, @hourly).                                                                                                                                                                | "@daily"                        |
-| postgresql.backup.cronjob.nodeSelector        | Node labels for PostgreSQL backup CronJob pod assignment. See https://kubernetes.io/docs/tasks/configure-pod-container/assign-pods-nodes/ for more details.                                                 | { }                             |
-| postgresql.backup.cronjob.resources           | Backup pod resource requests/limits.                                                                                                                                                                        | { }                             |
-| postgresql.backup.cronjob.storage.size        | PVC size allocated for backups.                                                                                                                                                                             | 8Gi                             |
-| **Volume Permissions**                        |                                                                                                                                                                                                             |                                 |
-| postgresql.volumePermissions.image.repository | Helper image repository for volume permissions. Uses Bitnami Legacy to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164             | bitnamilegacy/os-shell          |
-| **Monitoring & Metrics**                      |                                                                                                                                                                                                             |                                 |
-| postgresql.metrics.enabled                    | Enable Prometheus Exporter for PostgreSQL metric.                                                                                                                                                           | false                           |
-| postgresql.metrics.image.repository           | Postgres exporter image repository for Prometheus metrics. Uses Bitnami Legacy to ensure compatibility after Bitnami’s registry changes in August 2025. See https://github.com/bitnami/charts/issues/35164  | bitnamilegacy/postgres-exporter |
-| postgresql.metrics.resources                  | Resource requests/limits for PostgreSQL exporter.                                                                                                                                                           | { }                             |
-| postgresql.metrics.service.ports.metrics      | Prometheus Exporter port for PostgreSQL metrics.                                                                                                                                                            | 9187                            |
-
-🔗 See official Bitnami PostgreSQL Artifact Hub [page](https://artifacthub.io/packages/helm/bitnami/postgresql/15.5.38) for more details.
-
-### External Kafka Configuration
-
-By default, the chart installs Bitnami Kafka `kafka.enabled: true`, provisioning a 3-node clustered instance for message routing and persistence.
-For users with an existing Kafka cluster (e.g., AWS MSK, Confluent Cloud, or a self-managed deployment), TBMQ can be configured to connect externally.
-To do this, disable the built-in Kafka `kafka.enabled: false` and specify connection details in the externalKafka section.
-
-Please refer to the table below to review external Kafka configuration parameters, their descriptions, and default values.
-
-| Parameter                      | Description                                                       | Default Value |
-|--------------------------------|-------------------------------------------------------------------|---------------|
-| externalKafka.bootstrapServers | Comma-separated list of `host:port` pairs used to bootstrap from. | ""            |
-
-### External Redis Cluster Configuration
-
-By default, the chart installs Bitnami Redis Cluster `redis-cluster.enabled: true`, provisioning a multi-node Redis setup for caching and persistent session storage.
-For users with an existing Redis Cluster instance e.g., AWS ElastiCache, Google Memorystore, or a self-managed deployment, TBMQ can be configured to connect externally.
-To do this, disable the built-in Redis Cluster `redis-cluster.enabled: false` and specify connection details in the `external-redis-cluster` section.
-
-Please refer to the table below to review external Redis cluster configuration parameters, their descriptions, and default values.
-
-| Parameter                                        | Description                                                                     | Default Value |
-|--------------------------------------------------|---------------------------------------------------------------------------------|---------------|
-| external-redis-cluster.nodes                     | Comma-separated list of `host:port` pairs used to bootstrap from.               | ""            |
-| external-redis-cluster.usePassword               | Whether to use password authentication.                                         | true          |
-| external-redis-cluster.password                  | Redis password (not recommended for production — use `existingSecret` instead). | ""            |
-| external-redis-cluster.existingSecret            | Name of an existing Secret containing the Redis password.                       | ""            |
-| external-redis-cluster.existingSecretPasswordKey | Key within the existing Secret that contains the Redis password.                | ""            |
-
-#### External Redis Cluster Configuration Example:
+For Community Edition, nothing meaningful is persisted under `/data`, so disabling
+persistence is safe:
 
 ```yaml
-redis-cluster:
-  enabled: false
+tbmq:
+  persistence:
+    enabled: false
+```
 
-external-redis-cluster:
-  nodes: "r-001.example.com:6379,r-002.example.com:6379,r-003.example.com:6379,r-004.example.com:6379,r-005.example.com:6379,r-006.example.com:6379"
-  usePassword: true
+The Integration Executor StatefulSet and the pre-upgrade Job continue to use `emptyDir`
+for `/data` — they don't carry per-instance state. The install Pod doesn't mount `/data`
+at all (its only volumes are the install ConfigMap and a logs `emptyDir`).
+
+**Cleanup.** `helm uninstall` does **not** delete PVCs created by `volumeClaimTemplate`.
+The chart-managed PVCs are named `<release>-tbmq-node-data-<release>-tbmq-node-<ordinal>`
+(one per broker replica) and carry no `app=...` label, so reap them by name pattern:
+
+```bash
+kubectl get pvc -n <namespace> -o name | grep tbmq-node-data \
+  | xargs -r kubectl delete -n <namespace>
+```
+
+Or simply `kubectl delete namespace <namespace>` if you no longer need the data.
+
+## Infrastructure Configuration
+
+### PostgreSQL
+
+| Parameter                              | Description                                                                                  | Default                   |
+|----------------------------------------|----------------------------------------------------------------------------------------------|---------------------------|
+| postgresql.host                        | PostgreSQL hostname or service name.                                                         | ""                        |
+| postgresql.port                        | PostgreSQL port.                                                                             | 5432                      |
+| postgresql.database                    | Database name. Must exist before install (the chart creates the schema, not the database).  | "thingsboard_mqtt_broker" |
+| postgresql.username                    | PostgreSQL username.                                                                         | "postgres"                |
+| postgresql.password                    | PostgreSQL password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.   | ""                        |
+| postgresql.existingSecret              | Name of an existing Secret holding the password. Recommended for production.                | ""                        |
+| postgresql.existingSecretPasswordKey   | Key inside `existingSecret` that holds the password. Falls back to `postgres-password` if left empty. | ""                        |
+
+```yaml
+postgresql:
+  host: "my-postgres.example.com"
+  port: 5432
+  database: "thingsboard_mqtt_broker"
+  username: "postgres"
+  existingSecret: "my-pg-secret"
+  existingSecretPasswordKey: "password"
+```
+
+### Kafka
+
+| Parameter              | Description                                                | Default |
+|------------------------|------------------------------------------------------------|---------|
+| kafka.bootstrapServers | Comma-separated `host:port` list of Kafka bootstrap nodes. | ""      |
+
+```yaml
+kafka:
+  bootstrapServers: "kafka-0:9092,kafka-1:9092,kafka-2:9092"
+```
+
+### Redis / Valkey / Cache
+
+TBMQ speaks the Redis protocol. Any Redis-compatible backend (Redis, Valkey, Dragonfly, KeyDB)
+works. Two connection modes are supported.
+
+| Parameter                       | Description                                                                                              | Default    |
+|---------------------------------|----------------------------------------------------------------------------------------------------------|------------|
+| redis.connectionType            | `"standalone"` (single-node) or `"cluster"` (Redis Cluster).                                             | "cluster"  |
+| redis.host                      | Hostname for `standalone` mode.                                                                          | ""         |
+| redis.port                      | Port for `standalone` mode.                                                                              | 6379       |
+| redis.nodes                     | Comma-separated `host:port` list for `cluster` mode.                                                     | ""         |
+| redis.usePassword               | Whether the cache requires password authentication.                                                      | true       |
+| redis.password                  | Password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.                          | ""         |
+| redis.existingSecret            | Name of an existing Secret holding the password.                                                         | ""         |
+| redis.existingSecretPasswordKey | Key inside `existingSecret` that holds the password. Falls back to `redis-password` if left empty.       | ""         |
+
+**Cluster mode:**
+
+```yaml
+redis:
+  connectionType: "cluster"
+  nodes: "redis-0:6379,redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379"
   existingSecret: "my-redis-secret"
   existingSecretPasswordKey: "redis-password"
 ```
 
-This disables the Bitnami Redis Cluster sub-chart and connects TBMQ to the provided external Redis cluster using the specified authentication credentials.
-
-### External PostgreSQL Configuration
-
-By default, the chart installs Bitnami PostgreSQL `postgresql.enabled: true`, provisioning a single-node instance with configurable storage, backups, and monitoring options. 
-For users with an existing PostgreSQL instance, such as AWS RDS, Google Cloud SQL, or an on-premises database, TBMQ can be configured to connect externally.
-To do this, disable the built-in PostgreSQL `postgresql.enabled: false` and specify connection details in the `externalPostgresql` section.
-
-Please refer to the table below to review external PostgreSQL configuration parameters, their descriptions, and default values.
-
-| Parameter                                    | Description                                                           | Default Value             |
-|----------------------------------------------|-----------------------------------------------------------------------|---------------------------|
-| externalPostgresql.host                      | Hostname or IP of the external PostgreSQL server.                     | ""                        |
-| externalPostgresql.port                      | PostgreSQL server port.                                               | 5432                      |
-| externalPostgresql.username                  | Username for PostgreSQL authentication.                               | "postgres"                |
-| externalPostgresql.password                  | Password for PostgreSQL authentication (change for production).       | "postgres"                |
-| externalPostgresql.existingSecret            | Name of an existing Secret that contains the PostgreSQL password.     | ""                        |
-| externalPostgresql.existingSecretPasswordKey | Key within the existing secret that contains the PostgreSQL password. | ""                        |
-| externalPostgresql.database                  | PostgreSQL database name for TBMQ.                                    | "thingsboard_mqtt_broker" |
-
-#### External PostgreSQL Configuration Example:
+**Standalone mode (e.g., single-node Valkey):**
 
 ```yaml
-postgresql:
-  enabled: false
-
-externalPostgresql:
-  host: "your-db-host"
-  port: 5432
-  username: "your-username"
-  password: "your-password"
-  database: "thingsboard_mqtt_broker"
+redis:
+  connectionType: "standalone"
+  host: "valkey.example.com"
+  port: 6379
+  usePassword: false
 ```
 
-This disables the Bitnami PostgreSQL chart and connects to the provided external database.
+In `cluster` mode, the chart automatically renders cluster-only keys (`REDIS_NODES`,
+`REDIS_MAX_REDIRECTS`, `REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG`, and the Lettuce/Jedis topology
+refresh tunables) into the Redis ConfigMap; in `standalone` mode those keys are omitted and only
+`REDIS_HOST`/`REDIS_PORT` are set.
 
-### Load Balancer Configuration
+## Load Balancer
 
-The TBMQ Helm chart provides configuration options for Ingress and LoadBalancer services, assuming that an Ingress Controller or Load Balancer exists in the Kubernetes cluster.
+The chart creates Kubernetes `Ingress` (for HTTP) and `Service` (for MQTT) resources. It does
+**not** deploy the load balancer or ingress controller itself — those must already exist in your
+cluster (NGINX Ingress Controller, AWS Load Balancer Controller, Application Gateway Ingress
+Controller, etc.).
 
-This chart does not deploy a Load Balancer or Ingress Controller (such as AWS ALB, Azure Application Gateway, or GCP HTTPS Load Balancer).
-Instead, it creates Kubernetes Ingress and Service resources that integrate with pre-existing networking components provided by the cloud provider or Kubernetes itself.
+| Parameter                                               | Description                                                                                              | Default                |
+|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------|------------------------|
+| loadbalancer.type                                       | Provider flavor: `"nginx"`, `"aws"`, `"azure"`, `"gcp"`. Selects template variant + default annotations. | "nginx"                |
+| loadbalancer.http.enabled                               | Create the HTTP Ingress.                                                                                 | true                   |
+| loadbalancer.http.annotations                           | Extra Ingress annotations. Merged with provider defaults — user values win on conflict.                  | { }                    |
+| loadbalancer.http.ssl.enabled                           | Enable HTTPS termination at the load balancer. Honored by `aws`, `azure`, and `gcp` flavors; the `nginx` template does not implement HTTPS termination and ignores this key. | false                  |
+| loadbalancer.http.ssl.certificateRef                    | Cert reference: AWS ACM ARN, Azure `appgw-ssl-certificate` value, GCP `ManagedCertificate` name.        | ""                     |
+| loadbalancer.http.ssl.domains                           | Domains for HTTPS. Required for GCP `ManagedCertificate`.                                                | ["www.example.com"]    |
+| loadbalancer.http.ssl.staticIP                          | GCP-only: static IP name for the HTTP(S) load balancer.                                                  | "tbmq-http-lb-address" |
+| loadbalancer.mqtt.enabled                               | Create the MQTT LoadBalancer Service.                                                                    | true                   |
+| loadbalancer.mqtt.annotations                           | Extra Service annotations. Merged with provider defaults — user values win on conflict.                  | { }                    |
+| loadbalancer.mqtt.mutualTls.enabled                     | Enable application-level mTLS. Requires server cert + key. Disables `tlsTermination`.                    | false                  |
+| loadbalancer.mqtt.mutualTls.configMapName               | ConfigMap with `server.pem` and `mqttserver_key.pem` keys.                                               | "tbmq-node-mqtts-config" |
+| loadbalancer.mqtt.mutualTls.privateKeyPasswordSecret    | Optional Secret holding the private key password.                                                        | ""                     |
+| loadbalancer.mqtt.mutualTls.privateKeyPasswordSecretKey | Key inside the Secret with the private key password.                                                     | "key_password"         |
+| loadbalancer.mqtt.tlsTermination.enabled                | Enable L4 TLS termination at the load balancer. Supported on AWS NLB only. Ignored if mTLS is enabled.   | false                  |
+| loadbalancer.mqtt.tlsTermination.certificateRef         | AWS NLB ACM certificate ARN.                                                                             | ""                     |
 
-For the first release, we designed a single configuration format for load balancers, ensuring consistency across:
-- **AWS:** Uses Application Load Balancer (ALB) for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT(S) traffic.
-- **Azure:** Uses Application Gateway for HTTP(S) traffic and Azure Load Balancer for MQTT(S) traffic.
-- **GCP:** Uses HTTPS Load Balancer for HTTP(S) traffic and Network Load Balancer (NLB) for MQTT(S) traffic.
-- **Nginx:** Use basic Kubernetes Ingress for HTTP and a LoadBalancer service for MQTT(S) without cloud-specific integrations.
+## Mutual TLS (mTLS) for MQTT
 
-> ⚠️ **Warning:** Some features may not be available for all loadbalancer types.
-Certain settings, e.g., TLS termination for NLB are not supported or not yet implemented for some cloud providers.
+To enable application-level mTLS for the MQTT listener:
 
-Please refer to the table below to review loadbalancer parameters, their descriptions, and default values.
+1. Create a ConfigMap holding the server certificate and private key:
 
-| Parameter                                               | Description                                                                                                                                                                                                                                                                                                                                       | Default Value            |
-|---------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|
-| **General Load Balancer Settings**                      |                                                                                                                                                                                                                                                                                                                                                   |                          |
-| loadbalancer.type                                       | Defines the type of load balancer integration. Allowed values: "aws", "azure", "gcp", "nginx".                                                                                                                                                                                                                                                    | "nginx"                  |
-| loadbalancer.http.enabled                               | Enables the HTTP Load Balancer (Application Layer - L7).                                                                                                                                                                                                                                                                                          | true                     |
-| loadbalancer.http.annotations                           | Extra annotations for the HTTP Ingress. Merged with provider defaults, user values win on conflicts.                                                                                                                                                                                                                                              | { }                      |
-| loadbalancer.mqtt.enabled                               | Enables the MQTT Load Balancer (Transport Layer - L4).                                                                                                                                                                                                                                                                                            | true                     |
-| loadbalancer.mqtt.annotations                           | Extra annotations for the MQTT Service (LoadBalancer/NLB). Merged with provider defaults, user values win on conflicts.                                                                                                                                                                                                                           | { }                      |
-| **HTTP(S) Configuration**                               |                                                                                                                                                                                                                                                                                                                                                   |                          |
-| loadbalancer.http.ssl.enabled                           | Enables HTTPS termination at the load balancer level.                                                                                                                                                                                                                                                                                             | false                    |
-| loadbalancer.http.ssl.certificateRef                    | SSL certificate reference (depends on loadbalancer type).<br /><ul><li>AWS: The ACM certificate ARN for ALB.</li><li>Azure: The `appgw-ssl-certificate` value in Application Gateway.</li><li>GCP: The name of the `ManagedCertificate` resource.</li><li>Nginx: Not implemented.</li></ul>                                                       | ""                       |
-| loadbalancer.http.ssl.domains                           | List of domains for HTTPS traffic.<br /><ul><li>AWS: Not used in Ingress. Domains are part of the ACM certificate specified in `certificateRef`.</li><li>Azure: Not used in Ingress. Managed directly in Application Gateway.</li><li>GCP: Required in Ingress. Used for `ManagedCertificate` issuance.</li><li>Nginx: Not implemented.</li></ul> | ["www.example.com"]      |
-| loadbalancer.http.ssl.staticIP                          | Static IP address for the GCP HTTP(S) load balancer. Required for GCP. Ignored for other types.                                                                                                                                                                                                                                                   | "tbmq-http-lb-address"   |
-| **MQTT(S) Configuration**                               |                                                                                                                                                                                                                                                                                                                                                   |                          |
-| loadbalancer.mqtt.mutualTls.enabled                     | Enables two-way TLS (Mutual TLS or mTLS) at the TBMQ app level. Both the client and server authenticate each other. Requires certificate + private key. TLS Termination is ignored if this is enabled.                                                                                                                                            | false                    |
-| loadbalancer.mqtt.mutualTls.configMapName               | Name of the ConfigMap containing server certificate and private key. Creation steps described further.                                                                                                                                                                                                                                            | "tbmq-node-mqtts-config" |
-| loadbalancer.mqtt.mutualTls.privateKeyPasswordSecret    | Name of the Secret storing the private key password. Required only if your key is password-protected.                                                                                                                                                                                                                                             | ""                       |
-| loadbalancer.mqtt.mutualTls.privateKeyPasswordSecretKey | Key inside the Secret storing the private key password.                                                                                                                                                                                                                                                                                           | "key_password"           |
-| loadbalancer.mqtt.tlsTermination.enabled                | Enables one-way TLS Termination (L4, load balancer level).<br /><ul><li>AWS: Supported via NLB with ACM certificate.</li><li>Azure: Not supported at Azure LB level.</li><li>GCP: Not supported at GCP Network LB level.</li><li>Nginx: Not implemented.</li></ul>                                                                                | false                    |
-| loadbalancer.mqtt.tlsTermination.certificateRef         | TLS certificate reference for MQTT load balancer.<br /><ul><li>AWS: ACM certificate ARN for NLB.</li><li>Azure: Not applicable (ignored).</li><li>GCP: Not applicable (ignored).</li><li>Nginx: Not implemented (ignored).</li></ul>                                                                                                              | ""                       |
+   ```bash
+   kubectl create configmap tbmq-node-mqtts-config \
+     --from-file=server.pem=/path/to/server.pem \
+     --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
+     -o yaml --dry-run=client | kubectl apply -f -
+   ```
 
-### Configuring Mutual TLS (mTLS) for MQTT
+2. (Optional) If the private key is password-protected, create a Secret:
 
-Mutual TLS (mTLS) ensures both the client and server authenticate each other before establishing an MQTT connection.
-To configure this, we need to obtain a valid (signed) TLS certificate and configure it in the TBMQ. 
-The main advantage of this option is that you may use it in combination with **_X.509 Certificate Chain_** MQTT client credentials. 
+   ```bash
+   kubectl create secret generic mqtt-tls-secret \
+     --from-literal=key_password="YOUR_KEY_PASSWORD" \
+     -o yaml --dry-run=client | kubectl apply -f -
+   ```
 
-Before enabling mTLS, we need:
+3. Enable mTLS in your `values.yaml`:
 
-- Server certificate in **_.pem_** format.
-- Private key in **_.pem_** format.
-- Password for the private key. Required only if your private key is password-protected.
+   ```yaml
+   loadbalancer:
+     mqtt:
+       enabled: true
+       mutualTls:
+         enabled: true
+         configMapName: "tbmq-node-mqtts-config"
+         privateKeyPasswordSecret: "mqtt-tls-secret"      # omit if not needed
+         privateKeyPasswordSecretKey: "key_password"      # omit if not needed
+   ```
 
-#### Creating a Kubernetes ConfigMap for mTLS Certificates
-
-The ConfigMap name should match `loadbalancer.mqtt.mutualTls.configMapName`. Use the following command to create a ConfigMap:
+## Uninstalling
 
 ```bash
-kubectl create configmap tbmq-node-mqtts-config \
-    --from-file=server.pem=/path/to/server.pem \
-    --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
-    -o yaml --dry-run=client | kubectl apply -f -
+helm uninstall my-tbmq -n <namespace>
 ```
 
-> ⚠️ **Warning:** Replace `/path/to/server.pem` and `/path/to/mqttserver_key.pem` with the actual paths to your certificate and private key files.
+`helm uninstall` removes the Kubernetes resources owned by the release (StatefulSets, Services,
+ConfigMaps, chart-managed Secrets, Ingress, and the load balancer Service). It does **not** touch:
 
-This will create a ConfigMap named **_tbmq-node-mqtts-config_**, which TBMQ will use to load certificates.
-
-#### Storing the Private Key Password in a Kubernetes Secret (Optional)
-
-If your private key requires a password, you need to store it in a Kubernetes Secret.
-The Secret name should match `loadbalancer.mqtt.mutualTls.privateKeyPasswordSecret`,
-and the key inside the Secret should match `loadbalancer.mqtt.mutualTls.privateKeyPasswordSecretKey`.
-Use the following command to create a Secret:
-
-```bash
-kubectl create secret generic mqtt-tls-secret \
---from-literal=key_password="YOUR_KEY_PASSWORD" \
--o yaml --dry-run=client | kubectl apply -f -
-```
-
-> ⚠️ **Warning:** Replace `YOUR_KEY_PASSWORD` with the actual password for your private key.
-
-This will create a Secret named **_mqtt-tls-secret_**.
-
-> 💡 **Tip:** If you already have an existing Secret with a different key name, you can use it by specifying its name and key in the configuration.
-
-Example configuration in `values.yaml`
-
-```yaml
-loadbalancer:
-  mqtt:
-    enabled: true
-    annotations: { }
-    mutualTls:
-      enabled: true
-      configMapName: "tbmq-node-mqtts-config"
-      privateKeyPasswordSecret: "mqtt-tls-secret"
-      privateKeyPasswordSecretKey: "key_password"
-```
-
-## Uninstalling Chart
-
-To uninstall the TBMQ cluster, use the following command:
-
-```bash
-helm delete my-tbmq-cluster -n <namespace_name>
-```
-
-This command removes all the TBMQ components associated with the chart from the specified namespace `<namespace_name>`.
-
-> ⚠️ **Warning:** `helm delete` command removes the logical resources of the TBMQ cluster. To completely remove all persistent data, you may need to additionally delete the Persistent Volume Claims (PVCs) after uninstallation.
-
-```shell
-kubectl delete pvc -l app.kubernetes.io/instance=my-tbmq-cluster
-```
+- **External infrastructure** — PostgreSQL data, Kafka topics, and Redis cache are owned by the
+  systems you deployed alongside TBMQ. Drop them explicitly if you no longer need them.
+- **Pre-existing Secrets** — anything referenced via `postgresql.existingSecret`,
+  `redis.existingSecret`, or a pre-created `tbmq.imagePullSecret` is left in place.
+- **Per-pod PVCs created from `volumeClaimTemplate`** — chart-managed `tbmq-node-data` PVCs are not deleted by `helm uninstall`. They carry no `app=...` label (the volumeClaimTemplate has none), so drop them explicitly by name pattern: `kubectl get pvc -n <namespace> -o name | grep tbmq-node-data | xargs -r kubectl delete -n <namespace>`, or just delete the whole namespace.

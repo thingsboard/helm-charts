@@ -1,4 +1,16 @@
 TBMQ Cluster {{ .Release.Name }} will be deployed in few minutes.
+
 Info:
     Namespace: {{ .Release.Namespace }}
+    Edition:   {{ if contains "pe-node" .Values.tbmq.image.repository }}PE (Professional){{ else }}CE (Community){{ end }}
+    Chart:     {{ .Chart.Version }}
+    App:       {{ .Chart.AppVersion }}
 
+Watch pods come up:
+    kubectl get pods -n {{ .Release.Namespace }} -l app={{ include "tbmq.node.label" . }} -w
+{{- if .Values.installation.installDbSchema }}
+
+Default admin credentials (CHANGE IMMEDIATELY after first login):
+    Email:    sysadmin@thingsboard.org
+    Password: sysadmin
+{{- end }}

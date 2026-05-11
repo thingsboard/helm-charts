@@ -1,9 +1,9 @@
 apiVersion: v2
-appVersion: 2.2.0
-description: Helm chart for TBMQ cluster.
+appVersion: 2.3.0
+description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
-version: 1.1.0
+version: 2.0.0
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -14,36 +14,38 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
+    - kind: fixed
+      description: "tbmq-ie StatefulSet no longer hardcodes TB_SERVICE_INTEGRATIONS_SUPPORTED=ALL and TB_SERVICE_INTEGRATIONS_EXCLUDED=NONE as container env: entries. Container env: takes precedence over envFrom: in Kubernetes, so the previous hardcoding silently shadowed any user override via tbmq-ie.customEnv — contradicting the chart's documented \"customEnv always wins\" override hierarchy. Application defaults (ALL, NONE) are preserved; users can now tune both vars via tbmq-ie.customEnv."
+    - kind: fixed
+      description: "Removed dead SECURITY_MQTT_BASIC_ENABLED entry from the default tbmq.customEnv map. TBMQ 2.3.0 manages MQTT auth providers (basic, SSL, JWT, HTTP) through the admin REST API, not env vars — the previous default had no effect on the running broker but suggested otherwise."
     - kind: added
-      description: Renamed template files to use the .yaml extension instead of .yml for proper rendering in Artifact Hub UI
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/12
+      description: "Optional PVC for the broker /data directory (tbmq.persistence) — required for PE so the license instance-data file survives Pod recreation. Defaults to enabled, 1Gi, cluster default StorageClass, ReadWriteOnce. Set tbmq.persistence.enabled=false to keep the previous emptyDir behavior (safe for CE)."
+    - kind: changed
+      description: "Bumped TBMQ to 2.3.0 (CE images: 2.3.0; PE images: 2.3.0PE)."
+    - kind: changed
+      description: "BREAKING: Removed all Bitnami subchart dependencies (PostgreSQL, Redis Cluster, Kafka). Infrastructure must now be deployed externally."
     - kind: added
-      description: Added upgrade job & updated default values to use TBMQ 2.2.0 images
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/13
+      description: "Professional Edition (PE) support via values-pe.yaml overlay."
     - kind: added
-      description: Added support for external Redis Cluster configuration
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/14
+      description: "PE license configuration (license.secret / license.existingSecret) — chart wires TBMQ_LICENSE_SECRET and TBMQ_LICENSE_INSTANCE_DATA_FILE on the broker StatefulSet only. The IE StatefulSet, install Pod, and pre-upgrade Job do not validate the license and remain license-free. CE deployments are unaffected."
     - kind: added
-      description: Added support for external Kafka configuration
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/15
+      description: "CE-to-PE upgrade path via upgrade.fromVersion=ce."
     - kind: added
-      description: Added ability to use existing secret for postgres password
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/16
-    - kind: added
-      description: Added ability to define custom annotations for Ingress & LoadBalancer/NLB
-      links:
-        - name: GitHub PR
-          url: https://github.com/thingsboard/helm-charts/pull/17
+      description: "Redis standalone connection mode (in addition to cluster mode)."
+    - kind: fixed
+      description: "Pod restart behavior: logback changes no longer trigger restart (hot-reloaded); Redis password changes now trigger restart (parity with PostgreSQL)."
+    - kind: fixed
+      description: "Install pod now applies tbmq.customEnv (parity with upgrade job)."
+    - kind: fixed
+      description: "Install pod and upgrade job now honor tbmq.imagePullSecret (no longer hardcoded to 'regcred')."
+    - kind: fixed
+      description: "validate-db init container now passes PGPORT (previously broken for non-default PostgreSQL ports)."
+    - kind: fixed
+      description: "regcred Secret only renders when dockerAuth.username is set (allows users to bring their own pre-created pull secret)."
+    - kind: fixed
+      description: "Default ConfigMaps no longer render when existingConfigMap is set (previously created unused ConfigMaps)."
+    - kind: fixed
+      description: "Post-install Pod hook-delete-policy changed from hook-succeeded,hook-failed to hook-succeeded,before-hook-creation — failed install Pods now persist for log inspection and are auto-cleaned on the next helm install/upgrade."
 home: https://thingsboard.io/products/mqtt-broker/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
@@ -52,19 +54,3 @@ keywords:
   - broker
   - thingsboard
   - iot
-dependencies:
-  - name: common
-    version: 2.x.x
-    repository: oci://registry-1.docker.io/bitnamicharts
-  - name: redis-cluster
-    version: 10.3.0
-    repository: oci://registry-1.docker.io/bitnamicharts
-    condition: redis-cluster.enabled
-  - name: postgresql
-    version: 15.5.38
-    repository: oci://registry-1.docker.io/bitnamicharts
-    condition: postgresql.enabled
-  - name: kafka
-    version: 29.3.4
-    repository: oci://registry-1.docker.io/bitnamicharts
-    condition: kafka.enabled

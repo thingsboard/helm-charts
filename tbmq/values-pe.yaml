@@ -1,0 +1,43 @@
+# TBMQ Professional Edition (PE) image reference.
+#
+# This file lists the canonical PE image repositories and tags for the broker
+# (tbmq.image) and integration executor (tbmq-ie.image) at the current chart
+# version. All other configuration (infrastructure, replicas, load balancer, etc.)
+# is identical between CE and PE — only the images change.
+#
+# How to use it:
+#
+# Treat this file as a REFERENCE. To install or upgrade PE, copy the four image
+# keys below into your own values.yaml (the one you exported via
+# `helm show values tbmq-helm-chart/tbmq-cluster > values.yaml`), then run the
+# normal `helm install` / `helm upgrade` against that single file. See
+# README.md → "Professional Edition (PE)" for the full install walkthrough.
+#
+# Do NOT pass this file as a `-f values-pe.yaml` overlay alongside your own
+# values.yaml. Your exported values.yaml already pins CE-defaulted image keys,
+# and Helm's `-f` merge order makes it easy to silently revert the overlay back
+# to CE. Copying the four keys below into your own file removes the ambiguity —
+# there is only one source of truth for the image config.
+#
+# IMPORTANT: PE additionally REQUIRES a license. Set one of `license.secret` or
+# `license.existingSecret` in your values.yaml (see README.md → "Professional
+# Edition (PE)" for the recommended Secret-based pattern). PE pods will refuse
+# to start without a valid license.
+#
+# PE images are published publicly to Docker Hub:
+#   - docker.io/thingsboard/tbmq-pe-node
+#   - docker.io/thingsboard/tbmq-pe-integration-executor
+
+tbmq:
+  image:
+    # PE node image. CE default is "thingsboard/tbmq-node".
+    repository: thingsboard/tbmq-pe-node
+    # PE tag matches the chart appVersion with a "PE" suffix (e.g. 2.3.0 → 2.3.0PE).
+    tag: 2.3.0PE
+
+tbmq-ie:
+  image:
+    # PE integration executor image. CE default is "thingsboard/tbmq-integration-executor".
+    repository: thingsboard/tbmq-pe-integration-executor
+    # PE tag matches the chart appVersion with a "PE" suffix (e.g. 2.3.0 → 2.3.0PE).
+    tag: 2.3.0PE
