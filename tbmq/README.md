@@ -577,8 +577,7 @@ client writes a per-pod activation-response cache to
 The TBMQ cluster id itself lives in PostgreSQL (`tbmq_cluster.cluster_id`), not under `/data`,
 so cache loss does **not** change cluster identity or trigger `CLUSTER_ID_MISMATCH`. But the
 license client has no automatic mechanism to free up slots held by instances that no longer
-exist (`DefaultLicenseCtx.isServiceAvailable` is unimplemented and always returns `true`), so
-repeated activations from sustained cache loss accumulate on the license server until they
+exist, so repeated activations from sustained cache loss accumulate on the license server until they
 exhaust the cap. Once exhausted, new pods cannot activate and a license-server admin has to
 clear the stale instance bindings before the cluster can recover. Persisting `/data` avoids the
 problem entirely.
