@@ -1,38 +1,28 @@
-# TBMQ Professional Edition (PE) values overlay.
+# TBMQ Professional Edition (PE) image reference.
 #
-# Switches the broker and integration-executor images to the PE variants and pins
-# the matching PE-suffixed tags. All other configuration (infrastructure, replicas,
-# load balancer, etc.) comes from your own values.yaml — the templates and value
-# schema are identical between CE and PE.
+# This file lists the canonical PE image repositories and tags for the broker
+# (tbmq.image) and integration executor (tbmq-ie.image) at the current chart
+# version. All other configuration (infrastructure, replicas, load balancer, etc.)
+# is identical between CE and PE — only the images change.
 #
-# How to apply:
+# How to use it:
 #
-#   helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
-#     -f values-pe.yaml \
-#     -f values.yaml \
-#     --set installation.installDbSchema=true
+# Treat this file as a REFERENCE. To install or upgrade PE, copy the four image
+# keys below into your own values.yaml (the one you exported via
+# `helm show values tbmq-helm-chart/tbmq-cluster > values.yaml`), then run the
+# normal `helm install` / `helm upgrade` against that single file. See
+# README.md → "Professional Edition (PE)" for the full install walkthrough.
 #
-# Helm merges -f files in order, with later files overriding earlier ones. Listing
-# values-pe.yaml FIRST and your own values.yaml SECOND is intentional: it lets you
-# customize any key from values.yaml — including the image, if you need to point
-# at a private registry mirror — without editing this file.
-#
-# CAUTION: do NOT redefine `tbmq.image.repository`, `tbmq.image.tag`,
-# `tbmq-ie.image.repository`, or `tbmq-ie.image.tag` in your values.yaml unless you
-# explicitly intend to override the PE images. A CE-defaulted image block copied
-# from elsewhere will silently revert this overlay back to CE. If you only need a
-# different registry or tag, set just that single key — Helm deep-merges values,
-# so the PE keys you leave unset are preserved.
-#
-# To make this overlay always win regardless of what your values.yaml contains,
-# swap the file order so values-pe.yaml comes last:
-#
-#   -f values.yaml -f values-pe.yaml
+# Do NOT pass this file as a `-f values-pe.yaml` overlay alongside your own
+# values.yaml. Your exported values.yaml already pins CE-defaulted image keys,
+# and Helm's `-f` merge order makes it easy to silently revert the overlay back
+# to CE. Copying the four keys below into your own file removes the ambiguity —
+# there is only one source of truth for the image config.
 #
 # IMPORTANT: PE additionally REQUIRES a license. Set one of `license.secret` or
-# `license.existingSecret` in your own values.yaml (see README.md → "Professional
-# Edition (PE)" for the recommended Secret-based pattern). PE pods will refuse to
-# start without a valid license.
+# `license.existingSecret` in your values.yaml (see README.md → "Professional
+# Edition (PE)" for the recommended Secret-based pattern). PE pods will refuse
+# to start without a valid license.
 #
 # PE images are published publicly to Docker Hub:
 #   - docker.io/thingsboard/tbmq-pe-node

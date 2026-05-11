@@ -7,9 +7,11 @@ TBMQ scales to 100M+ concurrently connected clients.
 This chart deploys a TBMQ cluster on Kubernetes. The same chart supports both editions of TBMQ:
 
 - **Community Edition (CE)** — open-source, default images.
-- **Professional Edition (PE)** — commercial edition with additional features. Activated by passing the
-  bundled `values-pe.yaml` overlay, which switches the broker and integration-executor images to the
-  PE variants. All templates, configuration keys, and operational behavior are identical between editions.
+- **Professional Edition (PE)** — commercial edition with additional features. Enabled by switching
+  the broker and integration-executor images to the PE variants in your `values.yaml` and supplying
+  a license. All templates, configuration keys, and operational behavior are identical between
+  editions. See [Professional Edition (PE)](#professional-edition-pe) under "Installing" for the
+  exact edits.
 
 **Documentation & Resources:**
 
@@ -92,18 +94,17 @@ helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
 
 #### Professional Edition (PE)
 
-PE deploys the same chart as CE. Two things differ:
+PE installs from the same chart as CE. You configure PE by making two edits to the `values.yaml` you exported in Step 2:
 
-1. The broker and integration-executor images are PE variants (`thingsboard/tbmq-pe-node` and
-   `thingsboard/tbmq-pe-integration-executor`).
-2. PE requires a license.
+1. Switch the broker and integration-executor images to the PE variants
+   (`thingsboard/tbmq-pe-node` and `thingsboard/tbmq-pe-integration-executor`).
+2. Provide a license.
 
-Make both changes by editing the `values.yaml` you exported in Step 2 — then run a single
-`helm install` against that file. **Do not** pass `values-pe.yaml` as a `-f` overlay alongside
-your `values.yaml`: the CE-defaulted image keys in your `values.yaml` will override the overlay
-and you'll deploy CE images with no license enforcement. [`values-pe.yaml`](values-pe.yaml) in
-the repo is a reference document showing which keys differ for PE — read it for the current
-canonical values, but edit your own `values.yaml` as below.
+Both edits are detailed below. After making them, run the `helm install` command as for CE.
+
+> The repo ships [`values-pe.yaml`](values-pe.yaml) as a **reference** for the canonical PE image
+> repositories and tags at the current chart version. Copy those values into your `values.yaml`
+> in Step 1; do not pass `values-pe.yaml` itself as a `-f` overlay alongside your file.
 
 ##### 1. Switch to PE images
 
@@ -226,24 +227,14 @@ kubectl logs my-tbmq-install-pod -n <namespace> -f
 kubectl logs my-tbmq-install-pod -n <namespace> --previous
 ```
 
-If a successful install pod was deleted before you could grab logs, re-run with `helm install --debug`
-so Helm streams hook output to your terminal.
-
 ## Updating Configuration
 
 Routine configuration changes — scaling replicas, adjusting resource limits, modifying load balancer
-annotations, etc. — are applied via `helm upgrade` against the same release:
+annotations, etc. — are applied via `helm upgrade` against the same release. The command is the
+same for CE and PE; your `values.yaml` already encodes which edition you're running:
 
 ```bash
 helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -f values.yaml
-```
-
-For PE deployments, keep the overlay in the command:
-
-```bash
-helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
-  -f /tmp/tbmq-cluster/values-pe.yaml \
-  -f values.yaml
 ```
 
 ## Upgrading
@@ -258,8 +249,8 @@ self-managed instance) to create a logical or physical backup before proceeding.
 
 ### Standard Upgrade Procedure
 
-The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades. Only the values overlay
-differs.
+The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades — the commands below are
+identical for both, because your `values.yaml` already encodes which edition you're running.
 
 1. **Scale `tbmq-node` (and optionally `tbmq-ie`) to 0 replicas** so no application is reading or
    writing while the schema migration runs:
