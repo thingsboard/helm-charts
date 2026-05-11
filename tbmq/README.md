@@ -378,14 +378,25 @@ open-source images (Option B).
 > and the exact subchart versions you originally installed. Missing a resource means
 > `helm upgrade` will delete it.
 
-**Option B — Provision a fresh third-party stack and restore data.** The cleaner long-term path:
-provision the v2.3.0 reference stack (PostgreSQL 17, Apache Kafka 4.0.0, Valkey 8.0) outside the
-Helm release, migrate your data onto it, then run the chart 2.0.0 upgrade pointing at the new
-infrastructure. PostgreSQL is straightforward (`pg_dump` / `pg_restore`). Kafka and Redis also
-hold persistent TBMQ state — their on-disk formats are not directly reusable across the image
-change, so plan those migrations explicitly rather than assuming the new instances can be started
-empty. The [Minikube guide](docs/minikube/README.md) walks through provisioning one such stack
-end-to-end (it does not cover data migration).
+**Option B — Provision a fresh third-party stack.** The cleaner long-term path: provision the
+v2.3.0 reference stack (PostgreSQL 17, Apache Kafka 4.0.0, Valkey 8.0) outside the Helm release,
+then run the chart 2.0.0 upgrade pointing at the new infrastructure.
+
+PostgreSQL must carry over (`pg_dump` / `pg_restore`, or the operator equivalent) — it holds the
+TBMQ schema and cluster id. For Kafka and Redis you have a choice:
+
+- **Migrate the data.** Choose this if you need to preserve any persisted-but-undelivered MQTT
+  messages and the in-cluster MQTT state held outside PostgreSQL. The image transitions
+  (`bitnamilegacy/kafka:3.7.0` → `apache/kafka:4.0.0` and `bitnamilegacy/redis:7.2.5` →
+  `valkey/valkey:8.0`) do not permit direct volume reuse, so plan a logical export/replay rather
+  than a PV swap.
+- **Start Kafka and Redis empty.** A valid choice when you accept that any
+  persisted-but-undelivered messages are either already delivered or will be dropped. MQTT
+  clients reconnect to the new cluster on their own and their subscriptions get re-established as
+  they come back online — no operator action required for that.
+
+The [Minikube guide](docs/minikube/README.md) walks through provisioning one such stack
+end-to-end (it does not cover Kafka or Redis data migration).
 
 For detailed assistance with either path,
 [contact ThingsBoard](https://thingsboard.io/docs/contact-us/).
@@ -491,8 +502,8 @@ the cluster id.
 | Parameter                               | Description                                                                                                                                                | Default                                 |
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
 | **Image**                               |                                                                                                                                                            |                                       |
-| tbmq.image.repository                   | Broker image repository. CE: `thingsboard/tbmq-node`. PE (via `values-pe.yaml`): `thingsboard/tbmq-pe-node`.                                              | thingsboard/tbmq-node                 |
-| tbmq.image.tag                          | Image tag. CE default tracks the chart `appVersion`. PE pins `<appVersion>PE` via `values-pe.yaml`.                                                        | 2.3.0                                 |
+| tbmq.image.repository                   | Broker image repository. CE: `thingsboard/tbmq-node`. PE: `thingsboard/tbmq-pe-node`.                                                                      | thingsboard/tbmq-node                 |
+| tbmq.image.tag                          | Image tag. CE default tracks the chart `appVersion`. PE: `<appVersion>PE` (e.g. `2.3.0PE`).                                                                | 2.3.0                                 |
 | tbmq.imagePullSecret                    | Pull secret name referenced by the broker StatefulSet, install Pod, and upgrade Job. Auto-created from `dockerAuth.username`/`password` if those are set; otherwise expected to exist in the namespace already. | regcred                               |
 | tbmq.imagePullPolicy                    | Image pull policy.                                                                                                                                         | Always                                |
 | **Scaling**                             |                                                                                                                                                            |                                       |
@@ -516,7 +527,7 @@ the cluster id.
 | tbmq.securityContext                    | Defaults: `runAsUser: 799`, `runAsNonRoot: true`, `fsGroup: 799`.                                                                                          | (see values.yaml)                     |
 | tbmq.resources                          | CPU/memory requests and limits. Set explicitly for production.                                                                                             | { }                                   |
 | **Persistence**                         |                                                                                                                                                            |                                       |
-| tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). Required for PE so the license instance-data file survives Pod recreation; safe to leave on for CE. | true |
+| tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). Recommended for PE so the broker can reuse its cached license-info file across Pod restarts instead of re-fetching from the license server (cluster identity itself lives in PostgreSQL, not `/data`); safe to leave on for CE. | true |
 | tbmq.persistence.size                   | PVC size. The PE license cache file is a few KB; 1Gi just leaves headroom for any future PE feature that may write to `/data`. The reference PE Kubernetes manifests request 100Mi — bumping this default does not affect compatibility. | "1Gi"                                 |
 | tbmq.persistence.storageClassName       | StorageClass name. Empty means use the cluster's default StorageClass.                                                                                       | ""                                    |
 | tbmq.persistence.accessModes            | PVC access modes. ReadWriteOnce is correct for per-pod claims.                                                                                              | ["ReadWriteOnce"]                     |
@@ -527,8 +538,8 @@ The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 
 | Parameter                       | Description                                                                                                                                                | Default                               |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| tbmq-ie.image.repository        | IE image. CE: `thingsboard/tbmq-integration-executor`. PE (via overlay): `thingsboard/tbmq-pe-integration-executor`.                                       | thingsboard/tbmq-integration-executor |
-| tbmq-ie.image.tag               | Image tag. CE default tracks the chart `appVersion`. PE pins `<appVersion>PE` via `values-pe.yaml`.                                                         | 2.3.0                                 |
+| tbmq-ie.image.repository        | IE image. CE: `thingsboard/tbmq-integration-executor`. PE: `thingsboard/tbmq-pe-integration-executor`.                                                     | thingsboard/tbmq-integration-executor |
+| tbmq-ie.image.tag               | Image tag. CE default tracks the chart `appVersion`. PE: `<appVersion>PE` (e.g. `2.3.0PE`).                                                                | 2.3.0                                 |
 | tbmq-ie.imagePullSecret         | Pull secret name referenced by the IE StatefulSet only — independent of `tbmq.imagePullSecret`. The chart auto-creates **only one** Secret (named after `tbmq.imagePullSecret`, when `dockerAuth.username` is set). If `tbmq-ie.imagePullSecret` differs, pre-create that Secret yourself. | regcred                               |
 | tbmq-ie.imagePullPolicy         | Image pull policy.                                                                                                                                          | Always                                |
 | tbmq-ie.statefulSet.replicas    | Number of IE pods.                                                                                                                                          | 2                                     |
@@ -591,7 +602,7 @@ Or simply `kubectl delete namespace <namespace>` if you no longer need the data.
 | postgresql.username                    | PostgreSQL username.                                                                         | "postgres"                |
 | postgresql.password                    | PostgreSQL password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.   | ""                        |
 | postgresql.existingSecret              | Name of an existing Secret holding the password. Recommended for production.                | ""                        |
-| postgresql.existingSecretPasswordKey   | Key inside `existingSecret` that holds the password.                                         | ""                        |
+| postgresql.existingSecretPasswordKey   | Key inside `existingSecret` that holds the password. Falls back to `postgres-password` if left empty. | ""                        |
 
 ```yaml
 postgresql:
@@ -628,7 +639,7 @@ works. Two connection modes are supported.
 | redis.usePassword               | Whether the cache requires password authentication.                                                      | true       |
 | redis.password                  | Password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.                          | ""         |
 | redis.existingSecret            | Name of an existing Secret holding the password.                                                         | ""         |
-| redis.existingSecretPasswordKey | Key inside `existingSecret` that holds the password.                                                     | ""         |
+| redis.existingSecretPasswordKey | Key inside `existingSecret` that holds the password. Falls back to `redis-password` if left empty.       | ""         |
 
 **Cluster mode:**
 
