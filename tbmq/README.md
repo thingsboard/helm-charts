@@ -190,12 +190,14 @@ license Secret and do not depend on it.
 
 - `TBMQ_LICENSE_SECRET` — read from the Secret you provided (inline or via `existingSecret`).
 - `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to the per-pod local cache of the license client's
-  response. The default (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on `/data`,
-  backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
+  activation response. The default (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on
+  `/data`, backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
   [Persistence](#persistence) below). `$(TB_SERVICE_ID)` is the pod name (downward API), so each
-  replica gets its own cache file. Persisting `/data` lets the broker reuse the cached license
-  info on restart instead of re-fetching from the license server each time. Override
-  `license.instanceDataFile` only if you mount a different writable path.
+  replica gets its own cache file. Persisting `/data` lets the broker check in against its
+  existing license instance on restart; **without the cache file, the broker re-activates as a
+  fresh instance on every start, consuming a new slot against the license's instance cap** (see
+  [Persistence](#persistence) for the full explanation). Override `license.instanceDataFile` only
+  if you mount a different writable path.
 
 > The TBMQ cluster id that the license server binds to lives in PostgreSQL
 > (`tbmq_cluster.cluster_id`, generated once at install). It is not stored in `/data` and is
@@ -471,8 +473,10 @@ Common causes:
 
 Pod recreation, `helm upgrade`, and `/data` being an `emptyDir` do **not** trigger this error —
 the cluster id is not stored under `/data`. Losing the per-pod license cache file forces the
-broker to re-fetch license info from the license server on the next start, but does not change
-the cluster id.
+broker to re-activate against the license server on the next start; that does **not** change the
+cluster id, but it does consume a fresh instance slot against the license's instance cap (see
+[Persistence](#persistence) — sustained cache loss can eventually exhaust the cap and require a
+license-server admin to clear stale instance bindings).
 
 ## Configuration Reference
 
@@ -527,7 +531,7 @@ the cluster id.
 | tbmq.securityContext                    | Defaults: `runAsUser: 799`, `runAsNonRoot: true`, `fsGroup: 799`.                                                                                          | (see values.yaml)                     |
 | tbmq.resources                          | CPU/memory requests and limits. Set explicitly for production.                                                                                             | { }                                   |
 | **Persistence**                         |                                                                                                                                                            |                                       |
-| tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). Recommended for PE so the broker can reuse its cached license-info file across Pod restarts instead of re-fetching from the license server (cluster identity itself lives in PostgreSQL, not `/data`); safe to leave on for CE. | true |
+| tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). **Strongly recommended for PE**: without persisted `/data`, each Pod restart re-activates against the license server as a new instance and consumes a fresh slot against the license cap (the license client has no automatic stale-instance cleanup — see [Persistence](#persistence)). Cluster id itself lives in PostgreSQL, not `/data`. Safe to leave on for CE. | true |
 | tbmq.persistence.size                   | PVC size. The PE license cache file is a few KB; 1Gi just leaves headroom for any future PE feature that may write to `/data`. The reference PE Kubernetes manifests request 100Mi — bumping this default does not affect compatibility. | "1Gi"                                 |
 | tbmq.persistence.storageClassName       | StorageClass name. Empty means use the cluster's default StorageClass.                                                                                       | ""                                    |
 | tbmq.persistence.accessModes            | PVC access modes. ReadWriteOnce is correct for per-pod claims.                                                                                              | ["ReadWriteOnce"]                     |
@@ -560,11 +564,24 @@ The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 ### Persistence
 
 The broker StatefulSet provisions a per-pod PVC for `/data` via `volumeClaimTemplate`.
-**Professional Edition** deployments should keep this enabled (the chart default): the license
-client writes a per-pod license-info cache to `/data/tbmq-instance-license-$(TB_SERVICE_ID).data`,
-and persisting it lets the broker reuse the cached response on restart instead of re-fetching
-from the license server every time. The TBMQ cluster id itself lives in PostgreSQL, not under
-`/data`, so losing the cache does not change cluster identity or burn a license slot.
+**Professional Edition** deployments should keep this enabled (the chart default). The license
+client writes a per-pod activation-response cache to
+`/data/tbmq-instance-license-$(TB_SERVICE_ID).data` on first start. On subsequent starts:
+
+- **With the cache file present**, the broker calls `checkInstance` against the license server,
+  reusing its existing `instanceId`. No new slot is consumed.
+- **With the cache file missing**, the broker calls `activateInstance` and the license server
+  issues a **fresh** `instanceId`, counting against the license's instance cap
+  (`MAX_PROD_INSTANCES`).
+
+The TBMQ cluster id itself lives in PostgreSQL (`tbmq_cluster.cluster_id`), not under `/data`,
+so cache loss does **not** change cluster identity or trigger `CLUSTER_ID_MISMATCH`. But the
+license client has no automatic mechanism to free up slots held by instances that no longer
+exist (`DefaultLicenseCtx.isServiceAvailable` is unimplemented and always returns `true`), so
+repeated activations from sustained cache loss accumulate on the license server until they
+exhaust the cap. Once exhausted, new pods cannot activate and a license-server admin has to
+clear the stale instance bindings before the cluster can recover. Persisting `/data` avoids the
+problem entirely.
 
 For Community Edition, nothing meaningful is persisted under `/data`, so disabling
 persistence is safe:
