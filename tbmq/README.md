@@ -369,6 +369,27 @@ provisioned infrastructure.
 
 > **Always back up your PostgreSQL database before upgrading**, regardless of which path you take.
 
+> **Set `tbmq.persistence.enabled: false` in your chart 2.0.0 upgrade values.** Chart 2.0.0 adds a
+> per-pod `volumeClaimTemplate` for `/data` on the broker StatefulSet (default
+> `tbmq.persistence.enabled: true`). Chart 1.x had no such template (its `/data` was an `emptyDir`),
+> and `volumeClaimTemplates` is one of the immutable fields on an existing StatefulSet — adding it
+> in place makes `helm upgrade` fail with
+> `StatefulSet ... is invalid: spec: Forbidden: updates to statefulset spec for fields other than ... are forbidden`.
+> Chart 1.x deployments are CE-only, so disabling persistence on the upgrade is safe (there is no
+> PE license cache to preserve).
+>
+> The pre-upgrade schema migration Job runs **before** the StatefulSet patch. If you hit this error
+> on a first attempt the schema is already at the target version, and re-running the upgrade with
+> `--set upgrade.upgradeDbSchema=true` will fail its already-upgraded check
+> (`database already upgraded to current version`). Retry without `upgradeDbSchema` (and with
+> `tbmq.persistence.enabled: false`).
+>
+> Enabling `tbmq.persistence` later (e.g. before a CE→PE migration on the chart 2.0.0 CE release)
+> hits the same immutable-field rule. Take a maintenance window, delete the broker StatefulSet with
+> `kubectl delete statefulset <release>-tbmq-node -n <namespace> --cascade=orphan` (this leaves the
+> running Pod up while the StatefulSet is gone), then `helm upgrade` with
+> `tbmq.persistence.enabled: true` to recreate it with the `volumeClaimTemplate`.
+
 #### Two upgrade paths
 
 **Option A — Keep the existing in-cluster Bitnami stack.** Annotate every Bitnami-rendered
