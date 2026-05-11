@@ -44,7 +44,11 @@ existing instances via the values you provide.
 
 - Kubernetes 1.23+
 - Helm 3.8.0+
-- Persistent Volume provisioner (only needed if your infrastructure components use PVs)
+- Persistent Volume provisioner — required by default for the broker's per-pod `/data` PVC
+  (`tbmq.persistence.enabled: true`) and by whatever infrastructure components you run that use
+  PVs. CE-only deployments can disable broker persistence (`tbmq.persistence.enabled: false`) if
+  no PV provisioner is available — see [Persistence](#persistence) for the trade-offs and why PE
+  should keep it on.
 - An external PostgreSQL instance (with an empty database created for TBMQ)
 - An external Kafka cluster
 - An external Redis-compatible cache (Redis, Valkey, Dragonfly, etc.) — standalone or cluster
@@ -217,9 +221,12 @@ so a failed container restarts in-pod until it succeeds or the hook timeout fire
 schema, then exits. The hook policy is `hook-succeeded,before-hook-creation`: Helm deletes the
 pod **only when it succeeds**; on failure the pod is **left in place** so you can inspect logs,
 and it is auto-cleaned the next time the hook runs (e.g., the next `helm upgrade`). The install
-hook has a 300s timeout. The `my-tbmq-tbmq-node-*` and `my-tbmq-tbmq-ie-*` StatefulSet pods
-should reach `Running` and pass readiness probes within a minute or two after the install pod
-succeeds.
+hook has a 300s timeout.
+
+The `my-tbmq-tbmq-node-*` (broker) pods block in their `validate-db` init container until the
+schema exists, so they reach `Running` within a minute or two **after** the install pod succeeds.
+The `my-tbmq-tbmq-ie-*` pods have no PostgreSQL dependency and may already be `Running` before
+the install pod completes.
 
 ```bash
 # While the pod runs:
@@ -412,9 +419,13 @@ once it terminates:
 
 ```bash
 kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
-# or, if the Pod has already finished:
-kubectl logs <upgrade-pod-name> -n <namespace> --previous
+# or, if the Pod has already finished but hasn't been TTL-reaped yet:
+kubectl logs <upgrade-pod-name> -n <namespace>
 ```
+
+> The Job's pod has `restartPolicy: Never` and `backoffLimit: 3` — on failure the Job creates a
+> brand-new pod rather than restarting the container in place, so `kubectl logs --previous`
+> doesn't apply here. List all attempts with `kubectl get pods -n <namespace> -l job-name=my-tbmq-upgrade-<revision>`.
 
 Common causes:
 
@@ -694,7 +705,7 @@ Controller, etc.).
 | loadbalancer.type                                       | Provider flavor: `"nginx"`, `"aws"`, `"azure"`, `"gcp"`. Selects template variant + default annotations. | "nginx"                |
 | loadbalancer.http.enabled                               | Create the HTTP Ingress.                                                                                 | true                   |
 | loadbalancer.http.annotations                           | Extra Ingress annotations. Merged with provider defaults — user values win on conflict.                  | { }                    |
-| loadbalancer.http.ssl.enabled                           | Enable HTTPS termination at the load balancer.                                                           | false                  |
+| loadbalancer.http.ssl.enabled                           | Enable HTTPS termination at the load balancer. Honored by `aws`, `azure`, and `gcp` flavors; the `nginx` template does not implement HTTPS termination and ignores this key. | false                  |
 | loadbalancer.http.ssl.certificateRef                    | Cert reference: AWS ACM ARN, Azure `appgw-ssl-certificate` value, GCP `ManagedCertificate` name.        | ""                     |
 | loadbalancer.http.ssl.domains                           | Domains for HTTPS. Required for GCP `ManagedCertificate`.                                                | ["www.example.com"]    |
 | loadbalancer.http.ssl.staticIP                          | GCP-only: static IP name for the HTTP(S) load balancer.                                                  | "tbmq-http-lb-address" |
