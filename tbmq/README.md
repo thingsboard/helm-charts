@@ -227,6 +227,9 @@ kubectl logs my-tbmq-install-pod -n <namespace> -f
 kubectl logs my-tbmq-install-pod -n <namespace> --previous
 ```
 
+If a successful install pod was deleted before you could grab logs, re-run with `helm install --debug`
+so Helm streams hook output to your terminal.
+
 ## Updating Configuration
 
 Routine configuration changes — scaling replicas, adjusting resource limits, modifying load balancer
@@ -271,8 +274,6 @@ identical for both, because your `values.yaml` already encodes which edition you
 2. **Run the upgrade.** The `upgrade.upgradeDbSchema=true` flag triggers the pre-upgrade Helm hook
    that runs the migration:
 
-   **CE → newer CE:**
-
    ```bash
    helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
      --version <new-chart-version> \
@@ -280,15 +281,11 @@ identical for both, because your `values.yaml` already encodes which edition you
      --set upgrade.upgradeDbSchema=true
    ```
 
-   **PE → newer PE:**
-
-   ```bash
-   helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
-     --version <new-chart-version> \
-     -f /tmp/tbmq-cluster/values-pe.yaml \
-     -f values.yaml \
-     --set upgrade.upgradeDbSchema=true
-   ```
+   > **Note on PE image tags:** your `values.yaml` pins `tbmq.image.tag` and `tbmq-ie.image.tag`
+   > from when you first exported it. When bumping the chart version, also update those tags in
+   > your file to match the new chart `appVersion` (`<appVersion>` for CE, `<appVersion>PE` for
+   > PE). The canonical PE tags for the target chart version are in
+   > [`values-pe.yaml`](values-pe.yaml) at that chart tag.
 
 3. **Verify the migration completed.** The migration runs as a Kubernetes Job named
    `my-tbmq-upgrade-<revision>` and is automatically deleted 5 minutes after it finishes
@@ -439,7 +436,7 @@ INFO  o.t.m.b.d.s.BasicSubscriptionService - Terminating application due to crit
 ```
 
 PE images require a license value. Either set `license.secret` inline or pre-create a Secret and
-point `license.existingSecret` at it (see [PE install — Provide your license](#1-provide-your-license)).
+point `license.existingSecret` at it (see [PE install — Provide your license](#2-provide-your-license)).
 CE images don't need a license — confirm you didn't pull the PE images (`thingsboard/tbmq-pe-*`)
 without configuring one.
 
