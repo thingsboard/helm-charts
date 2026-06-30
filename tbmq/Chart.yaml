@@ -14,6 +14,8 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
+    - kind: removed
+      description: "Removed the dead REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED / REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC keys from the Redis cluster ConfigMap. TBMQ no longer ships the custom Jedis cluster topology refresher — Jedis rediscovers cluster topology reactively (renewSlotCache on MOVED redirects and connection failures), so the broker ignored these keys. The Lettuce topology-refresh tunables are unchanged."
     - kind: fixed
       description: "tbmq-ie StatefulSet no longer hardcodes TB_SERVICE_INTEGRATIONS_SUPPORTED=ALL and TB_SERVICE_INTEGRATIONS_EXCLUDED=NONE as container env: entries. Container env: takes precedence over envFrom: in Kubernetes, so the previous hardcoding silently shadowed any user override via tbmq-ie.customEnv — contradicting the chart's documented \"customEnv always wins\" override hierarchy. Application defaults (ALL, NONE) are preserved; users can now tune both vars via tbmq-ie.customEnv."
     - kind: fixed
