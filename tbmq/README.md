@@ -708,7 +708,7 @@ redis:
 ```
 
 In `cluster` mode, the chart automatically renders cluster-only keys (`REDIS_NODES`,
-`REDIS_MAX_REDIRECTS`, `REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG`, and the Lettuce/Jedis topology
+`REDIS_MAX_REDIRECTS`, `REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG`, and the Lettuce topology
 refresh tunables) into the Redis ConfigMap; in `standalone` mode those keys are omitted and only
 `REDIS_HOST`/`REDIS_PORT` are set.
 

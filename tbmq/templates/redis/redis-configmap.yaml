@@ -50,10 +50,4 @@ data:
   REDIS_LETTUCE_CLUSTER_TOPOLOGY_REFRESH_ENABLED: "true"
   # Specifies the interval (in seconds) for periodic cluster topology updates
   REDIS_LETTUCE_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC: "60"
-  # Enables or disables periodic cluster topology updates.
-  # Useful for Redis cluster setup to handle topology changes,
-  # such as node failover, restarts, or IP address changes
-  REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED: "true"
-  # Specifies the interval (in seconds) for periodic cluster topology updates
-  REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC: "60"
   {{- end }}
