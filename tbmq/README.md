@@ -15,7 +15,7 @@ This chart deploys a TBMQ cluster on Kubernetes. The same chart supports both ed
 
 **Documentation & Resources:**
 
-- TBMQ [Documentation](https://thingsboard.io/products/mqtt-broker/)
+- TBMQ [Documentation](https://tbmq.io/)
 - TBMQ GitHub [Repository](https://github.com/thingsboard/tbmq)
 - ThingsBoard Charts GitHub [Repository](https://github.com/thingsboard/helm-charts)
 
@@ -355,7 +355,7 @@ Chart version 2.0.0 is a **breaking change**. All Bitnami subchart dependencies 
 Redis Cluster) that earlier chart versions bundled have been removed — the chart now expects you to
 bring your own third-party infrastructure. This aligns the Helm deployment with the broader TBMQ
 v2.3.0 third-party migration described in the
-[official upgrade instructions](https://thingsboard.io/docs/mqtt-broker/install/upgrade-instructions/#third-party-component-updates-in-v230).
+[official upgrade instructions](https://tbmq.io/docs/installation/upgrade-instructions/#third-party-component-updates-in-v230).
 
 | Component        | TBMQ v2.2.0 (chart 1.x bundled)       | TBMQ v2.3.0 (chart 2.0.0 — bring your own) |
 |------------------|---------------------------------------|--------------------------------------------|
@@ -426,7 +426,7 @@ The [Minikube guide](docs/minikube/README.md) walks through provisioning one suc
 end-to-end (it does not cover Kafka or Redis data migration).
 
 For detailed assistance with either path,
-[contact ThingsBoard](https://thingsboard.io/docs/contact-us/).
+[contact ThingsBoard](https://tbmq.io/contact-us/).
 
 ### Troubleshooting Upgrades
 
