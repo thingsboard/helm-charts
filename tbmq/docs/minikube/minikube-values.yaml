@@ -1,12 +1,12 @@
 tbmq:
   image:
-    tag: 2.3.0
+    tag: 2.4.0
   statefulSet:
     replicas: 1
 
 tbmq-ie:
   image:
-    tag: 2.3.0
+    tag: 2.4.0
   statefulSet:
     replicas: 1
 

@@ -264,13 +264,13 @@ Create `minikube-values.yaml`:
 ```yaml
 tbmq:
   image:
-    tag: 2.3.0
+    tag: 2.4.0
   statefulSet:
     replicas: 1
 
 tbmq-ie:
   image:
-    tag: 2.3.0
+    tag: 2.4.0
   statefulSet:
     replicas: 1
 
@@ -414,7 +414,7 @@ license:
 ```
 
 `minikube-pe-values.yaml` already pins the PE image repos (`tbmq-pe-node`,
-`tbmq-pe-integration-executor`) and the matching `2.3.0PE` tags, and points to the
+`tbmq-pe-integration-executor`) and the matching `2.4.0PE` tags, and points to the
 same Postgres / Kafka / Valkey services you deployed in Steps 1–3.
 
 ### 5.3 Run the helm upgrade
@@ -450,7 +450,7 @@ kubectl wait --for=condition=Ready pod/tbmq-tbmq-ie-0 \
 # Image should now be the PE one
 kubectl get pod tbmq-tbmq-node-0 -n thingsboard-mqtt-broker \
   -o jsonpath='{.spec.containers[0].image}'
-# expected: thingsboard/tbmq-pe-node:2.3.0PE
+# expected: thingsboard/tbmq-pe-node:2.4.0PE
 
 # tb_schema_settings.product should now be PE
 PG_POD=$(kubectl get pod -n thingsboard-mqtt-broker \
