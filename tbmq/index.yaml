@@ -4,6 +4,42 @@ entries:
   - annotations:
       artifacthub.io/category: streaming-messaging
       artifacthub.io/changes: |
+        - kind: changed
+          description: "Bumped TBMQ to 2.4.0 (CE images: 2.4.0; PE images: 2.4.0PE). No chart value or ConfigMap changes are required — every key the chart sets is still supported by TBMQ 2.4.0, and the new 2.4.0 settings all have application defaults and can be tuned via tbmq.customEnv / tbmq-ie.customEnv."
+        - kind: changed
+          description: "Heads-up for TBMQ 2.4.0 upgrades: several Prometheus metrics and metric tags were renamed (sqlQueue, Kafka producer/consumer timers, clientSubscriptions). If you scrape the broker, update your queries and dashboards before upgrading — see the TBMQ 2.4.0 release notes at https://tbmq.io/docs/releases/."
+        - kind: removed
+          description: "Removed the dead REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED / REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC keys from the Redis cluster ConfigMap. TBMQ no longer ships the custom Jedis cluster topology refresher — Jedis rediscovers cluster topology reactively (renewSlotCache on MOVED redirects and connection failures), so the broker ignored these keys. The Lettuce topology-refresh tunables are unchanged."
+        - kind: changed
+          description: "Documentation links now point to the TBMQ site at https://tbmq.io/ (chart home URL and README references)."
+      artifacthub.io/maintainers: |
+        - name: dshvaika
+          email: dshvaika@thingsboard.io
+        - name: dlandiak
+          email: dlandiak@thingsboard.io
+      artifacthub.io/prerelease: "false"
+      licenses: Apache-2.0
+    apiVersion: v2
+    appVersion: 2.4.0
+    created: "2026-08-27T20:48:57.287219958+03:00"
+    description: Helm chart for TBMQ cluster (Community and Professional Editions).
+    digest: 12462b0bb3b65180b38995d5870bbb6a2143416010a943ecc374611dda8e8d03
+    home: https://tbmq.io/
+    icon: https://img.thingsboard.io/thingsboard_blue.svg
+    keywords:
+    - tbmq
+    - mqtt
+    - broker
+    - thingsboard
+    - iot
+    name: tbmq-cluster
+    type: application
+    urls:
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-2.1.0.tgz
+    version: 2.1.0
+  - annotations:
+      artifacthub.io/category: streaming-messaging
+      artifacthub.io/changes: |
         - kind: fixed
           description: "tbmq-ie StatefulSet no longer hardcodes TB_SERVICE_INTEGRATIONS_SUPPORTED=ALL and TB_SERVICE_INTEGRATIONS_EXCLUDED=NONE as container env: entries. Container env: takes precedence over envFrom: in Kubernetes, so the previous hardcoding silently shadowed any user override via tbmq-ie.customEnv — contradicting the chart's documented \"customEnv always wins\" override hierarchy. Application defaults (ALL, NONE) are preserved; users can now tune both vars via tbmq-ie.customEnv."
         - kind: fixed
@@ -45,7 +81,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.3.0
-    created: "2026-05-11T14:55:18.073530539+03:00"
+    created: "2026-08-27T20:48:57.284396613+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: caf9aea6f2fd520d9f0f16c908c1c7287c07c0ca2808ac118a398e1ade28d142
     home: https://thingsboard.io/products/mqtt-broker/
@@ -103,7 +139,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.2.0
-    created: "2026-05-11T14:55:18.071747735+03:00"
+    created: "2026-08-27T20:48:57.281448083+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -154,7 +190,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-05-11T14:55:18.052125261+03:00"
+    created: "2026-08-27T20:48:57.247295339+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -201,7 +237,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-05-11T14:55:18.023222789+03:00"
+    created: "2026-08-27T20:48:57.215227078+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -248,7 +284,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-05-11T14:55:17.996181198+03:00"
+    created: "2026-08-27T20:48:57.179100138+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -295,7 +331,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-05-11T14:55:17.972097691+03:00"
+    created: "2026-08-27T20:48:57.146505467+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -342,7 +378,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-05-11T14:55:17.939488927+03:00"
+    created: "2026-08-27T20:48:57.114687167+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -389,7 +425,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-05-11T14:55:17.90603881+03:00"
+    created: "2026-08-27T20:48:57.081745803+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -441,7 +477,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-05-11T14:55:17.872461624+03:00"
+    created: "2026-08-27T20:48:57.046710126+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -488,7 +524,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-05-11T14:55:17.838297894+03:00"
+    created: "2026-08-27T20:48:57.011673238+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -540,7 +576,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-05-11T14:55:17.808299641+03:00"
+    created: "2026-08-27T20:48:56.97529797+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -588,7 +624,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-05-11T14:55:17.77888739+03:00"
+    created: "2026-08-27T20:48:56.937721602+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -617,4 +653,4 @@ entries:
     urls:
     - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.1.tgz
     version: 0.0.1
-generated: "2026-05-11T14:55:17.755134235+03:00"
+generated: "2026-08-27T20:48:56.912368621+03:00"
