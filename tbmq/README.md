@@ -119,15 +119,15 @@ and `tag` to the PE values:
 tbmq:
   image:
     repository: thingsboard/tbmq-pe-node                  # was: thingsboard/tbmq-node
-    tag: 2.3.0PE                                          # was: 2.3.0
+    tag: 2.4.0PE                                          # was: 2.4.0
 
 tbmq-ie:
   image:
     repository: thingsboard/tbmq-pe-integration-executor  # was: thingsboard/tbmq-integration-executor
-    tag: 2.3.0PE                                          # was: 2.3.0
+    tag: 2.4.0PE                                          # was: 2.4.0
 ```
 
-PE tags match the chart `appVersion` with a `PE` suffix (e.g. `2.3.0` → `2.3.0PE`). The CE and PE
+PE tags match the chart `appVersion` with a `PE` suffix (e.g. `2.4.0` → `2.4.0PE`). The CE and PE
 image tags are **not** interchangeable. The canonical reference values for the current chart
 version are in [`values-pe.yaml`](values-pe.yaml).
 
@@ -537,7 +537,7 @@ license-server admin to clear stale instance bindings).
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
 | **Image**                               |                                                                                                                                                            |                                       |
 | tbmq.image.repository                   | Broker image repository. CE: `thingsboard/tbmq-node`. PE: `thingsboard/tbmq-pe-node`.                                                                      | thingsboard/tbmq-node                 |
-| tbmq.image.tag                          | Image tag. CE default tracks the chart `appVersion`. PE: `<appVersion>PE` (e.g. `2.3.0PE`).                                                                | 2.3.0                                 |
+| tbmq.image.tag                          | Image tag. CE default tracks the chart `appVersion`. PE: `<appVersion>PE` (e.g. `2.4.0PE`).                                                                | 2.4.0                                 |
 | tbmq.imagePullSecret                    | Pull secret name referenced by the broker StatefulSet, install Pod, and upgrade Job. Auto-created from `dockerAuth.username`/`password` if those are set; otherwise expected to exist in the namespace already. | regcred                               |
 | tbmq.imagePullPolicy                    | Image pull policy.                                                                                                                                         | Always                                |
 | **Scaling**                             |                                                                                                                                                            |                                       |
@@ -573,7 +573,7 @@ The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 | Parameter                       | Description                                                                                                                                                | Default                               |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
 | tbmq-ie.image.repository        | IE image. CE: `thingsboard/tbmq-integration-executor`. PE: `thingsboard/tbmq-pe-integration-executor`.                                                     | thingsboard/tbmq-integration-executor |
-| tbmq-ie.image.tag               | Image tag. CE default tracks the chart `appVersion`. PE: `<appVersion>PE` (e.g. `2.3.0PE`).                                                                | 2.3.0                                 |
+| tbmq-ie.image.tag               | Image tag. CE default tracks the chart `appVersion`. PE: `<appVersion>PE` (e.g. `2.4.0PE`).                                                                | 2.4.0                                 |
 | tbmq-ie.imagePullSecret         | Pull secret name referenced by the IE StatefulSet only — independent of `tbmq.imagePullSecret`. The chart auto-creates **only one** Secret (named after `tbmq.imagePullSecret`, when `dockerAuth.username` is set). If `tbmq-ie.imagePullSecret` differs, pre-create that Secret yourself. | regcred                               |
 | tbmq-ie.imagePullPolicy         | Image pull policy.                                                                                                                                          | Always                                |
 | tbmq-ie.statefulSet.replicas    | Number of IE pods.                                                                                                                                          | 2                                     |

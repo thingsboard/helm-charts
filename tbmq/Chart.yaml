@@ -1,9 +1,9 @@
 apiVersion: v2
-appVersion: 2.3.0
+appVersion: 2.4.0
 description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
-version: 2.0.0
+version: 2.1.0
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -14,40 +14,14 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
+    - kind: changed
+      description: "Bumped TBMQ to 2.4.0 (CE images: 2.4.0; PE images: 2.4.0PE). No chart value or ConfigMap changes are required — every key the chart sets is still supported by TBMQ 2.4.0, and the new 2.4.0 settings all have application defaults and can be tuned via tbmq.customEnv / tbmq-ie.customEnv."
+    - kind: changed
+      description: "Heads-up for TBMQ 2.4.0 upgrades: several Prometheus metrics and metric tags were renamed (sqlQueue, Kafka producer/consumer timers, clientSubscriptions). If you scrape the broker, update your queries and dashboards before upgrading — see the TBMQ 2.4.0 release notes at https://tbmq.io/docs/releases/."
     - kind: removed
       description: "Removed the dead REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED / REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC keys from the Redis cluster ConfigMap. TBMQ no longer ships the custom Jedis cluster topology refresher — Jedis rediscovers cluster topology reactively (renewSlotCache on MOVED redirects and connection failures), so the broker ignored these keys. The Lettuce topology-refresh tunables are unchanged."
-    - kind: fixed
-      description: "tbmq-ie StatefulSet no longer hardcodes TB_SERVICE_INTEGRATIONS_SUPPORTED=ALL and TB_SERVICE_INTEGRATIONS_EXCLUDED=NONE as container env: entries. Container env: takes precedence over envFrom: in Kubernetes, so the previous hardcoding silently shadowed any user override via tbmq-ie.customEnv — contradicting the chart's documented \"customEnv always wins\" override hierarchy. Application defaults (ALL, NONE) are preserved; users can now tune both vars via tbmq-ie.customEnv."
-    - kind: fixed
-      description: "Removed dead SECURITY_MQTT_BASIC_ENABLED entry from the default tbmq.customEnv map. TBMQ 2.3.0 manages MQTT auth providers (basic, SSL, JWT, HTTP) through the admin REST API, not env vars — the previous default had no effect on the running broker but suggested otherwise."
-    - kind: added
-      description: "Optional PVC for the broker /data directory (tbmq.persistence) — required for PE so the license instance-data file survives Pod recreation. Defaults to enabled, 1Gi, cluster default StorageClass, ReadWriteOnce. Set tbmq.persistence.enabled=false to keep the previous emptyDir behavior (safe for CE)."
     - kind: changed
-      description: "Bumped TBMQ to 2.3.0 (CE images: 2.3.0; PE images: 2.3.0PE)."
-    - kind: changed
-      description: "BREAKING: Removed all Bitnami subchart dependencies (PostgreSQL, Redis Cluster, Kafka). Infrastructure must now be deployed externally."
-    - kind: added
-      description: "Professional Edition (PE) support via values-pe.yaml overlay."
-    - kind: added
-      description: "PE license configuration (license.secret / license.existingSecret) — chart wires TBMQ_LICENSE_SECRET and TBMQ_LICENSE_INSTANCE_DATA_FILE on the broker StatefulSet only. The IE StatefulSet, install Pod, and pre-upgrade Job do not validate the license and remain license-free. CE deployments are unaffected."
-    - kind: added
-      description: "CE-to-PE upgrade path via upgrade.fromVersion=ce."
-    - kind: added
-      description: "Redis standalone connection mode (in addition to cluster mode)."
-    - kind: fixed
-      description: "Pod restart behavior: logback changes no longer trigger restart (hot-reloaded); Redis password changes now trigger restart (parity with PostgreSQL)."
-    - kind: fixed
-      description: "Install pod now applies tbmq.customEnv (parity with upgrade job)."
-    - kind: fixed
-      description: "Install pod and upgrade job now honor tbmq.imagePullSecret (no longer hardcoded to 'regcred')."
-    - kind: fixed
-      description: "validate-db init container now passes PGPORT (previously broken for non-default PostgreSQL ports)."
-    - kind: fixed
-      description: "regcred Secret only renders when dockerAuth.username is set (allows users to bring their own pre-created pull secret)."
-    - kind: fixed
-      description: "Default ConfigMaps no longer render when existingConfigMap is set (previously created unused ConfigMaps)."
-    - kind: fixed
-      description: "Post-install Pod hook-delete-policy changed from hook-succeeded,hook-failed to hook-succeeded,before-hook-creation — failed install Pods now persist for log inspection and are auto-cleaned on the next helm install/upgrade."
+      description: "Documentation links now point to the TBMQ site at https://tbmq.io/ (chart home URL and README references)."
 home: https://tbmq.io/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:

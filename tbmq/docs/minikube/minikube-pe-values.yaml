@@ -10,14 +10,14 @@ license:
 tbmq:
   image:
     repository: thingsboard/tbmq-pe-node
-    tag: 2.3.0PE
+    tag: 2.4.0PE
   statefulSet:
     replicas: 1
 
 tbmq-ie:
   image:
     repository: thingsboard/tbmq-pe-integration-executor
-    tag: 2.3.0PE
+    tag: 2.4.0PE
   statefulSet:
     replicas: 1
 

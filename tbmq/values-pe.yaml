@@ -32,12 +32,12 @@ tbmq:
   image:
     # PE node image. CE default is "thingsboard/tbmq-node".
     repository: thingsboard/tbmq-pe-node
-    # PE tag matches the chart appVersion with a "PE" suffix (e.g. 2.3.0 → 2.3.0PE).
-    tag: 2.3.0PE
+    # PE tag matches the chart appVersion with a "PE" suffix (e.g. 2.4.0 → 2.4.0PE).
+    tag: 2.4.0PE
 
 tbmq-ie:
   image:
     # PE integration executor image. CE default is "thingsboard/tbmq-integration-executor".
     repository: thingsboard/tbmq-pe-integration-executor
-    # PE tag matches the chart appVersion with a "PE" suffix (e.g. 2.3.0 → 2.3.0PE).
-    tag: 2.3.0PE
+    # PE tag matches the chart appVersion with a "PE" suffix (e.g. 2.4.0 → 2.4.0PE).
+    tag: 2.4.0PE
