@@ -3,7 +3,7 @@ appVersion: 2.4.0
 description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
-version: 2.1.0
+version: 2.1.1
 annotations:
   artifacthub.io/category: streaming-messaging
   artifacthub.io/license: Apache-2.0
@@ -14,14 +14,16 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
+    - kind: fixed
+      description: "Declared the chart license with the supported `artifacthub.io/license` annotation. The previous `licenses` key is not an Artifact Hub annotation, so the package page showed no license at all."
+    - kind: added
+      description: "The chart's own helper images are now configurable via `helperImages.toolbox` and `helperImages.busybox`. They were hardcoded in the templates, which made the chart unusable with a private registry or an air-gapped mirror."
     - kind: changed
-      description: "Bumped TBMQ to 2.4.0 (CE images: 2.4.0; PE images: 2.4.0PE). No chart value or ConfigMap changes are required — every key the chart sets is still supported by TBMQ 2.4.0, and the new 2.4.0 settings all have application defaults and can be tuned via tbmq.customEnv / tbmq-ie.customEnv."
-    - kind: changed
-      description: "Heads-up for TBMQ 2.4.0 upgrades: several Prometheus metrics and metric tags were renamed (sqlQueue, Kafka producer/consumer timers, clientSubscriptions). If you scrape the broker, update your queries and dashboards before upgrading — see the TBMQ 2.4.0 release notes at https://tbmq.io/docs/releases/."
-    - kind: removed
-      description: "Removed the dead REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED / REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC keys from the Redis cluster ConfigMap. TBMQ no longer ships the custom Jedis cluster topology refresher — Jedis rediscovers cluster topology reactively (renewSlotCache on MOVED redirects and connection failures), so the broker ignored these keys. The Lettuce topology-refresh tunables are unchanged."
-    - kind: changed
-      description: "Documentation links now point to the TBMQ site at https://tbmq.io/ (chart home URL and README references)."
+      description: "Bumped the helper images to current releases: thingsboard/toolbox 1.13.0 -> 1.29.0 and busybox 1.36 -> 1.37.0. Both are drop-in — the toolbox script contract (script-runner.sh / psql-validator.sh under WORKDIR /scripts) is unchanged."
+    - kind: fixed
+      description: "Corrected the Minikube guide's description of the install Pod delete policy: it is `hook-succeeded,before-hook-creation`, so a FAILED install Pod is retained for inspection and only removed before the next hook run."
+    - kind: added
+      description: "Minikube guide: added an MQTT smoke test. TBMQ 2.4.0 enables the MQTT_BASIC auth provider with no credentials, so a fresh deployment refuses every client with CONNECTION_REFUSED_NOT_AUTHORIZED until credentials are created."
 home: https://tbmq.io/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
