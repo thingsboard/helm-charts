@@ -6,7 +6,7 @@ type: application
 version: 2.1.0
 annotations:
   artifacthub.io/category: streaming-messaging
-  licenses: Apache-2.0
+  artifacthub.io/license: Apache-2.0
   artifacthub.io/maintainers: |
     - name: dshvaika
       email: dshvaika@thingsboard.io
