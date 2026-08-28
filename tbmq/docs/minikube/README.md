@@ -346,11 +346,25 @@ To opt out (CE only — see chart README "Persistence"), set `tbmq.persistence.e
 in `minikube-values.yaml`.
 
 > **Note on the install Pod:** the chart's post-install hook creates a one-shot
-> Pod named `tbmq-install-pod`. Helm deletes it as soon as it succeeds (or
-> fails) — `hook-delete-policy: hook-succeeded,hook-failed`. If you want to
-> watch its logs, run `kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker -f`
-> immediately after `helm install`, or use `helm install --debug` to stream
-> hook output to your terminal.
+> Pod named `tbmq-install-pod`. Its delete policy is
+> `hook-succeeded,before-hook-creation`, so Helm removes it as soon as it
+> **succeeds** — but a **failed** install Pod is deliberately kept so you can
+> inspect it, and is only cleaned up just before the next hook run. In other
+> words: if the install worked, the Pod is already gone; if it did not, run
+>
+> ```bash
+> kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker
+> kubectl describe pod tbmq-install-pod -n thingsboard-mqtt-broker
+> ```
+>
+> to see why. To watch a successful run as it happens, either follow the logs
+> right after `helm install`:
+>
+> ```bash
+> kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker -f
+> ```
+>
+> or use `helm install --debug` to stream hook output to your terminal.
 
 ### Access the TBMQ UI
 
@@ -383,6 +397,85 @@ LoadBalancer Service to get an external IP, run `minikube tunnel` in a
 separate terminal (it asks for sudo).
 
 Default credentials: `sysadmin@thingsboard.org` / `sysadmin`
+
+### Smoke-test MQTT
+
+Logging into the UI only proves the broker's HTTP port works. To confirm the broker
+actually accepts MQTT traffic, publish and subscribe through it.
+
+**TBMQ 2.4.0 refuses every MQTT client until you create credentials.** A fresh
+deployment enables the `MQTT_BASIC` authentication provider with an empty credential
+list (`X.509`, `JWT`, `SCRAM` and `HTTP` are disabled by default), so an
+unauthenticated client is rejected with:
+
+```
+Connection error: Connection Refused: not authorised.
+```
+
+and the broker logs:
+
+```
+Basic authentication failed: no credentials found matching clientId: <id>, username: null
+[<id>] Connection is not established due to: CONNECTION_REFUSED_NOT_AUTHORIZED
+```
+
+This is expected on a new deployment — it is not an installation failure. Create a
+client credential first.
+
+Port-forward the MQTT port, in a separate terminal from the 8083 forward in Option A:
+
+```bash
+kubectl port-forward svc/tbmq-tbmq-node 1883:1883 -n thingsboard-mqtt-broker
+```
+
+Log in to obtain a JWT, then create an `MQTT_BASIC` credential through the REST API:
+
+```bash
+TOKEN=$(curl -sS -X POST http://localhost:8083/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"sysadmin@thingsboard.org","password":"sysadmin"}' \
+  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+curl -sS -X POST http://localhost:8083/api/mqtt/client/credentials \
+  -H "X-Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "name": "minikube-smoke-test",
+        "credentialsType": "MQTT_BASIC",
+        "credentialsValue": "{\"clientId\":null,\"userName\":\"testuser\",\"password\":\"testpass\",\"authRules\":{\"pubAuthRulePatterns\":[\".*\"],\"subAuthRulePatterns\":[\".*\"]}}"
+      }'
+```
+
+A successful response echoes the new credential, including
+`"credentialsId":"username|testuser"`. Credentials can also be created from the TBMQ
+UI instead of the REST API. The `authRules` above permit every topic, which is fine
+for a smoke test but too broad for real use.
+
+Now publish and subscribe with the [mosquitto clients](https://mosquitto.org/download/):
+
+```bash
+# terminal 1 — subscribe
+mosquitto_sub -h localhost -p 1883 -u testuser -P testpass -t 'tbmq/demo/#' -v -q 1
+```
+
+```bash
+# terminal 2 — publish
+mosquitto_pub -h localhost -p 1883 -u testuser -P testpass -t 'tbmq/demo/hello' -m 'hello from minikube' -q 1
+```
+
+The subscriber prints:
+
+```
+tbmq/demo/hello hello from minikube
+```
+
+That is the end-to-end check: the broker authenticated both clients, routed the
+message through Kafka, and delivered it. A healthy broker also logs no errors:
+
+```bash
+kubectl logs tbmq-tbmq-node-0 -n thingsboard-mqtt-broker | grep ' ERROR '
+# Expected: no output
+```
 
 ---
 
