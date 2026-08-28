@@ -23,7 +23,7 @@ annotations:
     - kind: fixed
       description: "Corrected the Minikube guide's description of the install Pod delete policy: it is `hook-succeeded,before-hook-creation`, so a FAILED install Pod is retained for inspection and only removed before the next hook run."
     - kind: added
-      description: "Minikube guide: added an MQTT smoke test. TBMQ 2.4.0 enables the MQTT_BASIC auth provider with no credentials, so a fresh deployment refuses every client with CONNECTION_REFUSED_NOT_AUTHORIZED until credentials are created."
+      description: "Minikube guide: added an MQTT smoke test. It uses the built-in tbmq_websockets_username credential (created at install, no password), and explains that MQTT_BASIC is the only auth provider enabled by default, so a client sending no username at all is rejected with CONNECTION_REFUSED_NOT_AUTHORIZED."
 home: https://tbmq.io/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:

@@ -403,10 +403,14 @@ Default credentials: `sysadmin@thingsboard.org` / `sysadmin`
 Logging into the UI only proves the broker's HTTP port works. To confirm the broker
 actually accepts MQTT traffic, publish and subscribe through it.
 
-**TBMQ 2.4.0 refuses every MQTT client until you create credentials.** A fresh
-deployment enables the `MQTT_BASIC` authentication provider with an empty credential
-list (`X.509`, `JWT`, `SCRAM` and `HTTP` are disabled by default), so an
-unauthenticated client is rejected with:
+TBMQ creates one MQTT credential at install time: **`tbmq_websockets_username`**,
+named "TBMQ WebSockets MQTT Credentials" and used by the WebSocket client built into
+the UI. It has **no password**, so you can smoke-test with it directly — no setup
+needed.
+
+MQTT clients do still have to send *a* username. `MQTT_BASIC` is the only
+authentication provider enabled by default (`X.509`, `JWT`, `SCRAM` and `HTTP` are
+off), so a client that connects with no credentials at all is rejected:
 
 ```
 Connection error: Connection Refused: not authorised.
@@ -419,8 +423,7 @@ Basic authentication failed: no credentials found matching clientId: <id>, usern
 [<id>] Connection is not established due to: CONNECTION_REFUSED_NOT_AUTHORIZED
 ```
 
-This is expected on a new deployment — it is not an installation failure. Create a
-client credential first.
+If you see that, the deployment is fine — the client just needs a username.
 
 Port-forward the MQTT port, in a separate terminal from the 8083 forward in Option A:
 
@@ -428,7 +431,42 @@ Port-forward the MQTT port, in a separate terminal from the 8083 forward in Opti
 kubectl port-forward svc/tbmq-tbmq-node 1883:1883 -n thingsboard-mqtt-broker
 ```
 
-Log in to obtain a JWT, then create an `MQTT_BASIC` credential through the REST API:
+Then publish and subscribe with the [mosquitto clients](https://mosquitto.org/download/),
+passing the built-in username and no password:
+
+```bash
+# terminal 1 — subscribe
+mosquitto_sub -h localhost -p 1883 -u tbmq_websockets_username -t 'tbmq/demo/#' -v -q 1
+```
+
+```bash
+# terminal 2 — publish
+mosquitto_pub -h localhost -p 1883 -u tbmq_websockets_username -t 'tbmq/demo/hello' -m 'hello from minikube' -q 1
+```
+
+The subscriber prints:
+
+```
+tbmq/demo/hello hello from minikube
+```
+
+If you have since changed the `TBMQ WebSockets MQTT Credentials` — for example set a
+password on it — add `-P <password>` to both commands. This is the same credential
+TBMQ's own "Getting started" guides use, so the snippets there apply here too.
+
+That is the end-to-end check: the broker authenticated both clients, routed the
+message through Kafka, and delivered it. A healthy broker also logs no errors:
+
+```bash
+kubectl logs tbmq-tbmq-node-0 -n thingsboard-mqtt-broker | grep ' ERROR '
+# Expected: no output
+```
+
+#### Optional: create your own credentials
+
+The built-in credential is meant for the UI's WebSocket client. To test with a
+credential of your own — for example to exercise a password or narrower topic
+rules — create one from the UI, or over the REST API:
 
 ```bash
 TOKEN=$(curl -sS -X POST http://localhost:8083/api/auth/login \
@@ -447,35 +485,9 @@ curl -sS -X POST http://localhost:8083/api/mqtt/client/credentials \
 ```
 
 A successful response echoes the new credential, including
-`"credentialsId":"username|testuser"`. Credentials can also be created from the TBMQ
-UI instead of the REST API. The `authRules` above permit every topic, which is fine
-for a smoke test but too broad for real use.
-
-Now publish and subscribe with the [mosquitto clients](https://mosquitto.org/download/):
-
-```bash
-# terminal 1 — subscribe
-mosquitto_sub -h localhost -p 1883 -u testuser -P testpass -t 'tbmq/demo/#' -v -q 1
-```
-
-```bash
-# terminal 2 — publish
-mosquitto_pub -h localhost -p 1883 -u testuser -P testpass -t 'tbmq/demo/hello' -m 'hello from minikube' -q 1
-```
-
-The subscriber prints:
-
-```
-tbmq/demo/hello hello from minikube
-```
-
-That is the end-to-end check: the broker authenticated both clients, routed the
-message through Kafka, and delivered it. A healthy broker also logs no errors:
-
-```bash
-kubectl logs tbmq-tbmq-node-0 -n thingsboard-mqtt-broker | grep ' ERROR '
-# Expected: no output
-```
+`"credentialsId":"username|testuser"`. Then use `-u testuser -P testpass` in the
+commands above. The `authRules` here permit every topic, which is fine for a smoke
+test but too broad for real use.
 
 ---
 
