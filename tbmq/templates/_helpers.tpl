@@ -10,6 +10,20 @@
 {{- printf "%s:%s" $repository $appversion }}
 {{- end }}
 
+{{/*Return the toolbox helper image used by the validate-db init container*/}}
+{{- define "tbmq.toolbox.image" -}}
+{{- $repository := .Values.helperImages.toolbox.repository | default "thingsboard/toolbox" }}
+{{- $tag := .Values.helperImages.toolbox.tag | default "1.29.0" }}
+{{- printf "%s:%s" $repository $tag }}
+{{- end }}
+
+{{/*Return the busybox helper image used by the wait-for-postgres init containers*/}}
+{{- define "tbmq.busybox.image" -}}
+{{- $repository := .Values.helperImages.busybox.repository | default "busybox" }}
+{{- $tag := .Values.helperImages.busybox.tag | default "1.37.0" }}
+{{- printf "%s:%s" $repository $tag }}
+{{- end }}
+
 {{/*Return tbmq config map name*/}}
 {{- define "tbmq.configMapName" -}}
 {{- if .Values.tbmq.existingConfigMap -}}
@@ -227,7 +241,7 @@ license-key
 {{- define "tbmq.initcontainers" }}
 {{- $query := index . "pg_query" | default "Select count(*) from tb_schema_settings;" }}
 - name: validate-db
-  image: thingsboard/toolbox:1.13.0
+  image: {{ include "tbmq.toolbox.image" . }}
   env:
     - name: RETRY_COUNT
       value: "5"

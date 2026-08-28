@@ -28,7 +28,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.36
+          image: {{ include "tbmq.busybox.image" . }}
           command: [ 'sh', '-c', 'until nc -z {{ include "tbmq.postgres.host" . }} {{ include "tbmq.postgres.port" . }}; do echo waiting for postgres; sleep 2; done' ]
       containers:
         - name: {{ $releaseName }}-db-upgrade
