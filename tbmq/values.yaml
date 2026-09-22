@@ -577,6 +577,12 @@ loadbalancer:
       #   -o yaml --dry-run=client | kubectl apply -f -
       #
       configMapName: "tbmq-node-mqtts-config"
+      # Optional: Use an existing Secret instead of the ConfigMap above to provide the server certificate
+      # and private key. If set, this takes precedence over `configMapName`. The Secret must contain the
+      # same keys as the ConfigMap:
+      # - `server.pem`: The server certificate.
+      # - `mqttserver_key.pem`: The private key.
+      existingSecretName: ""
       # Optional: Use an existing Secret to provide the private key password.
       # The Secret must contain a key that matches the value of `privateKeyPasswordSecretKey`.
       # By default, named as `key_password`, but this can be overridden.
