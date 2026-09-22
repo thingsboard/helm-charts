@@ -36,6 +36,9 @@ spec:
       labels:
         app: {{ include "tbmq.node.label" . }}
     spec:
+      {{- if .Values.tbmq.priorityClassName }}
+      priorityClassName: {{ .Values.tbmq.priorityClassName }}
+      {{- end }}
       nodeSelector:
         {{- .Values.tbmq.nodeSelector | toYaml | nindent 8 }}
       affinity:

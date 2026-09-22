@@ -133,6 +133,10 @@ tbmq:
   #            - antarctica-west1
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
   affinity: { }
+  # Priority class name for pod scheduling. If set, the named PriorityClass must exist in the cluster.
+  # Higher priority pods can preempt lower priority pods when the cluster is under resource pressure.
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/ for more details.
+  priorityClassName: ""
   # Custom environment variables that are always applied, regardless of configuration source.
   # These variables will be appended to the container environment and will override any conflicting
   # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
@@ -333,6 +337,10 @@ tbmq-ie:
   #            - antarctica-west1
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
   affinity: { }
+  # Priority class name for pod scheduling. If set, the named PriorityClass must exist in the cluster.
+  # Higher priority pods can preempt lower priority pods when the cluster is under resource pressure.
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/ for more details.
+  priorityClassName: ""
   # Custom environment variables that are always applied, regardless of configuration source.
   # These variables will be appended to the container environment and will override any conflicting
   # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
