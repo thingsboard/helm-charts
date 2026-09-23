@@ -133,6 +133,10 @@ tbmq:
   #            - antarctica-west1
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
   affinity: { }
+  # Priority class name for pod scheduling. If set, the named PriorityClass must exist in the cluster.
+  # Higher priority pods can preempt lower priority pods when the cluster is under resource pressure.
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/ for more details.
+  priorityClassName: ""
   # Custom environment variables that are always applied, regardless of configuration source.
   # These variables will be appended to the container environment and will override any conflicting
   # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
@@ -333,6 +337,10 @@ tbmq-ie:
   #            - antarctica-west1
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ for more details.
   affinity: { }
+  # Priority class name for pod scheduling. If set, the named PriorityClass must exist in the cluster.
+  # Higher priority pods can preempt lower priority pods when the cluster is under resource pressure.
+  # See https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/ for more details.
+  priorityClassName: ""
   # Custom environment variables that are always applied, regardless of configuration source.
   # These variables will be appended to the container environment and will override any conflicting
   # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
@@ -569,6 +577,12 @@ loadbalancer:
       #   -o yaml --dry-run=client | kubectl apply -f -
       #
       configMapName: "tbmq-node-mqtts-config"
+      # Optional: Use an existing Secret instead of the ConfigMap above to provide the server certificate
+      # and private key. If set, this takes precedence over `configMapName`. The Secret must contain the
+      # same keys as the ConfigMap:
+      # - `server.pem`: The server certificate.
+      # - `mqttserver_key.pem`: The private key.
+      existingSecretName: ""
       # Optional: Use an existing Secret to provide the private key password.
       # The Secret must contain a key that matches the value of `privateKeyPasswordSecretKey`.
       # By default, named as `key_password`, but this can be overridden.
