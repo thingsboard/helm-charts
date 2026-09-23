@@ -351,10 +351,12 @@ first client.
   `postgres-password`).
 - **`database "thingsboard_mqtt_broker" does not exist`** → create the database first; the chart
   only creates the schema.
-- **`helm install` fails with `post-install hooks failed` … `pod my-tbmq-install-pod failed`, or
-  with `timed out waiting for the condition`** → the install hook did not succeed. The first error
-  means the Pod reached `installation.activeDeadlineSeconds` (`kubectl describe pod` shows
-  `DeadlineExceeded`); the second means Helm's `--timeout` (default 5m) ran out first. Read the
+- **`helm install` fails with `INSTALLATION FAILED: failed post-install: … pod my-tbmq-install-pod failed`,
+  or `failed post-install: timed out waiting for the condition`** → the install hook did not
+  succeed. The first error means the Pod reached `installation.activeDeadlineSeconds`
+  (`kubectl describe pod` shows `DeadlineExceeded`); the second means Helm's `--timeout`
+  (default 5m) ran out first. The same Pod failing during a `helm upgrade` (the forgotten-flag
+  recovery below) shows up as `post-upgrade hooks failed`. Read the
   install Pod logs to see why, fix the cause, then `helm uninstall my-tbmq -n <namespace>` and run
   the Step 3 install command again.
 - **Broker pods stuck in `Init:0/1` (`validate-db`)** → the schema was never created. Check that
@@ -824,8 +826,9 @@ the install Pod and upgrade Job to ArgoCD hooks:
   upgrade, so the Job renders whenever `upgrade.upgradeDbSchema: true`. Set it together with the
   image tag change that bumps the TBMQ version, then remove it after that sync. Leaving it set
   makes the next sync fail with `database already upgraded to current version`. **Never set it
-  on the first sync:** the PreSync Job needs ConfigMaps and Secrets that the Sync phase has not
-  created yet, so its Pod waits in `CreateContainerConfigError` until
+  on the first sync:** the PreSync Job mounts ConfigMaps that the Sync phase has not created yet,
+  so its Pod sits in `Init:0/1` with `FailedMount … configmap … not found` events in
+  `kubectl describe pod` (not a PostgreSQL problem, despite the same `Init:0/1` status) until
   `upgrade.activeDeadlineSeconds` runs out. To scale down
   before the migration as in the [Standard Upgrade Procedure](#standard-upgrade-procedure),
   disable auto-sync self-heal first so ArgoCD doesn't scale the StatefulSets back up.
