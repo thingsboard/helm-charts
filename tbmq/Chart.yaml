@@ -3,7 +3,7 @@ appVersion: 2.4.0
 description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
-version: 2.1.0
+version: 2.2.0
 annotations:
   artifacthub.io/category: streaming-messaging
   licenses: Apache-2.0
@@ -14,14 +14,10 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
-    - kind: changed
-      description: "Bumped TBMQ to 2.4.0 (CE images: 2.4.0; PE images: 2.4.0PE). No chart value or ConfigMap changes are required — every key the chart sets is still supported by TBMQ 2.4.0, and the new 2.4.0 settings all have application defaults and can be tuned via tbmq.customEnv / tbmq-ie.customEnv."
-    - kind: changed
-      description: "Heads-up for TBMQ 2.4.0 upgrades: several Prometheus metrics and metric tags were renamed (sqlQueue, Kafka producer/consumer timers, clientSubscriptions). If you scrape the broker, update your queries and dashboards before upgrading — see the TBMQ 2.4.0 release notes at https://tbmq.io/docs/releases/."
-    - kind: removed
-      description: "Removed the dead REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_ENABLED / REDIS_JEDIS_CLUSTER_TOPOLOGY_REFRESH_PERIOD_SEC keys from the Redis cluster ConfigMap. TBMQ no longer ships the custom Jedis cluster topology refresher — Jedis rediscovers cluster topology reactively (renewSlotCache on MOVED redirects and connection failures), so the broker ignored these keys. The Lettuce topology-refresh tunables are unchanged."
-    - kind: changed
-      description: "Documentation links now point to the TBMQ site at https://tbmq.io/ (chart home URL and README references)."
+    - kind: added
+      description: "tbmq.priorityClassName and tbmq-ie.priorityClassName set a PriorityClass on the broker and Integration Executor StatefulSets (optional, unset by default)."
+    - kind: added
+      description: "loadbalancer.mqtt.mutualTls.existingSecretName loads the MQTT TLS server certificate and private key (server.pem, mqttserver_key.pem) from an existing Secret instead of a ConfigMap. When set, it takes precedence over configMapName."
 home: https://tbmq.io/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
