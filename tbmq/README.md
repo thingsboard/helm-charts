@@ -752,6 +752,16 @@ To enable application-level mTLS for the MQTT listener:
      -o yaml --dry-run=client | kubectl apply -f -
    ```
 
+   Alternatively, store them in a Secret (recommended, since it holds a private key) and reference it
+   via `existingSecretName` in step 3. The Secret must use the same keys, `server.pem` and `mqttserver_key.pem`:
+
+   ```bash
+   kubectl create secret generic tbmq-node-mqtts-config \
+     --from-file=server.pem=/path/to/server.pem \
+     --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
+     -o yaml --dry-run=client | kubectl apply -f -
+   ```
+
 2. (Optional) If the private key is password-protected, create a Secret:
 
    ```bash
@@ -769,6 +779,7 @@ To enable application-level mTLS for the MQTT listener:
        mutualTls:
          enabled: true
          configMapName: "tbmq-node-mqtts-config"
+         # existingSecretName: "tbmq-node-mqtts-config"  # use instead of configMapName; takes precedence when set
          privateKeyPasswordSecret: "mqtt-tls-secret"      # omit if not needed
          privateKeyPasswordSecretKey: "key_password"      # omit if not needed
    ```
