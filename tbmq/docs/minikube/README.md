@@ -84,15 +84,18 @@ spec:
 EOF
 ```
 
-Wait for the cluster to be ready. PGO may take a few seconds to create the Pods after the
+Wait for the database Pod to be ready. PGO may take a few seconds to create it after the
 manifest is applied, and `kubectl wait` errors out with `no matching resources found` if it
-fires before any matching Pods exist — so wait for the Pods to appear first, then wait for
-them to be Ready:
+fires before any matching Pod exists — so wait for the Pod to appear first, then wait for it
+to be Ready. The `data=postgres` label selects only the PostgreSQL instance Pod: PGO also
+starts a one-off backup Job Pod for the cluster, which ends as `Completed` (never `Ready`) and
+would make the wait time out.
 
 ```bash
-until kubectl get pod -l postgres-operator.crunchydata.com/cluster=tbmq-db \
+until kubectl get pod -l postgres-operator.crunchydata.com/cluster=tbmq-db,postgres-operator.crunchydata.com/data=postgres \
         -n thingsboard-mqtt-broker 2>/dev/null | grep -q tbmq-db; do sleep 3; done
-kubectl wait --for=condition=Ready pod -l postgres-operator.crunchydata.com/cluster=tbmq-db \
+kubectl wait --for=condition=Ready pod \
+  -l postgres-operator.crunchydata.com/cluster=tbmq-db,postgres-operator.crunchydata.com/data=postgres \
   -n thingsboard-mqtt-broker --timeout=300s
 ```
 
@@ -257,9 +260,10 @@ kubectl get svc valkey -n thingsboard-mqtt-broker
 
 ## Step 4: Deploy TBMQ
 
-### Create a values file
+### The values file
 
-Create `minikube-values.yaml`:
+This guide's directory ships `minikube-values.yaml`, pointing the chart at the services from
+Steps 1–3:
 
 ```yaml
 tbmq:
@@ -334,6 +338,12 @@ kubectl wait --for=condition=Ready pod/tbmq-tbmq-ie-0 \
 kubectl get pods -n thingsboard-mqtt-broker
 ```
 
+The broker may show `RESTARTS 1` (occasionally 2) after its very first start: it creates its
+Kafka topics on that start and can use them before Kafka has them ready, logging
+`Failed to initialize broker` with `UNKNOWN_TOPIC_OR_PARTITION` / `GroupIdNotFoundException`
+(see `kubectl logs tbmq-tbmq-node-0 -n thingsboard-mqtt-broker --previous`). It comes up on the
+next start; nothing to fix.
+
 The broker StatefulSet now provisions a 1Gi PVC per Pod for `/data`. On Minikube the
 default `storage-provisioner` addon satisfies it automatically:
 
@@ -354,11 +364,14 @@ in `minikube-values.yaml`.
 > `restartPolicy: OnFailure`, so the kubelet restarts the install container in
 > the same Pod: it goes into `CrashLoopBackOff` and keeps re-running the install
 > against the database until `installation.activeDeadlineSeconds` passes, then
-> the Pod is marked `Failed` and left in place. Plain `kubectl logs` may show a
-> new attempt that is still running, so read the attempt that failed with
-> `--previous`:
+> the Pod is marked `Failed` (`DeadlineExceeded`) and left in place. Read the
+> logs while it is still retrying: between attempts plain `kubectl logs` shows
+> the failed attempt, and once the next attempt has started `--previous` shows
+> it. The attempt running at the deadline is killed mid-run, so its log may not
+> show the cause.
 >
 > ```bash
+> kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker
 > kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker --previous
 > kubectl describe pod tbmq-install-pod -n thingsboard-mqtt-broker
 > ```
@@ -471,6 +484,10 @@ kubectl logs tbmq-tbmq-node-0 -n thingsboard-mqtt-broker | grep ' ERROR '
 # Expected: no output
 ```
 
+One exception is harmless: `TBMQReleaseService - Failed to get the latest release version`
+only means the broker's update check could not reach GitHub (no internet access, or GitHub's
+API rate limit).
+
 #### Optional: create your own credentials
 
 The built-in credential is meant for the UI's WebSocket client. To test with a
@@ -533,6 +550,16 @@ same Postgres / Kafka / Valkey services you deployed in Steps 1–3.
 
 ### 5.3 Run the helm upgrade
 
+Scale the broker and Integration Executor to 0 so nothing uses the database while it migrates
+(Helm scales them back up as part of the upgrade):
+
+```bash
+kubectl scale statefulset/tbmq-tbmq-node --replicas=0 -n thingsboard-mqtt-broker
+kubectl scale statefulset/tbmq-tbmq-ie --replicas=0 -n thingsboard-mqtt-broker
+```
+
+Then run the upgrade from this guide's directory (`tbmq/docs/minikube`):
+
 ```bash
 helm upgrade tbmq ../../ -f minikube-pe-values.yaml \
   --set upgrade.upgradeDbSchema=true \
@@ -547,7 +574,7 @@ What happens:
   `-Dinstall.upgrade.from_version=ce` to the install application, which switches
   the migration into CE→PE mode and rewrites the CE schema as PE.
 - Once the migration succeeds, Helm rolls the **`tbmq-tbmq-node`** and
-  **`tbmq-tbmq-ie`** StatefulSets onto the PE images. The broker validates the
+  **`tbmq-tbmq-ie`** StatefulSets onto the PE images and scales them back to 1. The broker validates the
   license on startup (the IE and the upgrade Job do not validate the license).
 - The broker writes a per-Pod license cache file under
   `/data/tbmq-instance-license-$(TB_SERVICE_ID).data`.
@@ -555,11 +582,9 @@ What happens:
 ### 5.4 Verify
 
 ```bash
-# Wait for the broker pod to come back Ready on the PE image
-kubectl wait --for=condition=Ready pod/tbmq-tbmq-node-0 \
-  -n thingsboard-mqtt-broker --timeout=300s
-kubectl wait --for=condition=Ready pod/tbmq-tbmq-ie-0 \
-  -n thingsboard-mqtt-broker --timeout=300s
+# Wait for the broker and IE to come back Ready on the PE images
+kubectl rollout status statefulset/tbmq-tbmq-node -n thingsboard-mqtt-broker --timeout=300s
+kubectl rollout status statefulset/tbmq-tbmq-ie -n thingsboard-mqtt-broker --timeout=300s
 
 # Image should now be the PE one
 kubectl get pod tbmq-tbmq-node-0 -n thingsboard-mqtt-broker \
@@ -572,13 +597,31 @@ PG_POD=$(kubectl get pod -n thingsboard-mqtt-broker \
 kubectl exec -n thingsboard-mqtt-broker "$PG_POD" -c database -- \
   psql -U postgres -d thingsboard_mqtt_broker -c "SELECT * FROM tb_schema_settings;"
 # expected: product = PE
+
+# The broker activated the license and cached its instance under /data
+kubectl logs tbmq-tbmq-node-0 -n thingsboard-mqtt-broker | grep 'Initialized ThingsBoard License Client'
+kubectl exec tbmq-tbmq-node-0 -n thingsboard-mqtt-broker -c server -- ls /data
+# expected: tbmq-instance-license-tbmq-tbmq-node-0.data
+```
+
+If the broker keeps restarting instead, its log names the license error — for example
+`License Error: SUBSCRIPTION_NOT_ACTIVE(103)` when the license's subscription is not active.
+Fix the key in the `tbmq-license` Secret, then restart the broker so it reads the new value:
+
+```bash
+kubectl create secret generic tbmq-license \
+  --from-literal=license-key=YOUR_LICENSE_KEY \
+  -n thingsboard-mqtt-broker --dry-run=client -o yaml | kubectl apply -f -
+kubectl rollout restart statefulset/tbmq-tbmq-node -n thingsboard-mqtt-broker
 ```
 
 ### 5.5 After the migration succeeds
 
-**Drop `upgrade.fromVersion=ce`** on subsequent PE→PE upgrades — leaving it set
-would cause the upgrade Job to attempt the CE→PE migration against an already-PE
-schema and fail. The flag is single-use for the cross-edition migration.
+**Drop `upgrade.fromVersion=ce`** on subsequent PE→PE upgrades. With it left set, the
+upgrade Job repeats the CE→PE migration instead of migrating to the new TBMQ version, and
+fails with `Upgrade failed: transitioning from CE to PE requires the database to first be
+upgraded to version '<version>' using TBMQ CE`. The flag is single-use for the cross-edition
+migration.
 
 > If you only want to do a fresh PE install (no CE→PE migration), use
 > `minikube-pe-values.yaml` directly with `helm install` instead — same way as the

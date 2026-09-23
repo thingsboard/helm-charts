@@ -108,7 +108,7 @@ The connection settings for PostgreSQL, Kafka, and Redis are described below.
 | postgresql.database                    | Database name. Must exist before install (the chart creates the schema, not the database).  | "thingsboard_mqtt_broker" |
 | postgresql.username                    | PostgreSQL username.                                                                         | "postgres"                |
 | postgresql.password                    | PostgreSQL password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.   | ""                        |
-| postgresql.existingSecret              | Name of an existing Secret holding the password. Recommended for production.                | ""                        |
+| postgresql.existingSecret              | Name of an existing Secret, in the release namespace, holding the password. Recommended for production. | ""                        |
 | postgresql.existingSecretPasswordKey   | Key inside `existingSecret` that holds the password. Falls back to `postgres-password` if left empty. | ""                        |
 
 ```yaml
@@ -145,7 +145,7 @@ works. Two connection modes are supported.
 | redis.nodes                     | Comma-separated `host:port` list for `cluster` mode.                                                     | ""         |
 | redis.usePassword               | Whether the cache requires password authentication.                                                      | true       |
 | redis.password                  | Password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.                          | ""         |
-| redis.existingSecret            | Name of an existing Secret holding the password.                                                         | ""         |
+| redis.existingSecret            | Name of an existing Secret, in the release namespace, holding the password.                              | ""         |
 | redis.existingSecretPasswordKey | Key inside `existingSecret` that holds the password. Falls back to `redis-password` if left empty.       | ""         |
 
 **Cluster mode:**
@@ -230,7 +230,9 @@ Why this is the recommended path:
 - Composes with sealed-secrets, External Secrets Operator, SOPS, Vault, or any other tool that
   produces a Kubernetes Secret in the release's namespace — point `existingSecret` at the name
   it produces and the chart picks it up unchanged.
-- Rotating the license is `kubectl edit secret` — no `helm upgrade` round-trip.
+- Rotating the license is `kubectl edit secret` plus a broker restart
+  (`kubectl rollout restart statefulset/<release>-tbmq-node -n <namespace>`) — no `helm upgrade`
+  round-trip. The broker reads the Secret only when its container starts.
 - The Secret survives `helm uninstall`, so reinstalling the release does not require re-pasting
   the license value.
 
@@ -296,12 +298,15 @@ The `my-tbmq-tbmq-ie-*` pods have no PostgreSQL dependency and may already be `R
 the install pod completes.
 
 ```bash
-# While the pod runs:
+# Follow the install while it runs:
 kubectl logs my-tbmq-install-pod -n <namespace> -f
-
-# If the container crashed and was restarted (restartPolicy: OnFailure):
-kubectl logs my-tbmq-install-pod -n <namespace> --previous
 ```
+
+If an attempt fails, read the logs while the Pod is still retrying. Between attempts, plain
+`kubectl logs my-tbmq-install-pod -n <namespace>` shows the failed attempt; once the next attempt
+has started, add `--previous` to see the failed one. Don't wait for the deadline: the attempt
+running when `installation.activeDeadlineSeconds` passes is killed mid-run, so the log left
+behind may not show the cause.
 
 If something goes wrong, see [Troubleshooting the Install](#troubleshooting-the-install).
 
@@ -357,14 +362,20 @@ first client.
   succeed. The first error means the Pod reached `installation.activeDeadlineSeconds`
   (`kubectl describe pod` shows `DeadlineExceeded`); the second means Helm's `--timeout`
   (default 5m) ran out first. The same Pod failing during a `helm upgrade` (the forgotten-flag
-  recovery below) shows up as `post-upgrade hooks failed`. Read the
-  install Pod logs to see why, fix the cause, then `helm uninstall my-tbmq -n <namespace>` and run
-  the Step 3 install command again.
+  recovery below) shows up as `post-upgrade hooks failed`. Find the cause in the causes above
+  (see [Step 4](#step-4-verify-the-install) for reading the logs), fix it, then
+  `helm uninstall my-tbmq -n <namespace>` and run the Step 3 install command again. `helm uninstall`
+  leaves the failed install Pod in place; the next install replaces it.
 - **Broker pods stuck in `Init:0/1` (`validate-db`)** → the schema was never created. Check that
   you passed `--set installation.installDbSchema=true` and that the install Pod succeeded. If you
   forgot the flag, run it through an upgrade (the install hook is also bound to `post-upgrade` for
   this recovery):
   `helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -n <namespace> -f values.yaml --set installation.installDbSchema=true`
+- **Broker Pod restarts once or twice right after the first install**, and
+  `kubectl logs <broker-pod> -n <namespace> --previous` shows `Failed to initialize broker` with
+  `UNKNOWN_TOPIC_OR_PARTITION` / `GroupIdNotFoundException` → the broker creates its Kafka topics
+  on first start and can use them before Kafka has them ready. It recovers on the next restart; no
+  action needed.
 
 ## Updating Configuration
 
@@ -514,16 +525,17 @@ What happens during this upgrade:
   needed.
 
 After the migration succeeds, **do not** carry `upgrade.fromVersion=ce` forward to subsequent
-PE → PE upgrades — drop the flag (or set it to `""`) on the next `helm upgrade`. Leaving it on
-will cause the upgrade Job to attempt a CE→PE migration against an already-PE database on every
-release, which will fail.
+PE → PE upgrades — drop the flag (or set it to `""`) on the next `helm upgrade`. With the flag
+left on, the upgrade Job repeats the CE → PE migration instead of migrating to the new TBMQ
+version, and fails (see [Troubleshooting Upgrades](#troubleshooting-upgrades)).
 
 ### Troubleshooting Upgrades
 
 The pre-upgrade migration Job spawns a Pod named `my-tbmq-upgrade-<revision>-<random>`. The Job
 itself has `ttlSecondsAfterFinished: 300`, so both Job and Pod are deleted 5 minutes after the
-migration finishes — successful or not. Watch logs while the Job runs, or capture them quickly
-once it terminates:
+migration finishes — successful or not. A Job that reaches `upgrade.activeDeadlineSeconds` loses
+its Pods (and their logs) at once. Watch logs while the Job runs, or capture them quickly once it
+terminates:
 
 ```bash
 kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
@@ -541,8 +553,8 @@ Common causes:
   PostgreSQL is unreachable. The init container echoes `waiting for postgres` between retries; an
   unresolvable host also logs `nc: bad address '<host>'`, while a refused or timed-out connection
   logs nothing else. The Job stops when `upgrade.activeDeadlineSeconds` passes (or Helm gives up
-  first after `--timeout`, if you raised the limit above it). Check `postgresql.host`/`postgresql.port` and that the
-  DB is reachable from the TBMQ namespace.
+  first after `--timeout`, if you raised the limit above it). Check
+  `postgresql.host`/`postgresql.port` and that the DB is reachable from the TBMQ namespace.
 - **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
   the expected key.
 - **`helm upgrade` fails with `timed out waiting for the condition`** → the migration did not
@@ -550,14 +562,18 @@ Common causes:
   this happens only when `upgrade.activeDeadlineSeconds` was raised above `--timeout`. The release
   is marked `failed` and the StatefulSets are not updated (they stay at 0 if you scaled down), but
   **the migration Job keeps running** in the cluster until it finishes or reaches
-  `upgrade.activeDeadlineSeconds`. Follow its logs. If it succeeded, re-run the same `helm upgrade` **without** `upgrade.upgradeDbSchema=true`. If it
-  failed or hit the deadline, fix the cause (e.g. more resources, `VACUUM`/`ANALYZE` first, a
+  `upgrade.activeDeadlineSeconds`. Follow its logs. If it succeeded, re-run the same
+  `helm upgrade` **without** `upgrade.upgradeDbSchema=true`. If it failed or hit the deadline, fix
+  the cause (e.g. more resources, `VACUUM`/`ANALYZE` first, a
   higher `upgrade.activeDeadlineSeconds`) and re-run with the flag and a longer `--timeout`.
 - **`helm upgrade` fails with `pre-upgrade hooks failed` … `job my-tbmq-upgrade-<revision> failed`**
-  → the migration Job itself failed: `DeadlineExceeded` means it reached
-  `upgrade.activeDeadlineSeconds`, `BackoffLimitExceeded` means all attempts failed. The release is
-  marked `failed` and the StatefulSets are not updated. Read the attempts' logs (see above) before
-  the Job is TTL-reaped, fix the cause, and re-run the upgrade with the flag.
+  → the migration Job itself failed. The release is marked `failed` and the StatefulSets are not
+  updated. `BackoffLimitExceeded` means all attempts failed: read the attempts' logs (see above)
+  before the Job is TTL-reaped. `DeadlineExceeded` means it reached
+  `upgrade.activeDeadlineSeconds`: Kubernetes has already deleted its Pods, so
+  `kubectl describe job my-tbmq-upgrade-<revision> -n <namespace>` is all that is left — most
+  often the Pod never got past `wait-for-postgres` (see the first cause). Fix the cause and re-run
+  the upgrade with the flag, following the logs this time.
 - **`Upgrade failed: database already upgraded to current version`** → `upgrade.upgradeDbSchema=true`
   was set on an upgrade that doesn't change the TBMQ version (and isn't the CE → PE migration), so
   there is nothing to migrate. The Job exits before touching the schema. Re-run the same
@@ -565,8 +581,12 @@ Common causes:
   declared replicas.
 - **CE → PE migration failed** → confirm `upgrade.fromVersion=ce` was set AND that the PE image is
   in use (check the upgrade Pod's `image:` field — it should be `thingsboard/tbmq-pe-node:<tag>`).
-- **`upgrade.fromVersion=ce` left set on a follow-up PE → PE upgrade** → the upgrade job will try
-  to migrate an already-PE database from CE and fail. Drop the flag.
+  `Upgrade failed: transitioning from CE to PE requires the database to first be upgraded to version
+  '<version>' using TBMQ CE` means the CE database is on an older TBMQ version than the PE image:
+  upgrade CE to that version first (Standard Upgrade Procedure), then migrate to PE.
+- **`upgrade.fromVersion=ce` left set on a follow-up PE → PE upgrade** → the Job runs the CE → PE
+  migration instead of the version migration and fails with the same `transitioning from CE to PE
+  requires the database to first be upgraded …` error. Drop the flag and re-run.
 
 ### Upgrading from chart version 1.x to 2.0.0 (TBMQ 2.2.0 → 2.3.0)
 
@@ -828,8 +848,12 @@ the install Pod and upgrade Job to ArgoCD hooks:
   (`hook-delete-policy: BeforeHookCreation,HookSucceeded`).
 - **Upgrade** — the migration Job becomes a `PreSync` hook. ArgoCD can't tell an install from an
   upgrade, so the Job renders whenever `upgrade.upgradeDbSchema: true`. Set it together with the
-  image tag change that bumps the TBMQ version, then remove it after that sync. Leaving it set
-  makes the next sync fail with `database already upgraded to current version`. **Never set it
+  image tag change that bumps the TBMQ version, then remove it after that sync. The Job is always
+  named `<release>-upgrade-1` (every ArgoCD render is revision 1; `<release>` is the Application
+  name unless you set `spec.source.helm.releaseName`). A failed sync only reports
+  `one or more synchronization tasks completed unsuccessfully`, so read the reason in the Job's
+  Pod logs (`kubectl get pods -n <namespace> -l job-name=<release>-upgrade-1`). Leaving the flag
+  set makes the next sync fail with `database already upgraded to current version`. **Never set it
   on the first sync:** the PreSync Job needs ConfigMaps and Secrets that the Sync phase has not
   created yet, so its Pod is stuck until `upgrade.activeDeadlineSeconds` runs out. With the
   chart's default ConfigMaps it sits in `Init:0/1` with `FailedMount … configmap … not found`
