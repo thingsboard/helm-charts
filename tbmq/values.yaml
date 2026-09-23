@@ -42,10 +42,11 @@ installation:
   argocd: false
   # Hard limit, in seconds, on the install Pod's lifetime (Pod activeDeadlineSeconds). Without it a
   # failing install Pod (restartPolicy: OnFailure) keeps retrying after Helm stops waiting.
-  # Helm itself waits for the hook only as long as `helm install --timeout` (default 5m), so pass a
-  # --timeout longer than this, e.g. `--timeout 11m`. The deadline starts only once the Pod is
-  # scheduled, so an equal timeout expires first and hides the DeadlineExceeded failure.
-  activeDeadlineSeconds: 600
+  # Kept below Helm's default `helm install --timeout` (5m), so the install needs no --timeout flag.
+  # If you raise it (e.g. for slow image pulls), also pass a --timeout comfortably longer than
+  # this: the deadline starts only once the Pod is scheduled, so an equal timeout expires first
+  # and hides the DeadlineExceeded failure.
+  activeDeadlineSeconds: 240
 
 # Controls the upgrade options, including database schema upgrade, edition migration, and ArgoCD support.
 upgrade:
@@ -61,8 +62,9 @@ upgrade:
   argocd: false
   # Hard limit, in seconds, on the schema migration Job (Job activeDeadlineSeconds). When it is
   # exceeded, Kubernetes stops the migration and marks the Job failed. Helm itself waits for the
-  # hook only as long as `helm upgrade --timeout` (default 5m), so pass a --timeout that covers
-  # your migration, e.g. `--timeout 30m`, and raise this value for very large databases.
+  # hook only as long as `helm upgrade --timeout` (default 5m); for a large database pass a longer
+  # one (e.g. `--timeout 30m`). If Helm gives up first, the Job keeps running until it finishes or
+  # reaches this limit. Raise it for very large databases.
   activeDeadlineSeconds: 3600
   # Edition the upgrade is migrating FROM. Used only for cross-edition upgrades.
   # Set to "ce" when upgrading from Community Edition to Professional Edition (same TBMQ version).

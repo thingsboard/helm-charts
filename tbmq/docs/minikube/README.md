@@ -311,19 +311,13 @@ cd tbmq/docs/minikube
 ```bash
 helm install tbmq ../../ -f minikube-values.yaml \
   --set installation.installDbSchema=true \
-  --namespace thingsboard-mqtt-broker \
-  --timeout 11m
+  --namespace thingsboard-mqtt-broker
 ```
 
 > Pass `installation.installDbSchema=true` via `--set` on the **first install only**.
 > Do not put it in `minikube-values.yaml` — the post-install hook is bound to
 > `post-install,post-upgrade`, so persisting the flag would re-fire the install
 > Pod on every `helm upgrade` and corrupt an already-populated schema.
->
-> `--timeout 11m` gives the first install time to pull the TBMQ image. Keep it
-> longer than `installation.activeDeadlineSeconds` (see the chart README's Global
-> Parameters for the default), so a Pod that hits its deadline is reported as
-> failed instead of Helm timing out first; Helm's own default is 5m.
 
 ### Verify
 
@@ -543,8 +537,7 @@ same Postgres / Kafka / Valkey services you deployed in Steps 1–3.
 helm upgrade tbmq ../../ -f minikube-pe-values.yaml \
   --set upgrade.upgradeDbSchema=true \
   --set upgrade.fromVersion=ce \
-  -n thingsboard-mqtt-broker \
-  --timeout 30m
+  -n thingsboard-mqtt-broker
 ```
 
 What happens:
