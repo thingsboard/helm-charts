@@ -342,7 +342,8 @@ first client.
 
 - **Install Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`**
   → PostgreSQL is unreachable. The init container runs `until nc -z $host $port; do echo waiting for
-  postgres; sleep 2; done`, so no connection error is printed. Check `postgresql.host` /
+  postgres; sleep 2; done`. An unresolvable host also logs `nc: bad address '<host>'`; a refused or
+  timed-out connection logs nothing but `waiting for postgres`. Check `postgresql.host` /
   `postgresql.port` and that the database is reachable from the TBMQ namespace. The Pod stops when
   `installation.activeDeadlineSeconds` passes.
 - **Authentication failed** in the install Pod logs → verify `postgresql.password`, or that
@@ -350,9 +351,12 @@ first client.
   `postgres-password`).
 - **`database "thingsboard_mqtt_broker" does not exist`** → create the database first; the chart
   only creates the schema.
-- **`helm install` fails with `timed out waiting for the condition`** → the install hook did not
-  finish within `--timeout` (Helm default 5m). Read the install Pod logs to see why, fix the cause,
-  then `helm uninstall my-tbmq -n <namespace>` and run the Step 3 install command again.
+- **`helm install` fails with `post-install hooks failed` … `pod my-tbmq-install-pod failed`, or
+  with `timed out waiting for the condition`** → the install hook did not succeed. The first error
+  means the Pod reached `installation.activeDeadlineSeconds` (`kubectl describe pod` shows
+  `DeadlineExceeded`); the second means Helm's `--timeout` (default 5m) ran out first. Read the
+  install Pod logs to see why, fix the cause, then `helm uninstall my-tbmq -n <namespace>` and run
+  the Step 3 install command again.
 - **Broker pods stuck in `Init:0/1` (`validate-db`)** → the schema was never created. Check that
   you passed `--set installation.installDbSchema=true` and that the install Pod succeeded. If you
   forgot the flag, run it through an upgrade (the install hook is also bound to `post-upgrade` for
@@ -531,8 +535,9 @@ kubectl logs <upgrade-pod-name> -n <namespace>
 Common causes:
 
 - **Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`** →
-  PostgreSQL is unreachable. The init container only echoes `waiting for postgres` between retries
-  (no connection error is printed). Helm gives up after `--timeout`, and the Job itself stops when
+  PostgreSQL is unreachable. The init container echoes `waiting for postgres` between retries; an
+  unresolvable host also logs `nc: bad address '<host>'`, while a refused or timed-out connection
+  logs nothing else. Helm gives up after `--timeout`, and the Job itself stops when
   `upgrade.activeDeadlineSeconds` passes. Check `postgresql.host`/`postgresql.port` and that the
   DB is reachable from the TBMQ namespace.
 - **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
@@ -544,6 +549,11 @@ Common causes:
   succeeded, re-run the same `helm upgrade` **without** `upgrade.upgradeDbSchema=true`. If it
   failed or hit the deadline, fix the cause (e.g. more resources, `VACUUM`/`ANALYZE` first, a
   higher `upgrade.activeDeadlineSeconds`) and re-run with the flag and a longer `--timeout`.
+- **`helm upgrade` fails with `pre-upgrade hooks failed` … `job my-tbmq-upgrade-<revision> failed`**
+  → the migration Job itself failed: `DeadlineExceeded` means it reached
+  `upgrade.activeDeadlineSeconds`, `BackoffLimitExceeded` means all attempts failed. The release is
+  marked `failed` and the StatefulSets are not updated. Read the attempts' logs (see above) before
+  the Job is TTL-reaped, fix the cause, and re-run the upgrade with the flag.
 - **`Upgrade failed: database already upgraded to current version`** → `upgrade.upgradeDbSchema=true`
   was set on an upgrade that doesn't change the TBMQ version (and isn't the CE → PE migration), so
   there is nothing to migrate. The Job exits before touching the schema. Re-run the same
