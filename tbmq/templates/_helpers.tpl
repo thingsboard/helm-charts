@@ -12,15 +12,15 @@
 
 {{/*Return the toolbox helper image used by the validate-db init container*/}}
 {{- define "tbmq.toolbox.image" -}}
-{{- $repository := .Values.helperImages.toolbox.repository | default "thingsboard/toolbox" }}
-{{- $tag := .Values.helperImages.toolbox.tag | default "1.29.0" }}
+{{- $repository := required "helperImages.toolbox.repository is required" .Values.helperImages.toolbox.repository }}
+{{- $tag := required "helperImages.toolbox.tag is required" .Values.helperImages.toolbox.tag }}
 {{- printf "%s:%s" $repository $tag }}
 {{- end }}
 
 {{/*Return the busybox helper image used by the wait-for-postgres init containers*/}}
 {{- define "tbmq.busybox.image" -}}
-{{- $repository := .Values.helperImages.busybox.repository | default "busybox" }}
-{{- $tag := .Values.helperImages.busybox.tag | default "1.37.0" }}
+{{- $repository := required "helperImages.busybox.repository is required" .Values.helperImages.busybox.repository }}
+{{- $tag := required "helperImages.busybox.tag is required" .Values.helperImages.busybox.tag }}
 {{- printf "%s:%s" $repository $tag }}
 {{- end }}
 
