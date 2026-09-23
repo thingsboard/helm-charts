@@ -261,6 +261,25 @@ self-managed instance) to create a logical or physical backup before proceeding.
 The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades — the commands below are
 identical for both, because your `values.yaml` already encodes which edition you're running.
 
+> **Only when the TBMQ version changes.** Steps 1 and 2 (scale to 0, `upgrade.upgradeDbSchema=true`)
+> are for upgrades that change the chart's `appVersion`, i.e. the TBMQ version. When a new chart
+> version keeps the same `appVersion` (for example chart 2.1.0 → 2.2.0, both TBMQ 2.4.0), there is
+> no schema to migrate: skip both steps and run a plain upgrade:
+>
+> ```bash
+> helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
+>   --version <new-chart-version> \
+>   -f values.yaml
+> ```
+>
+> Compare the `APP VERSION` of your release (`helm list -n <namespace>`) with the target chart's
+> (`helm search repo tbmq-helm-chart/tbmq-cluster --versions`). Passing
+> `upgrade.upgradeDbSchema=true` when they are equal makes the pre-upgrade Job fail with
+> `database already upgraded to current version`. The release is left `failed`, and if you
+> scaled down in step 1, the StatefulSets stay at 0 — see
+> [Troubleshooting Upgrades](#troubleshooting-upgrades). The one same-version upgrade that does
+> use the flag is the CE → PE migration below, together with `upgrade.fromVersion=ce`.
+
 1. **Scale `tbmq-node` (and optionally `tbmq-ie`) to 0 replicas** so no application is reading or
    writing while the schema migration runs:
 
@@ -458,6 +477,10 @@ Common causes:
 - **Hook timeout (10 minutes)** → for very large databases, the migration may exceed the default
   600s timeout. Roll back (`helm rollback`) and re-run after addressing the performance bottleneck
   (e.g., increase resources, run `VACUUM`/`ANALYZE` first).
+- **`Upgrade failed: database already upgraded to current version`** → `upgrade.upgradeDbSchema=true`
+  was set on an upgrade that doesn't change the TBMQ version (and isn't the CE → PE migration), so
+  there is nothing to migrate. The Job exits before touching the schema. Re-run the same `helm upgrade` without the flag: it
+  completes, and Helm restores the StatefulSets to their declared replicas.
 - **CE → PE migration failed** → confirm `upgrade.fromVersion=ce` was set AND that the PE image is
   in use (check the upgrade Pod's `image:` field — it should be `thingsboard/tbmq-pe-node:<tag>`).
 - **`upgrade.fromVersion=ce` left set on a follow-up PE → PE upgrade** → the upgrade job will try
@@ -751,7 +774,7 @@ To enable application-level mTLS for the MQTT listener:
 1. Create a ConfigMap holding the server certificate and private key:
 
    ```bash
-   kubectl create configmap tbmq-node-mqtts-config \
+   kubectl create configmap tbmq-node-mqtts-config -n <namespace> \
      --from-file=server.pem=/path/to/server.pem \
      --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
      -o yaml --dry-run=client | kubectl apply -f -
@@ -761,7 +784,7 @@ To enable application-level mTLS for the MQTT listener:
    via `existingSecretName` in step 3. The Secret must use the same keys, `server.pem` and `mqttserver_key.pem`:
 
    ```bash
-   kubectl create secret generic tbmq-node-mqtts-config \
+   kubectl create secret generic tbmq-node-mqtts-config -n <namespace> \
      --from-file=server.pem=/path/to/server.pem \
      --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
      -o yaml --dry-run=client | kubectl apply -f -
@@ -770,7 +793,7 @@ To enable application-level mTLS for the MQTT listener:
 2. (Optional) If the private key is password-protected, create a Secret:
 
    ```bash
-   kubectl create secret generic mqtt-tls-secret \
+   kubectl create secret generic mqtt-tls-secret -n <namespace> \
      --from-literal=key_password="YOUR_KEY_PASSWORD" \
      -o yaml --dry-run=client | kubectl apply -f -
    ```

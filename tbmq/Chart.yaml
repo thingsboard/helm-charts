@@ -18,6 +18,8 @@ annotations:
       description: "tbmq.priorityClassName and tbmq-ie.priorityClassName set a PriorityClass on the broker and Integration Executor StatefulSets (optional, unset by default)."
     - kind: added
       description: "loadbalancer.mqtt.mutualTls.existingSecretName loads the MQTT TLS server certificate and private key (server.pem, mqttserver_key.pem) from an existing Secret instead of a ConfigMap. When set, it takes precedence over configMapName."
+    - kind: changed
+      description: "Upgrading from chart 2.1.0: TBMQ stays at 2.4.0, so there is no database migration. Run a plain `helm upgrade` without scaling down and without `upgrade.upgradeDbSchema=true`. Setting the flag makes the pre-upgrade Job fail with `database already upgraded to current version`. The README's Standard Upgrade Procedure now says when the flag applies."
     - kind: added
       description: "The chart's own helper images are now configurable via `helperImages.toolbox` and `helperImages.busybox`. They were hardcoded in the templates, which made the chart unusable with a private registry or an air-gapped mirror."
     - kind: changed
