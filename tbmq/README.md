@@ -44,14 +44,16 @@ existing instances via the values you provide.
 
 - Kubernetes 1.23+
 - Helm 3.8.0+
-- Persistent Volume provisioner — required by default for the broker's per-pod `/data` PVC
-  (`tbmq.persistence.enabled: true`) and by whatever infrastructure components you run that use
-  PVs. CE-only deployments can disable broker persistence (`tbmq.persistence.enabled: false`) if
-  no PV provisioner is available — see [Persistence](#persistence) for the trade-offs and why PE
-  should keep it on.
-- An external PostgreSQL instance (with an empty database created for TBMQ)
+- A default StorageClass (or set `tbmq.persistence.storageClassName`) — the broker requests a
+  per-pod PVC for `/data` by default. See [Persistence](#persistence).
+- An external PostgreSQL instance with an empty database created for TBMQ (default name
+  `thingsboard_mqtt_broker`, set via `postgresql.database`). The chart creates the schema, not the
+  database.
 - An external Kafka cluster
 - An external Redis-compatible cache (Redis, Valkey, Dragonfly, etc.) — standalone or cluster
+- For the default load balancer settings: an NGINX Ingress Controller for HTTP, and support for
+  `Service` type `LoadBalancer` for MQTT. Other options are covered in
+  [Step 2](#step-2-prepare-your-valuesyaml) and [Load Balancer](#load-balancer).
 
 For a working step-by-step example using Minikube with CrunchyData PGO, Strimzi Kafka, and Valkey,
 see the [Minikube Deployment Guide](docs/minikube/README.md).
@@ -73,44 +75,117 @@ Export the chart defaults as a starting point, then edit it to match your enviro
 helm show values tbmq-helm-chart/tbmq-cluster > values.yaml
 ```
 
+> The exported file pins every default at the chart version you exported it from, including the
+> TBMQ image tags (`tbmq.image.tag`, `tbmq-ie.image.tag`) and the helper image versions
+> (`helperImages.*`). Installing a newer chart version does not change them in your file — you
+> update them yourself when you upgrade (see [Standard Upgrade Procedure](#standard-upgrade-procedure)).
+
 At a minimum you need to set:
 
 - `postgresql.host` and credentials (or `existingSecret`)
 - `kafka.bootstrapServers`
-- `redis.nodes` (cluster mode is the default) — or `redis.connectionType: standalone` plus `redis.host`/`redis.port` — and credentials if `usePassword: true`
+- `redis.nodes` (cluster mode is the default) — or `redis.connectionType: standalone` plus
+  `redis.host`/`redis.port` — and credentials if `usePassword: true`
+- `loadbalancer.type` — the default `nginx` needs an NGINX Ingress Controller already running in
+  the cluster, and the MQTT `Service` of type `LoadBalancer` stays `<pending>` on clusters without
+  a load balancer provider. Pick `aws`, `azure`, or `gcp` for those clouds, or set
+  `loadbalancer.http.enabled: false` and `loadbalancer.mqtt.enabled: false` and reach TBMQ with
+  `kubectl port-forward` (see [Step 5](#step-5-access-tbmq)).
 
-See [Infrastructure Configuration](#infrastructure-configuration) for full parameter reference.
+The connection settings for PostgreSQL, Kafka, and Redis are described below.
 
 > **Important:** Do not set `installation.installDbSchema: true` in `values.yaml`. Pass it via
 > `--set` on the `helm install` command instead. Persisting it in your values file means the install
 > pod will also run on every subsequent `helm upgrade` (because the post-install hook is also bound
 > to `post-upgrade` to allow recovery from a forgotten flag).
 
-### Step 3: Install
+#### PostgreSQL
 
-#### Community Edition (CE)
+| Parameter                              | Description                                                                                  | Default                   |
+|----------------------------------------|----------------------------------------------------------------------------------------------|---------------------------|
+| postgresql.host                        | PostgreSQL hostname or service name.                                                         | ""                        |
+| postgresql.port                        | PostgreSQL port.                                                                             | 5432                      |
+| postgresql.database                    | Database name. Must exist before install (the chart creates the schema, not the database).  | "thingsboard_mqtt_broker" |
+| postgresql.username                    | PostgreSQL username.                                                                         | "postgres"                |
+| postgresql.password                    | PostgreSQL password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.   | ""                        |
+| postgresql.existingSecret              | Name of an existing Secret holding the password. Recommended for production.                | ""                        |
+| postgresql.existingSecretPasswordKey   | Key inside `existingSecret` that holds the password. Falls back to `postgres-password` if left empty. | ""                        |
 
-```bash
-helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
-  -f values.yaml \
-  --set installation.installDbSchema=true
+```yaml
+postgresql:
+  host: "my-postgres.example.com"
+  port: 5432
+  database: "thingsboard_mqtt_broker"
+  username: "postgres"
+  existingSecret: "my-pg-secret"
+  existingSecretPasswordKey: "password"
 ```
+
+#### Kafka
+
+| Parameter              | Description                                                | Default |
+|------------------------|------------------------------------------------------------|---------|
+| kafka.bootstrapServers | Comma-separated `host:port` list of Kafka bootstrap nodes. | ""      |
+
+```yaml
+kafka:
+  bootstrapServers: "kafka-0:9092,kafka-1:9092,kafka-2:9092"
+```
+
+#### Redis / Valkey / Cache
+
+TBMQ speaks the Redis protocol. Any Redis-compatible backend (Redis, Valkey, Dragonfly, KeyDB)
+works. Two connection modes are supported.
+
+| Parameter                       | Description                                                                                              | Default    |
+|---------------------------------|----------------------------------------------------------------------------------------------------------|------------|
+| redis.connectionType            | `"standalone"` (single-node) or `"cluster"` (Redis Cluster).                                             | "cluster"  |
+| redis.host                      | Hostname for `standalone` mode.                                                                          | ""         |
+| redis.port                      | Port for `standalone` mode.                                                                              | 6379       |
+| redis.nodes                     | Comma-separated `host:port` list for `cluster` mode.                                                     | ""         |
+| redis.usePassword               | Whether the cache requires password authentication.                                                      | true       |
+| redis.password                  | Password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.                          | ""         |
+| redis.existingSecret            | Name of an existing Secret holding the password.                                                         | ""         |
+| redis.existingSecretPasswordKey | Key inside `existingSecret` that holds the password. Falls back to `redis-password` if left empty.       | ""         |
+
+**Cluster mode:**
+
+```yaml
+redis:
+  connectionType: "cluster"
+  nodes: "redis-0:6379,redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379"
+  existingSecret: "my-redis-secret"
+  existingSecretPasswordKey: "redis-password"
+```
+
+**Standalone mode (e.g., single-node Valkey):**
+
+```yaml
+redis:
+  connectionType: "standalone"
+  host: "valkey.example.com"
+  port: 6379
+  usePassword: false
+```
+
+In `cluster` mode, the chart automatically renders cluster-only keys (`REDIS_NODES`,
+`REDIS_MAX_REDIRECTS`, `REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG`, and the Lettuce topology
+refresh tunables) into the Redis ConfigMap; in `standalone` mode those keys are omitted and only
+`REDIS_HOST`/`REDIS_PORT` are set.
 
 #### Professional Edition (PE)
 
-PE installs from the same chart as CE. You configure PE by making two edits to the `values.yaml` you exported in Step 2:
+Skip this section for CE. PE installs from the same chart; you configure it with two more edits
+to the same `values.yaml`:
 
-1. Switch the broker and integration-executor images to the PE variants
-   (`thingsboard/tbmq-pe-node` and `thingsboard/tbmq-pe-integration-executor`).
+1. Switch the broker and integration-executor images to the PE variants.
 2. Provide a license.
 
-Both edits are detailed below. After making them, run the `helm install` command as for CE.
-
 > The repo ships [`values-pe.yaml`](values-pe.yaml) as a **reference** for the canonical PE image
-> repositories and tags at the current chart version. Copy those values into your `values.yaml`
-> in Step 1; do not pass `values-pe.yaml` itself as a `-f` overlay alongside your file.
+> repositories and tags at the current chart version. Copy those values into your `values.yaml`;
+> do not pass `values-pe.yaml` itself as a `-f` overlay alongside your file.
 
-##### 1. Switch to PE images
+##### Switch to PE images
 
 Find the `tbmq.image` and `tbmq-ie.image` blocks in your `values.yaml` and change `repository`
 and `tag` to the PE values:
@@ -128,13 +203,12 @@ tbmq-ie:
 ```
 
 PE tags match the chart `appVersion` with a `PE` suffix (e.g. `2.4.0` → `2.4.0PE`). The CE and PE
-image tags are **not** interchangeable. The canonical reference values for the current chart
-version are in [`values-pe.yaml`](values-pe.yaml).
+image tags are **not** interchangeable.
 
-##### 2. Provide your license
+##### Provide your license
 
 **Recommended (production):** keep the license out of `values.yaml` by pre-creating a Kubernetes
-Secret and referencing it from values:
+Secret **in the namespace you will install into** and referencing it from values:
 
 ```bash
 kubectl create namespace <namespace>
@@ -172,40 +246,30 @@ This is fine for quick experiments, but the value lands inside the helm release 
 in the cluster (`sh.helm.release.v1.<name>.<rev>` Secret), and anyone with `get secrets`
 permission in that namespace can read it back.
 
-##### 3. Install
+Only the broker validates the license, so the chart wires it **only** into the broker
+StatefulSet (the IE, install Pod, and upgrade Job don't use it). Each broker Pod also keeps a
+small license cache file under `/data`. Keep `tbmq.persistence.enabled: true` (the default) for
+PE: without a persisted cache, every Pod restart uses up a new instance slot on your license.
+See [Persistence](#persistence) for details.
 
-Because every PE-specific change is in your `values.yaml`, the install command is identical to
-the CE one:
+### Step 3: Install
+
+The command is the same for CE and PE — your `values.yaml` encodes which edition you're running:
 
 ```bash
 helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
+  -n <namespace> --create-namespace \
   -f values.yaml \
-  --set installation.installDbSchema=true
+  --set installation.installDbSchema=true \
+  --timeout 10m
 ```
 
-> **Tip:** `my-tbmq` is the **Helm release name**. Pick any name. It is used as the prefix for
-> all deployed resources and as the reference for future `helm` commands against this release.
-
-##### How the chart wires the license
-
-Only the broker StatefulSet validates the license, so the chart injects two license env vars
-**only** there. The IE StatefulSet, the install Pod, and the pre-upgrade Job do not consume the
-license Secret and do not depend on it.
-
-- `TBMQ_LICENSE_SECRET` — read from the Secret you provided (inline or via `existingSecret`).
-- `TBMQ_LICENSE_INSTANCE_DATA_FILE` — path to the per-pod local cache of the license client's
-  activation response. The default (`/data/tbmq-instance-license-$(TB_SERVICE_ID).data`) lives on
-  `/data`, backed by a per-pod PVC when `tbmq.persistence.enabled=true` (the default — see
-  [Persistence](#persistence) below). `$(TB_SERVICE_ID)` is the pod name (downward API), so each
-  replica gets its own cache file. Persisting `/data` lets the broker check in against its
-  existing license instance on restart; **without the cache file, the broker re-activates as a
-  fresh instance on every start, consuming a new slot against the license's instance cap** (see
-  [Persistence](#persistence) for the full explanation). Override `license.instanceDataFile` only
-  if you mount a different writable path.
-
-> The TBMQ cluster id that the license server binds to lives in PostgreSQL
-> (`tbmq_cluster.cluster_id`, generated once at install). It is not stored in `/data` and is
-> unaffected by Pod recreation.
+- `my-tbmq` is the **Helm release name**. Pick any name. It is used as the prefix for all deployed
+  resources and as the reference for future `helm` commands against this release.
+- `-n <namespace>` must be the same namespace on every later `helm` and `kubectl` command. For PE
+  it must be the namespace that holds your license Secret.
+- `--timeout` is how long Helm waits for the schema install hook. The Helm default is 5m; `10m`
+  matches the install Pod's own limit (`installation.activeDeadlineSeconds`, default 600s).
 
 ### Step 4: Verify the Install
 
@@ -214,14 +278,15 @@ license Secret and do not depend on it.
 kubectl get pods -n <namespace> -l 'app in (my-tbmq-tbmq-node,my-tbmq-tbmq-ie,install-job)'
 ```
 
-(The chart sets only the bare `app:` label — there is no `app.kubernetes.io/instance` selector to filter by release name.)
+The chart labels its Pods only with `app: <name>` (there is no `app.kubernetes.io/instance`
+label), so the selector lists the three app names instead of filtering by release.
 
-The install pod (`my-tbmq-install-pod`) runs to completion (its `restartPolicy` is `OnFailure`,
-so a failed container restarts in-pod until it succeeds or the hook timeout fires), creates the
-schema, then exits. The hook policy is `hook-succeeded,before-hook-creation`: Helm deletes the
-pod **only when it succeeds**; on failure the pod is **left in place** so you can inspect logs,
-and it is auto-cleaned the next time the hook runs (e.g., the next `helm upgrade`). The install
-hook has a 300s timeout.
+The install pod (`my-tbmq-install-pod`) creates the schema, then exits. Its `restartPolicy` is
+`OnFailure`, so a failed container restarts in the same Pod until it succeeds or
+`installation.activeDeadlineSeconds` (default 600s) passes; after that the Pod is marked `Failed`.
+The hook policy is `hook-succeeded,before-hook-creation`: Helm deletes the pod **only when it
+succeeds**. A failed pod is **left in place** so you can inspect logs, and it is cleaned up the
+next time the hook runs (e.g., the next `helm upgrade`) or when you delete it.
 
 The `my-tbmq-tbmq-node-*` (broker) pods block in their `validate-db` init container until the
 schema exists, so they reach `Running` within a minute or two **after** the install pod succeeds.
@@ -232,9 +297,66 @@ the install pod completes.
 # While the pod runs:
 kubectl logs my-tbmq-install-pod -n <namespace> -f
 
-# If it has already finished and was restarted (restartPolicy: OnFailure):
+# If the container crashed and was restarted (restartPolicy: OnFailure):
 kubectl logs my-tbmq-install-pod -n <namespace> --previous
 ```
+
+If something goes wrong, see [Troubleshooting the Install](#troubleshooting-the-install).
+
+### Step 5: Access TBMQ
+
+**Web UI and REST API** (port 8083). With the default `nginx` load balancer, open the address of
+the `my-tbmq-http-lb` Ingress:
+
+```bash
+kubectl get ingress my-tbmq-http-lb -n <namespace>
+```
+
+Without a load balancer, forward the port locally and open `http://localhost:8083`:
+
+```bash
+kubectl port-forward svc/my-tbmq-tbmq-node 8083:8083 -n <namespace>
+```
+
+Log in with the default system administrator account and **change the password immediately**:
+
+- Email: `sysadmin@thingsboard.org`
+- Password: `sysadmin`
+
+**MQTT** (port 1883, 8883 for MQTTS). With the MQTT load balancer enabled, use the external address
+of the `my-tbmq-mqtt-lb` Service:
+
+```bash
+kubectl get service my-tbmq-mqtt-lb -n <namespace>
+```
+
+Without a load balancer, use `kubectl port-forward svc/my-tbmq-tbmq-node 1883:1883 -n <namespace>`.
+
+MQTT clients must authenticate. Client credentials are managed in the TBMQ UI or REST API, not in
+the chart — see [Getting Started](https://tbmq.io/docs/getting-started/) and
+[MQTT client credentials](https://tbmq.io/docs/user-guide/ui/mqtt-client-credentials/) to connect a
+first client.
+
+### Troubleshooting the Install
+
+- **Install Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`**
+  → PostgreSQL is unreachable. The init container runs `until nc -z $host $port; do echo waiting for
+  postgres; sleep 2; done`, so no connection error is printed. Check `postgresql.host` /
+  `postgresql.port` and that the database is reachable from the TBMQ namespace. The Pod stops when
+  `installation.activeDeadlineSeconds` passes.
+- **Authentication failed** in the install Pod logs → verify `postgresql.password`, or that
+  `existingSecret` contains the expected key (`existingSecretPasswordKey`, default
+  `postgres-password`).
+- **`database "thingsboard_mqtt_broker" does not exist`** → create the database first; the chart
+  only creates the schema.
+- **`helm install` fails with `timed out waiting for the condition`** → the install hook did not
+  finish within `--timeout` (Helm default 5m). Read the install Pod logs to see why, fix the cause,
+  then `helm uninstall my-tbmq -n <namespace>` and run the Step 3 install command again.
+- **Broker pods stuck in `Init:0/1` (`validate-db`)** → the schema was never created. Check that
+  you passed `--set installation.installDbSchema=true` and that the install Pod succeeded. If you
+  forgot the flag, run it through an upgrade (the install hook is also bound to `post-upgrade` for
+  this recovery):
+  `helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -n <namespace> -f values.yaml --set installation.installDbSchema=true --timeout 10m`
 
 ## Updating Configuration
 
@@ -243,7 +365,7 @@ annotations, etc. — are applied via `helm upgrade` against the same release. T
 same for CE and PE; your `values.yaml` already encodes which edition you're running:
 
 ```bash
-helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -f values.yaml
+helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -n <namespace> -f values.yaml
 ```
 
 ## Upgrading
@@ -258,29 +380,48 @@ self-managed instance) to create a logical or physical backup before proceeding.
 
 ### Standard Upgrade Procedure
 
-The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades — the commands below are
-identical for both, because your `values.yaml` already encodes which edition you're running.
+The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
 
-> **Only when the TBMQ version changes.** Steps 1 and 2 (scale to 0, `upgrade.upgradeDbSchema=true`)
-> are for upgrades that change the chart's `appVersion`, i.e. the TBMQ version. When a new chart
-> version keeps the same `appVersion` (for example chart 2.1.0 → 2.2.0, both TBMQ 2.4.0), there is
-> no schema to migrate: skip both steps and run a plain upgrade:
->
-> ```bash
-> helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
->   --version <new-chart-version> \
->   -f values.yaml
-> ```
->
-> Compare the `APP VERSION` of your release (`helm list -n <namespace>`) with the target chart's
-> (`helm search repo tbmq-helm-chart/tbmq-cluster --versions`). Passing
-> `upgrade.upgradeDbSchema=true` when they are equal makes the pre-upgrade Job fail with
-> `database already upgraded to current version`. The release is left `failed`, and if you
-> scaled down in step 1, the StatefulSets stay at 0 — see
-> [Troubleshooting Upgrades](#troubleshooting-upgrades). The one same-version upgrade that does
-> use the flag is the CE → PE migration below, together with `upgrade.fromVersion=ce`.
+1. **Check whether the TBMQ version changes.** Compare the `APP VERSION` of your release with the
+   target chart's:
 
-1. **Scale `tbmq-node` (and optionally `tbmq-ie`) to 0 replicas** so no application is reading or
+   ```bash
+   helm list -n <namespace>
+   helm search repo tbmq-helm-chart/tbmq-cluster --versions
+   ```
+
+   - **Same `APP VERSION`** (for example chart 2.1.0 → 2.2.0, both TBMQ 2.4.0): there is no
+     schema to migrate. Do steps 2 and 3 only.
+   - **Different `APP VERSION`**: do all the steps.
+
+2. **Update your `values.yaml`.** Your file pins the image tags and helper image versions from
+   when you exported it. Compare it with the new chart's defaults and carry over what changed:
+
+   ```bash
+   helm show values tbmq-helm-chart/tbmq-cluster --version <new-chart-version> > values-new.yaml
+   diff values.yaml values-new.yaml
+   ```
+
+   In particular, set `tbmq.image.tag` and `tbmq-ie.image.tag` to the new `appVersion`
+   (`<appVersion>` for CE, `<appVersion>PE` for PE). Otherwise the chart upgrade keeps running the
+   old TBMQ images. The canonical PE tags for a chart version are in
+   [`values-pe.yaml`](values-pe.yaml) at that chart tag.
+
+3. **Same `APP VERSION` only — run a plain upgrade and stop here:**
+
+   ```bash
+   helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
+     -n <namespace> \
+     --version <new-chart-version> \
+     -f values.yaml
+   ```
+
+   Do **not** pass `upgrade.upgradeDbSchema=true` here: the pre-upgrade Job fails with
+   `database already upgraded to current version` and the release is left `failed` (see
+   [Troubleshooting Upgrades](#troubleshooting-upgrades)). The one same-version upgrade that does
+   use the flag is the [CE → PE migration](#ce--pe-upgrade-cross-edition-migration).
+
+4. **Scale `tbmq-node` (and optionally `tbmq-ie`) to 0 replicas** so no application is reading or
    writing while the schema migration runs:
 
    ```bash
@@ -293,26 +434,25 @@ identical for both, because your `values.yaml` already encodes which edition you
    it. Scaling it down is still recommended on TBMQ version bumps, because the IE communicates
    with the broker over Kafka and the message contract / API surface can change between releases
    — leaving the IE running against a freshly upgraded broker (or a broker that's been scaled to
-   zero) can produce noisy errors. For routine config-only `helm upgrade`s on the same TBMQ
-   version you can leave the IE running.
+   zero) can produce noisy errors.
 
-2. **Run the upgrade.** The `upgrade.upgradeDbSchema=true` flag triggers the pre-upgrade Helm hook
+5. **Run the upgrade.** The `upgrade.upgradeDbSchema=true` flag triggers the pre-upgrade Helm hook
    that runs the migration:
 
    ```bash
    helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
+     -n <namespace> \
      --version <new-chart-version> \
      -f values.yaml \
-     --set upgrade.upgradeDbSchema=true
+     --set upgrade.upgradeDbSchema=true \
+     --timeout 30m
    ```
 
-   > **Note on PE image tags:** your `values.yaml` pins `tbmq.image.tag` and `tbmq-ie.image.tag`
-   > from when you first exported it. When bumping the chart version, also update those tags in
-   > your file to match the new chart `appVersion` (`<appVersion>` for CE, `<appVersion>PE` for
-   > PE). The canonical PE tags for the target chart version are in
-   > [`values-pe.yaml`](values-pe.yaml) at that chart tag.
+   `--timeout` is how long Helm waits for the migration (Helm default 5m). Set it high enough for
+   your database size. The migration Job has its own hard limit, `upgrade.activeDeadlineSeconds`
+   (default 3600s).
 
-3. **Verify the migration completed.** The migration runs as a Kubernetes Job named
+6. **Verify the migration completed.** The migration runs as a Kubernetes Job named
    `my-tbmq-upgrade-<revision>` and is automatically deleted 5 minutes after it finishes
    (`ttlSecondsAfterFinished: 300`). Tail its logs while it runs:
 
@@ -333,8 +473,8 @@ on top of the existing CE data.
 
 1. **Edit your existing `values.yaml`** to switch to the PE images and add a license. Both edits
    are exactly the same as for a fresh PE install — see
-   [Switch to PE images](#1-switch-to-pe-images) and
-   [Provide your license](#2-provide-your-license). Do not pass `values-pe.yaml` as a `-f`
+   [Switch to PE images](#switch-to-pe-images) and
+   [Provide your license](#provide-your-license). Do not pass `values-pe.yaml` as a `-f`
    overlay alongside this file.
 
 2. **Scale broker and IE to 0** so nothing is connected to the schema while it migrates:
@@ -348,9 +488,11 @@ on top of the existing CE data.
 
    ```bash
    helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster \
+     -n <namespace> \
      -f values.yaml \
      --set upgrade.upgradeDbSchema=true \
-     --set upgrade.fromVersion=ce
+     --set upgrade.fromVersion=ce \
+     --timeout 30m
    ```
 
 What happens during this upgrade:
@@ -367,6 +509,49 @@ After the migration succeeds, **do not** carry `upgrade.fromVersion=ce` forward 
 PE → PE upgrades — drop the flag (or set it to `""`) on the next `helm upgrade`. Leaving it on
 will cause the upgrade Job to attempt a CE→PE migration against an already-PE database on every
 release, which will fail.
+
+### Troubleshooting Upgrades
+
+The pre-upgrade migration Job spawns a Pod named `my-tbmq-upgrade-<revision>-<random>`. The Job
+itself has `ttlSecondsAfterFinished: 300`, so both Job and Pod are deleted 5 minutes after the
+migration finishes — successful or not. Watch logs while the Job runs, or capture them quickly
+once it terminates:
+
+```bash
+kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
+# or, if the Pod has already finished but hasn't been TTL-reaped yet:
+kubectl logs <upgrade-pod-name> -n <namespace>
+```
+
+> The Job has `backoffLimit: 3`, and its pod template has `restartPolicy: Never` — on failure the
+> Job creates a brand-new pod rather than restarting the container in place, so `kubectl logs
+> --previous` doesn't apply here. List all attempts with `kubectl get pods -n <namespace> -l job-name=my-tbmq-upgrade-<revision>`.
+
+Common causes:
+
+- **Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`** →
+  PostgreSQL is unreachable. The init container only echoes `waiting for postgres` between retries
+  (no connection error is printed). Helm gives up after `--timeout`, and the Job itself stops when
+  `upgrade.activeDeadlineSeconds` passes. Check `postgresql.host`/`postgresql.port` and that the
+  DB is reachable from the TBMQ namespace.
+- **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
+  the expected key.
+- **`helm upgrade` fails with `timed out waiting for the condition`** → the migration did not
+  finish within `--timeout` (Helm default 5m). The release is marked `failed` and the StatefulSets
+  are not updated (they stay at 0 if you scaled down), but **the migration Job keeps running** in
+  the cluster until it finishes or reaches `upgrade.activeDeadlineSeconds`. Follow its logs. If it
+  succeeded, re-run the same `helm upgrade` **without** `upgrade.upgradeDbSchema=true`. If it
+  failed or hit the deadline, fix the cause (e.g. more resources, `VACUUM`/`ANALYZE` first, a
+  higher `upgrade.activeDeadlineSeconds`) and re-run with the flag and a longer `--timeout`.
+- **`Upgrade failed: database already upgraded to current version`** → `upgrade.upgradeDbSchema=true`
+  was set on an upgrade that doesn't change the TBMQ version (and isn't the CE → PE migration), so
+  there is nothing to migrate. The Job exits before touching the schema. Re-run the same
+  `helm upgrade` without the flag: it completes, and Helm restores the StatefulSets to their
+  declared replicas.
+- **CE → PE migration failed** → confirm `upgrade.fromVersion=ce` was set AND that the PE image is
+  in use (check the upgrade Pod's `image:` field — it should be `thingsboard/tbmq-pe-node:<tag>`).
+- **`upgrade.fromVersion=ce` left set on a follow-up PE → PE upgrade** → the upgrade job will try
+  to migrate an already-PE database from CE and fail. Drop the flag.
 
 ### Upgrading from chart version 1.x to 2.0.0 (TBMQ 2.2.0 → 2.3.0)
 
@@ -447,49 +632,11 @@ end-to-end (it does not cover Kafka or Redis data migration).
 For detailed assistance with either path,
 [contact ThingsBoard](https://tbmq.io/contact-us/).
 
-### Troubleshooting Upgrades
-
-The pre-upgrade migration Job spawns a Pod named `my-tbmq-upgrade-<revision>-<random>`. The Job
-itself has `ttlSecondsAfterFinished: 300`, so both Job and Pod are deleted 5 minutes after the
-migration finishes — successful or not. Watch logs while the Job runs, or capture them quickly
-once it terminates:
-
-```bash
-kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
-# or, if the Pod has already finished but hasn't been TTL-reaped yet:
-kubectl logs <upgrade-pod-name> -n <namespace>
-```
-
-> The Job has `backoffLimit: 3`, and its pod template has `restartPolicy: Never` — on failure the
-> Job creates a brand-new pod rather than restarting the container in place, so `kubectl logs
-> --previous` doesn't apply here. List all attempts with `kubectl get pods -n <namespace> -l job-name=my-tbmq-upgrade-<revision>`.
-
-Common causes:
-
-- **Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`** →
-  PostgreSQL is unreachable. The init container runs `until nc -z $host $port; do echo waiting for
-  postgres; sleep 2; done` — it swallows `nc`'s underlying error (no "connection refused" line
-  surfaces) and only echoes `waiting for postgres` between retries, and it never times out on its
-  own — the Helm hook timeout will fire after 600s. Check `postgresql.host`/`postgresql.port` and
-  that the DB is reachable from the TBMQ namespace.
-- **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
-  the expected key.
-- **Hook timeout (10 minutes)** → for very large databases, the migration may exceed the default
-  600s timeout. Roll back (`helm rollback`) and re-run after addressing the performance bottleneck
-  (e.g., increase resources, run `VACUUM`/`ANALYZE` first).
-- **`Upgrade failed: database already upgraded to current version`** → `upgrade.upgradeDbSchema=true`
-  was set on an upgrade that doesn't change the TBMQ version (and isn't the CE → PE migration), so
-  there is nothing to migrate. The Job exits before touching the schema. Re-run the same `helm upgrade` without the flag: it
-  completes, and Helm restores the StatefulSets to their declared replicas.
-- **CE → PE migration failed** → confirm `upgrade.fromVersion=ce` was set AND that the PE image is
-  in use (check the upgrade Pod's `image:` field — it should be `thingsboard/tbmq-pe-node:<tag>`).
-- **`upgrade.fromVersion=ce` left set on a follow-up PE → PE upgrade** → the upgrade job will try
-  to migrate an already-PE database from CE and fail. Drop the flag.
-
 ## Runtime Troubleshooting
 
-Symptoms you may hit on a running cluster (separate from the upgrade-time issues covered in
-[Troubleshooting Upgrades](#troubleshooting-upgrades) above).
+Symptoms you may hit on a running cluster (separate from the install- and upgrade-time issues
+covered in [Troubleshooting the Install](#troubleshooting-the-install) and
+[Troubleshooting Upgrades](#troubleshooting-upgrades)).
 
 ### Broker exits immediately with `License Error GENERAL_ERROR(300)`
 
@@ -502,9 +649,9 @@ INFO  o.t.m.b.d.s.BasicSubscriptionService - Terminating application due to crit
 ```
 
 PE images require a license value. Either set `license.secret` inline or pre-create a Secret and
-point `license.existingSecret` at it (see [PE install — Provide your license](#2-provide-your-license)).
-CE images don't need a license — confirm you didn't pull the PE images (`thingsboard/tbmq-pe-*`)
-without configuring one.
+point `license.existingSecret` at it (see [Provide your license](#provide-your-license)). The
+Secret must be in the release's namespace. CE images don't need a license — confirm you didn't
+pull the PE images (`thingsboard/tbmq-pe-*`) without configuring one.
 
 ### Broker crash-loops with `License Error: CLUSTER_ID_MISMATCH(114)`
 
@@ -514,22 +661,18 @@ once at install), so a mismatch means that row has changed since the license was
 Common causes:
 
 - **PostgreSQL was wiped or recreated.** A fresh database gets a fresh `tbmq_cluster.cluster_id`
-  on the next install. The license server still holds the prior binding and rejects the new
-  cluster id. Deactivate the prior binding via your license-server admin (or contact
-  ThingsBoard) before reinstalling, or restore the original database.
+  on the next install, and the license server still holds the prior binding.
 - **DB was restored from a non-matching backup.** Restoring an older or different cluster's
-  backup brings back a different `tbmq_cluster.cluster_id`. Either restore the matching backup
-  or deactivate the binding and let the new cluster id register.
+  backup brings back a different `tbmq_cluster.cluster_id`.
 - **Same license is being activated against a different deployment.** Single-bind licenses can
-  only activate against one cluster id at a time. Deactivate the prior binding before
-  installing into a new cluster.
+  only activate against one cluster id at a time.
+
+To recover, [contact ThingsBoard support](https://tbmq.io/contact-us/) to release the prior
+binding, or restore the database that matches it.
 
 Pod recreation, `helm upgrade`, and `/data` being an `emptyDir` do **not** trigger this error —
-the cluster id is not stored under `/data`. Losing the per-pod license cache file forces the
-broker to re-activate against the license server on the next start; that does **not** change the
-cluster id, but it does consume a fresh instance slot against the license's instance cap (see
-[Persistence](#persistence) — sustained cache loss can eventually exhaust the cap and require a
-license-server admin to clear stale instance bindings).
+the cluster id is not stored under `/data`. Losing `/data` has a different cost for PE: see
+[Persistence](#persistence).
 
 ## Configuration Reference
 
@@ -548,16 +691,18 @@ license-server admin to clear stale instance bindings).
 | helperImages.busybox.tag     | Tag for the busybox image.                                                                                                                                                           | "1.37.0"                    |
 | **Installation**             |                                                                                                                                                                                      |                             |
 | installation.installDbSchema | Initializes the TBMQ DB schema. Pass via `--set` on first install only. The post-install hook is also bound to `post-upgrade` for recovery scenarios.                                | false                       |
-| installation.argocd          | Replaces Helm install/upgrade hooks with ArgoCD `Sync` hook annotations on the install pod.                                                                                          | false                       |
+| installation.argocd          | Replaces Helm install/upgrade hooks with ArgoCD `Sync` hook annotations on the install pod. See [Managing the Chart with ArgoCD](#managing-the-chart-with-argocd).                   | false                       |
+| installation.activeDeadlineSeconds | Hard limit on the install Pod's lifetime, including retries. Keep `helm install --timeout` at least this long.                                                                 | 600                         |
 | **Upgrade**                  |                                                                                                                                                                                      |                             |
-| upgrade.upgradeDbSchema      | Runs the DB migration during `helm upgrade` (pre-upgrade hook). Ignored on first install.                                                                                            | false                       |
-| upgrade.argocd               | Replaces Helm pre-upgrade hooks with ArgoCD `PreSync` hook annotations on the upgrade job.                                                                                           | false                       |
+| upgrade.upgradeDbSchema      | Runs the DB migration during `helm upgrade` (pre-upgrade hook). Ignored on first install (except with `upgrade.argocd`, see below).                                                  | false                       |
+| upgrade.argocd               | Replaces Helm pre-upgrade hooks with ArgoCD `PreSync` hook annotations on the upgrade job. See [Managing the Chart with ArgoCD](#managing-the-chart-with-argocd).                     | false                       |
+| upgrade.activeDeadlineSeconds | Hard limit on the schema migration Job. Raise it for very large databases, together with `helm upgrade --timeout`.                                                                  | 3600                        |
 | upgrade.fromVersion          | Edition the upgrade is migrating FROM. Set to `"ce"` only for CE → PE cross-edition upgrades. Leave empty for same-edition upgrades.                                                 | ""                          |
 | **License (PE only)**        | Required for PE; ignored for CE (when both `secret` and `existingSecret` are empty, the chart skips license wiring).                                                                 |                             |
 | license.secret               | License value. When set, the chart creates a Secret `<release>-tbmq-license-secret`. Convenient for testing; the value lands in the helm release manifest.                           | ""                          |
 | license.existingSecret       | Name of a pre-existing Kubernetes Secret holding the license. Recommended for production. When set, the chart does NOT create a Secret of its own.                                   | ""                          |
 | license.existingSecretLicenseKey | Key inside `existingSecret` that holds the license value. Matches the convention from the official PE k8s manifests.                                                             | "license-key"               |
-| license.instanceDataFile     | Path to the per-pod license cache file. Default uses `$(TB_SERVICE_ID)` so each replica gets its own file under `/data`, which is PVC-backed by default (see `tbmq.persistence`).      | "/data/tbmq-instance-license-$(TB_SERVICE_ID).data" |
+| license.instanceDataFile     | Path to the per-pod license cache file. Default uses `$(TB_SERVICE_ID)` (the Pod name) so each replica gets its own file under `/data`, which is PVC-backed by default (see [Persistence](#persistence)). Override only if you mount a different writable path. | "/data/tbmq-instance-license-$(TB_SERVICE_ID).data" |
 
 ### TBMQ (Broker) Parameters
 
@@ -590,7 +735,7 @@ license-server admin to clear stale instance bindings).
 | tbmq.securityContext                    | Defaults: `runAsUser: 799`, `runAsNonRoot: true`, `fsGroup: 799`.                                                                                          | (see values.yaml)                     |
 | tbmq.resources                          | CPU/memory requests and limits. Set explicitly for production.                                                                                             | { }                                   |
 | **Persistence**                         |                                                                                                                                                            |                                       |
-| tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). **Strongly recommended for PE**: without persisted `/data`, each Pod restart re-activates against the license server as a new instance and consumes a fresh slot against the license cap (the license client has no automatic stale-instance cleanup — see [Persistence](#persistence)). Cluster id itself lives in PostgreSQL, not `/data`. Safe to leave on for CE. | true |
+| tbmq.persistence.enabled                | Back the broker `/data` directory with a per-pod PVC (via `volumeClaimTemplate`). **Keep enabled for PE** — see [Persistence](#persistence). Safe to disable for CE. | true |
 | tbmq.persistence.size                   | PVC size. The PE license cache file is a few KB; 1Gi just leaves headroom for any future PE feature that may write to `/data`. The reference PE Kubernetes manifests request 100Mi — bumping this default does not affect compatibility. | "1Gi"                                 |
 | tbmq.persistence.storageClassName       | StorageClass name. Empty means use the cluster's default StorageClass.                                                                                       | ""                                    |
 | tbmq.persistence.accessModes            | PVC access modes. ReadWriteOnce is correct for per-pod claims.                                                                                              | ["ReadWriteOnce"]                     |
@@ -627,19 +772,17 @@ The broker StatefulSet provisions a per-pod PVC for `/data` via `volumeClaimTemp
 client writes a per-pod activation-response cache to
 `/data/tbmq-instance-license-$(TB_SERVICE_ID).data` on first start. On subsequent starts:
 
-- **With the cache file present**, the broker calls `checkInstance` against the license server,
-  reusing its existing `instanceId`. No new slot is consumed.
-- **With the cache file missing**, the broker calls `activateInstance` and the license server
-  issues a **fresh** `instanceId`, counting against the license's instance cap
-  (`MAX_PROD_INSTANCES`).
+- **With the cache file present**, the broker checks in with the license server using its
+  existing instance id. No new slot is consumed.
+- **With the cache file missing**, the broker activates again and the license server issues a
+  **fresh** instance id, which counts against the license's instance cap.
 
 The TBMQ cluster id itself lives in PostgreSQL (`tbmq_cluster.cluster_id`), not under `/data`,
-so cache loss does **not** change cluster identity or trigger `CLUSTER_ID_MISMATCH`. But the
-license client has no automatic mechanism to free up slots held by instances that no longer
-exist, so repeated activations from sustained cache loss accumulate on the license server until they
-exhaust the cap. Once exhausted, new pods cannot activate and a license-server admin has to
-clear the stale instance bindings before the cluster can recover. Persisting `/data` avoids the
-problem entirely.
+so cache loss does **not** change cluster identity or trigger `CLUSTER_ID_MISMATCH`. But slots
+held by instances that no longer exist are not freed automatically, so repeated activations from
+sustained cache loss accumulate until they exhaust the cap. Once exhausted, new pods cannot
+activate and you need to [contact ThingsBoard support](https://tbmq.io/contact-us/) to release
+the stale instances. Persisting `/data` avoids the problem entirely.
 
 For Community Edition, nothing meaningful is persisted under `/data`, so disabling
 persistence is safe:
@@ -654,92 +797,26 @@ The Integration Executor StatefulSet and the pre-upgrade Job continue to use `em
 for `/data` — they don't carry per-instance state. The install Pod doesn't mount `/data`
 at all (its only volumes are the install ConfigMap and a logs `emptyDir`).
 
-**Cleanup.** `helm uninstall` does **not** delete PVCs created by `volumeClaimTemplate`.
-The chart-managed PVCs are named `<release>-tbmq-node-data-<release>-tbmq-node-<ordinal>`
-(one per broker replica) and carry no `app=...` label, so reap them by name pattern:
+The PVCs are named `<release>-tbmq-node-data-<release>-tbmq-node-<ordinal>` (one per broker
+replica) and are **not** deleted by `helm uninstall` — see [Uninstalling](#uninstalling).
 
-```bash
-kubectl get pvc -n <namespace> -o name | grep tbmq-node-data \
-  | xargs -r kubectl delete -n <namespace>
-```
+### Managing the Chart with ArgoCD
 
-Or simply `kubectl delete namespace <namespace>` if you no longer need the data.
+ArgoCD renders the chart with `helm template` and applies the result, so Helm hooks and
+`helm --timeout` don't apply. Set `installation.argocd: true` and `upgrade.argocd: true` to switch
+the install Pod and upgrade Job to ArgoCD hooks:
 
-## Infrastructure Configuration
-
-### PostgreSQL
-
-| Parameter                              | Description                                                                                  | Default                   |
-|----------------------------------------|----------------------------------------------------------------------------------------------|---------------------------|
-| postgresql.host                        | PostgreSQL hostname or service name.                                                         | ""                        |
-| postgresql.port                        | PostgreSQL port.                                                                             | 5432                      |
-| postgresql.database                    | Database name. Must exist before install (the chart creates the schema, not the database).  | "thingsboard_mqtt_broker" |
-| postgresql.username                    | PostgreSQL username.                                                                         | "postgres"                |
-| postgresql.password                    | PostgreSQL password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.   | ""                        |
-| postgresql.existingSecret              | Name of an existing Secret holding the password. Recommended for production.                | ""                        |
-| postgresql.existingSecretPasswordKey   | Key inside `existingSecret` that holds the password. Falls back to `postgres-password` if left empty. | ""                        |
-
-```yaml
-postgresql:
-  host: "my-postgres.example.com"
-  port: 5432
-  database: "thingsboard_mqtt_broker"
-  username: "postgres"
-  existingSecret: "my-pg-secret"
-  existingSecretPasswordKey: "password"
-```
-
-### Kafka
-
-| Parameter              | Description                                                | Default |
-|------------------------|------------------------------------------------------------|---------|
-| kafka.bootstrapServers | Comma-separated `host:port` list of Kafka bootstrap nodes. | ""      |
-
-```yaml
-kafka:
-  bootstrapServers: "kafka-0:9092,kafka-1:9092,kafka-2:9092"
-```
-
-### Redis / Valkey / Cache
-
-TBMQ speaks the Redis protocol. Any Redis-compatible backend (Redis, Valkey, Dragonfly, KeyDB)
-works. Two connection modes are supported.
-
-| Parameter                       | Description                                                                                              | Default    |
-|---------------------------------|----------------------------------------------------------------------------------------------------------|------------|
-| redis.connectionType            | `"standalone"` (single-node) or `"cluster"` (Redis Cluster).                                             | "cluster"  |
-| redis.host                      | Hostname for `standalone` mode.                                                                          | ""         |
-| redis.port                      | Port for `standalone` mode.                                                                              | 6379       |
-| redis.nodes                     | Comma-separated `host:port` list for `cluster` mode.                                                     | ""         |
-| redis.usePassword               | Whether the cache requires password authentication.                                                      | true       |
-| redis.password                  | Password. Ignored if `existingSecret` is set. Stored in a chart-managed Secret.                          | ""         |
-| redis.existingSecret            | Name of an existing Secret holding the password.                                                         | ""         |
-| redis.existingSecretPasswordKey | Key inside `existingSecret` that holds the password. Falls back to `redis-password` if left empty.       | ""         |
-
-**Cluster mode:**
-
-```yaml
-redis:
-  connectionType: "cluster"
-  nodes: "redis-0:6379,redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379"
-  existingSecret: "my-redis-secret"
-  existingSecretPasswordKey: "redis-password"
-```
-
-**Standalone mode (e.g., single-node Valkey):**
-
-```yaml
-redis:
-  connectionType: "standalone"
-  host: "valkey.example.com"
-  port: 6379
-  usePassword: false
-```
-
-In `cluster` mode, the chart automatically renders cluster-only keys (`REDIS_NODES`,
-`REDIS_MAX_REDIRECTS`, `REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG`, and the Lettuce topology
-refresh tunables) into the Redis ConfigMap; in `standalone` mode those keys are omitted and only
-`REDIS_HOST`/`REDIS_PORT` are set.
+- **Install** — the install Pod becomes a `Sync` hook (deleted when it succeeds). Set
+  `installation.installDbSchema: true` in the Application's Helm values for the **first sync
+  only**, then remove it. While it is set, every sync re-runs the install Pod.
+- **Upgrade** — the migration Job becomes a `PreSync` hook. ArgoCD can't tell an install from an
+  upgrade, so the Job renders whenever `upgrade.upgradeDbSchema: true`. Set it together with the
+  image tag change that bumps the TBMQ version, then remove it after that sync. Leaving it set
+  makes the next sync fail with `database already upgraded to current version`. To scale down
+  before the migration as in the [Standard Upgrade Procedure](#standard-upgrade-procedure),
+  disable auto-sync self-heal first so ArgoCD doesn't scale the StatefulSets back up.
+- **Timeouts** — the hooks are bounded only by `installation.activeDeadlineSeconds` and
+  `upgrade.activeDeadlineSeconds`.
 
 ## Load Balancer
 
@@ -771,20 +848,21 @@ Controller, etc.).
 
 To enable application-level mTLS for the MQTT listener:
 
-1. Create a ConfigMap holding the server certificate and private key:
+1. Create a Secret holding the server certificate and private key (recommended, since it holds a
+   private key). It must use the keys `server.pem` and `mqttserver_key.pem`:
 
    ```bash
-   kubectl create configmap tbmq-node-mqtts-config -n <namespace> \
+   kubectl create secret generic tbmq-node-mqtts-config -n <namespace> \
      --from-file=server.pem=/path/to/server.pem \
      --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
      -o yaml --dry-run=client | kubectl apply -f -
    ```
 
-   Alternatively, store them in a Secret (recommended, since it holds a private key) and reference it
-   via `existingSecretName` in step 3. The Secret must use the same keys, `server.pem` and `mqttserver_key.pem`:
+   Alternatively, use a ConfigMap with the same keys and reference it via `configMapName` in
+   step 3:
 
    ```bash
-   kubectl create secret generic tbmq-node-mqtts-config -n <namespace> \
+   kubectl create configmap tbmq-node-mqtts-config -n <namespace> \
      --from-file=server.pem=/path/to/server.pem \
      --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
      -o yaml --dry-run=client | kubectl apply -f -
@@ -806,8 +884,8 @@ To enable application-level mTLS for the MQTT listener:
        enabled: true
        mutualTls:
          enabled: true
-         configMapName: "tbmq-node-mqtts-config"
-         # existingSecretName: "tbmq-node-mqtts-config"  # use instead of configMapName; takes precedence when set
+         existingSecretName: "tbmq-node-mqtts-config"
+         # configMapName: "tbmq-node-mqtts-config"      # if you used a ConfigMap instead; existingSecretName takes precedence when set
          privateKeyPasswordSecret: "mqtt-tls-secret"      # omit if not needed
          privateKeyPasswordSecretKey: "key_password"      # omit if not needed
    ```
@@ -824,5 +902,14 @@ ConfigMaps, chart-managed Secrets, Ingress, and the load balancer Service). It d
 - **External infrastructure** — PostgreSQL data, Kafka topics, and Redis cache are owned by the
   systems you deployed alongside TBMQ. Drop them explicitly if you no longer need them.
 - **Pre-existing Secrets** — anything referenced via `postgresql.existingSecret`,
-  `redis.existingSecret`, or a pre-created `tbmq.imagePullSecret` is left in place.
-- **Per-pod PVCs created from `volumeClaimTemplate`** — chart-managed `tbmq-node-data` PVCs are not deleted by `helm uninstall`. They carry no `app=...` label (the volumeClaimTemplate has none), so drop them explicitly by name pattern: `kubectl get pvc -n <namespace> -o name | grep tbmq-node-data | xargs -r kubectl delete -n <namespace>`, or just delete the whole namespace.
+  `redis.existingSecret`, `license.existingSecret`, or a pre-created `tbmq.imagePullSecret` is
+  left in place.
+- **Per-pod PVCs created from `volumeClaimTemplate`** — the broker's `tbmq-node-data` PVCs are kept
+  by design (StatefulSet semantics). Delete them by name pattern:
+
+  ```bash
+  kubectl get pvc -n <namespace> -o name | grep tbmq-node-data \
+    | xargs -r kubectl delete -n <namespace>
+  ```
+
+  Or delete the whole namespace if you no longer need anything in it.

@@ -40,6 +40,11 @@ installation:
   # Replaces Helm install/upgrade hook annotations with ArgoCD Sync hook annotations.
   # Enable when the chart is managed by ArgoCD.
   argocd: false
+  # Hard limit, in seconds, on the install Pod's lifetime (Pod activeDeadlineSeconds). Without it a
+  # failing install Pod (restartPolicy: OnFailure) keeps retrying after Helm stops waiting.
+  # Helm itself waits for the hook only as long as `helm install --timeout` (default 5m), so pass a
+  # --timeout that is at least this long, e.g. `--timeout 10m`.
+  activeDeadlineSeconds: 600
 
 # Controls the upgrade options, including database schema upgrade, edition migration, and ArgoCD support.
 upgrade:
@@ -50,6 +55,11 @@ upgrade:
   # Replaces Helm pre-upgrade hook annotations with ArgoCD PreSync hook annotations.
   # Enable when the chart is managed by ArgoCD.
   argocd: false
+  # Hard limit, in seconds, on the schema migration Job (Job activeDeadlineSeconds). When it is
+  # exceeded, Kubernetes stops the migration and marks the Job failed. Helm itself waits for the
+  # hook only as long as `helm upgrade --timeout` (default 5m), so pass a --timeout that covers
+  # your migration, e.g. `--timeout 30m`, and raise this value for very large databases.
+  activeDeadlineSeconds: 3600
   # Edition the upgrade is migrating FROM. Used only for cross-edition upgrades.
   # Set to "ce" when upgrading from Community Edition to Professional Edition (same TBMQ version).
   # The chart sets FROM_VERSION=ce on the upgrade job, and the PE entrypoint forwards it as

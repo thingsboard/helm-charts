@@ -3,7 +3,7 @@ appVersion: 2.4.0
 description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
-version: 2.2.0
+version: 2.3.0
 annotations:
   artifacthub.io/category: streaming-messaging
   artifacthub.io/license: Apache-2.0
@@ -14,22 +14,14 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
-    - kind: added
-      description: "tbmq.priorityClassName and tbmq-ie.priorityClassName set a PriorityClass on the broker and Integration Executor StatefulSets (optional, unset by default)."
-    - kind: added
-      description: "loadbalancer.mqtt.mutualTls.existingSecretName loads the MQTT TLS server certificate and private key (server.pem, mqttserver_key.pem) from an existing Secret instead of a ConfigMap. When set, it takes precedence over configMapName."
-    - kind: changed
-      description: "Upgrading from chart 2.1.0: TBMQ stays at 2.4.0, so there is no database migration. Run a plain `helm upgrade` without scaling down and without `upgrade.upgradeDbSchema=true`. Setting the flag makes the pre-upgrade Job fail with `database already upgraded to current version`. The README's Standard Upgrade Procedure now says when the flag applies."
-    - kind: added
-      description: "The chart's own helper images are now configurable via `helperImages.toolbox` and `helperImages.busybox`. They were hardcoded in the templates, which made the chart unusable with a private registry or an air-gapped mirror."
-    - kind: changed
-      description: "Bumped the helper images to current releases: thingsboard/toolbox 1.13.0 -> 1.29.0 and busybox 1.36 -> 1.37.0. Both are drop-in — the toolbox script contract (script-runner.sh / psql-validator.sh under WORKDIR /scripts) is unchanged."
     - kind: fixed
-      description: "Declared the chart license with the supported `artifacthub.io/license` annotation. The previous `licenses` key is not an Artifact Hub annotation, so the package page showed no license at all."
-    - kind: fixed
-      description: "Corrected the Minikube guide's install Pod note: with `restartPolicy: OnFailure` a failed install does not stop, it keeps retrying in CrashLoopBackOff. The guide now says to read the failed attempt with `kubectl logs --previous` and delete the Pod afterwards."
+      description: "Removed the `helm.sh/hook-timeout` annotation from the install Pod and upgrade Job. Helm does not support it, so the documented 300s/600s hook timeouts never applied: Helm waits for hooks only as long as `--timeout` (default 5m). The README now tells you to pass `--timeout 10m` on install and a `--timeout` that covers your migration on upgrade."
     - kind: added
-      description: "Minikube guide: added an MQTT smoke test. It uses the built-in tbmq_websockets_username credential (created at install, no password), and explains that MQTT_BASIC is the only auth provider enabled by default, so a client sending no username at all is rejected with CONNECTION_REFUSED_NOT_AUTHORIZED."
+      description: "`installation.activeDeadlineSeconds` (default 600) and `upgrade.activeDeadlineSeconds` (default 3600) set a hard limit on the install Pod and the migration Job. Before, a failing install Pod or a migration stuck waiting for PostgreSQL kept running after Helm gave up."
+    - kind: fixed
+      description: "`upgrade.argocd: true` now renders the migration Job. ArgoCD renders with `helm template`, where the release is never an upgrade, so the Job was always skipped."
+    - kind: changed
+      description: "README reorganized for first-time users: every helm command now passes `-n <namespace>`, the PE edits and the PostgreSQL/Kafka/Redis settings moved into Step 2, a single install command, new \"Access TBMQ\" and \"Troubleshooting the Install\" sections, an upgrade procedure that updates the image tags before running `helm upgrade`, and an ArgoCD section."
 home: https://tbmq.io/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:

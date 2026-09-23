@@ -353,8 +353,9 @@ in `minikube-values.yaml`.
 > A **failed** install is not kept as a stopped Pod. The Pod uses
 > `restartPolicy: OnFailure`, so the kubelet restarts the install container in
 > the same Pod: it goes into `CrashLoopBackOff` and keeps re-running the install
-> against the database, even after Helm's 300s hook timeout has failed the
-> release. Plain `kubectl logs` may show a new attempt that is still running, so
+> against the database, even after `helm install` has timed out (`--timeout`,
+> default 5m), until `installation.activeDeadlineSeconds` (default 600s) marks
+> the Pod `Failed`. Plain `kubectl logs` may show a new attempt that is still running, so
 > read the attempt that failed with `--previous`:
 >
 > ```bash
