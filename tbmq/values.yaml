@@ -60,12 +60,12 @@ upgrade:
   # Replaces Helm pre-upgrade hook annotations with ArgoCD PreSync hook annotations.
   # Enable when the chart is managed by ArgoCD.
   argocd: false
-  # Hard limit, in seconds, on the schema migration Job (Job activeDeadlineSeconds). When it is
-  # exceeded, Kubernetes stops the migration and marks the Job failed. Helm itself waits for the
-  # hook only as long as `helm upgrade --timeout` (default 5m); for a large database pass a longer
-  # one (e.g. `--timeout 30m`). If Helm gives up first, the Job keeps running until it finishes or
-  # reaches this limit. Raise it for very large databases.
-  activeDeadlineSeconds: 3600
+  # Hard limit, in seconds, on the schema migration Job (Job activeDeadlineSeconds), including
+  # retries. When it is exceeded, Kubernetes stops the migration and marks the Job failed.
+  # Kept below Helm's default `helm upgrade --timeout` (5m), so the upgrade needs no --timeout flag.
+  # If a migration needs longer (e.g. slow image pulls), raise it and also pass a --timeout
+  # comfortably longer than this; otherwise Helm gives up first while the Job keeps running.
+  activeDeadlineSeconds: 240
   # Edition the upgrade is migrating FROM. Used only for cross-edition upgrades.
   # Set to "ce" when upgrading from Community Edition to Professional Edition (same TBMQ version).
   # The chart sets FROM_VERSION=ce on the upgrade job, and the PE entrypoint forwards it as

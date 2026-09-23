@@ -455,10 +455,11 @@ The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
      --set upgrade.upgradeDbSchema=true
    ```
 
-   Helm waits for the migration up to its `--timeout` (default 5m). For a large database, add a
-   longer one (e.g. `--timeout 30m`); if Helm gives up first, the migration keeps running (see
-   [Troubleshooting Upgrades](#troubleshooting-upgrades)). The migration Job has its own hard
-   limit, `upgrade.activeDeadlineSeconds` (see [Global Parameters](#global-parameters)).
+   Helm waits for the migration up to its `--timeout` (default 5m). The migration Job's own limit,
+   `upgrade.activeDeadlineSeconds`, is set below that by default (see
+   [Global Parameters](#global-parameters)), so no `--timeout` is needed. If you raise the limit,
+   also pass a `--timeout` comfortably longer than it; otherwise Helm gives up first while the
+   migration keeps running (see [Troubleshooting Upgrades](#troubleshooting-upgrades)).
 
 6. **Verify the migration completed.** The migration runs as a Kubernetes Job named
    `my-tbmq-upgrade-<revision>` and is automatically deleted 5 minutes after it finishes
@@ -539,16 +540,17 @@ Common causes:
 - **Pod stuck in `Init:0/1` with `wait-for-postgres` repeatedly logging `waiting for postgres`** →
   PostgreSQL is unreachable. The init container echoes `waiting for postgres` between retries; an
   unresolvable host also logs `nc: bad address '<host>'`, while a refused or timed-out connection
-  logs nothing else. Helm gives up after `--timeout`, and the Job itself stops when
-  `upgrade.activeDeadlineSeconds` passes. Check `postgresql.host`/`postgresql.port` and that the
+  logs nothing else. The Job stops when `upgrade.activeDeadlineSeconds` passes (or Helm gives up
+  first after `--timeout`, if you raised the limit above it). Check `postgresql.host`/`postgresql.port` and that the
   DB is reachable from the TBMQ namespace.
 - **Authentication failed** → verify `postgresql.password` or that the `existingSecret` contains
   the expected key.
 - **`helm upgrade` fails with `timed out waiting for the condition`** → the migration did not
-  finish within `--timeout` (Helm default 5m). The release is marked `failed` and the StatefulSets
-  are not updated (they stay at 0 if you scaled down), but **the migration Job keeps running** in
-  the cluster until it finishes or reaches `upgrade.activeDeadlineSeconds`. Follow its logs. If it
-  succeeded, re-run the same `helm upgrade` **without** `upgrade.upgradeDbSchema=true`. If it
+  finish within `--timeout` (Helm default 5m). With the defaults the Job's deadline fires first, so
+  this happens only when `upgrade.activeDeadlineSeconds` was raised above `--timeout`. The release
+  is marked `failed` and the StatefulSets are not updated (they stay at 0 if you scaled down), but
+  **the migration Job keeps running** in the cluster until it finishes or reaches
+  `upgrade.activeDeadlineSeconds`. Follow its logs. If it succeeded, re-run the same `helm upgrade` **without** `upgrade.upgradeDbSchema=true`. If it
   failed or hit the deadline, fix the cause (e.g. more resources, `VACUUM`/`ANALYZE` first, a
   higher `upgrade.activeDeadlineSeconds`) and re-run with the flag and a longer `--timeout`.
 - **`helm upgrade` fails with `pre-upgrade hooks failed` … `job my-tbmq-upgrade-<revision> failed`**
@@ -709,7 +711,7 @@ the cluster id is not stored under `/data`. Losing `/data` has a different cost 
 | **Upgrade**                  |                                                                                                                                                                                      |                             |
 | upgrade.upgradeDbSchema      | Runs the DB migration during `helm upgrade` (pre-upgrade hook). Ignored on first install (except with `upgrade.argocd`, see below).                                                  | false                       |
 | upgrade.argocd               | Replaces Helm pre-upgrade hooks with ArgoCD `PreSync` hook annotations on the upgrade job. See [Managing the Chart with ArgoCD](#managing-the-chart-with-argocd).                     | false                       |
-| upgrade.activeDeadlineSeconds | Hard limit on the schema migration Job. Raise it for very large databases, together with `helm upgrade --timeout`.                                                                  | 3600                        |
+| upgrade.activeDeadlineSeconds | Hard limit on the schema migration Job, including retries. The default stays below Helm's 5m `--timeout`; if you raise it, pass a longer `--timeout` too.                       | 240                         |
 | upgrade.fromVersion          | Edition the upgrade is migrating FROM. Set to `"ce"` only for CE → PE cross-edition upgrades. Leave empty for same-edition upgrades.                                                 | ""                          |
 | **License (PE only)**        | Required for PE; ignored for CE (when both `secret` and `existingSecret` are empty, the chart skips license wiring).                                                                 |                             |
 | license.secret               | License value. When set, the chart creates a Secret `<release>-tbmq-license-secret`. Convenient for testing; the value lands in the helm release manifest.                           | ""                          |
