@@ -12,6 +12,24 @@ dockerAuth:
   # Docker user password on which pull secret will be created.
   password: ""
 
+# Helper images used by the chart's own init containers and install/upgrade hooks.
+# These are NOT TBMQ images and they run no TBMQ code — they only gate startup on
+# PostgreSQL readiness. Override the repositories to pull from a private registry or
+# an air-gapped mirror.
+helperImages:
+  # Runs the `validate-db` init container on the broker StatefulSet: waits for PostgreSQL
+  # to accept connections, then validates that the schema is present and populated.
+  # The image must provide `bash`, `psql`, and the `script-runner.sh` / `psql-validator.sh`
+  # scripts under its working directory (`/scripts` in the official image).
+  toolbox:
+    repository: thingsboard/toolbox
+    tag: "1.29.0"
+  # Runs the `wait-for-postgres` init container on the install Pod and the pre-upgrade Job.
+  # The image only needs a shell and `nc`.
+  busybox:
+    repository: busybox
+    tag: "1.37.0"
+
 # Controls the installation options, including database schema initialization and ArgoCD support.
 installation:
   # Initializes the TBMQ PostgreSQL database schema. Set to true ONLY on the first install.
