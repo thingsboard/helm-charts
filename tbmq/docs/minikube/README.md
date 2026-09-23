@@ -348,23 +348,31 @@ in `minikube-values.yaml`.
 > **Note on the install Pod:** the chart's post-install hook creates a one-shot
 > Pod named `tbmq-install-pod`. Its delete policy is
 > `hook-succeeded,before-hook-creation`, so Helm removes it as soon as it
-> **succeeds** — but a **failed** install Pod is deliberately kept so you can
-> inspect it, and is only cleaned up just before the next hook run. In other
-> words: if the install worked, the Pod is already gone; if it did not, run
+> **succeeds**. If the install worked, the Pod is already gone.
+>
+> A **failed** install is not kept as a stopped Pod. The Pod uses
+> `restartPolicy: OnFailure`, so the kubelet restarts the install container in
+> the same Pod: it goes into `CrashLoopBackOff` and keeps re-running the install
+> against the database, even after Helm's 300s hook timeout has failed the
+> release. Plain `kubectl logs` may show a new attempt that is still running, so
+> read the attempt that failed with `--previous`:
 >
 > ```bash
-> kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker
+> kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker --previous
 > kubectl describe pod tbmq-install-pod -n thingsboard-mqtt-broker
 > ```
 >
-> to see why. To watch a successful run as it happens, either follow the logs
-> right after `helm install`:
+> Once you have the logs, delete the Pod so it stops hitting the database:
+>
+> ```bash
+> kubectl delete pod tbmq-install-pod -n thingsboard-mqtt-broker
+> ```
+>
+> To watch a run as it happens, follow the logs right after `helm install`:
 >
 > ```bash
 > kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker -f
 > ```
->
-> or use `helm install --debug` to stream hook output to your terminal.
 
 ### Access the TBMQ UI
 
