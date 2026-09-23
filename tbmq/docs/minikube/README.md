@@ -311,13 +311,18 @@ cd tbmq/docs/minikube
 ```bash
 helm install tbmq ../../ -f minikube-values.yaml \
   --set installation.installDbSchema=true \
-  --namespace thingsboard-mqtt-broker
+  --namespace thingsboard-mqtt-broker \
+  --timeout 10m
 ```
 
 > Pass `installation.installDbSchema=true` via `--set` on the **first install only**.
 > Do not put it in `minikube-values.yaml` — the post-install hook is bound to
 > `post-install,post-upgrade`, so persisting the flag would re-fire the install
 > Pod on every `helm upgrade` and corrupt an already-populated schema.
+>
+> `--timeout 10m` gives the first install time to pull the TBMQ image. Keep it at
+> least as long as `installation.activeDeadlineSeconds` (see the chart README's
+> Global Parameters for the default); Helm's own default is 5m.
 
 ### Verify
 
@@ -350,13 +355,13 @@ in `minikube-values.yaml`.
 > `hook-succeeded,before-hook-creation`, so Helm removes it as soon as it
 > **succeeds**. If the install worked, the Pod is already gone.
 >
-> A **failed** install is not kept as a stopped Pod. The Pod uses
+> A **failed** install does not stop at once. The Pod uses
 > `restartPolicy: OnFailure`, so the kubelet restarts the install container in
 > the same Pod: it goes into `CrashLoopBackOff` and keeps re-running the install
-> against the database, even after `helm install` has timed out (`--timeout`,
-> default 5m), until `installation.activeDeadlineSeconds` (default 600s) marks
-> the Pod `Failed`. Plain `kubectl logs` may show a new attempt that is still running, so
-> read the attempt that failed with `--previous`:
+> against the database until `installation.activeDeadlineSeconds` passes, then
+> the Pod is marked `Failed` and left in place. Plain `kubectl logs` may show a
+> new attempt that is still running, so read the attempt that failed with
+> `--previous`:
 >
 > ```bash
 > kubectl logs tbmq-install-pod -n thingsboard-mqtt-broker --previous
@@ -537,7 +542,8 @@ same Postgres / Kafka / Valkey services you deployed in Steps 1–3.
 helm upgrade tbmq ../../ -f minikube-pe-values.yaml \
   --set upgrade.upgradeDbSchema=true \
   --set upgrade.fromVersion=ce \
-  -n thingsboard-mqtt-broker
+  -n thingsboard-mqtt-broker \
+  --timeout 30m
 ```
 
 What happens:

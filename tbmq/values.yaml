@@ -49,7 +49,10 @@ installation:
 # Controls the upgrade options, including database schema upgrade, edition migration, and ArgoCD support.
 upgrade:
   # Runs the TBMQ database schema migration during `helm upgrade`.
-  # Ignored if the Helm release is not in the "upgrade" state (i.e., on first install).
+  # Ignored if the Helm release is not in the "upgrade" state (i.e., on first install), unless
+  # `argocd` below is true: ArgoCD renders with `helm template` and can't tell an install from an
+  # upgrade, so the migration Job then renders on every sync while this is true. Set it only for
+  # the sync that bumps the TBMQ version, never on the first sync.
   # Pass via --set on `helm upgrade` rather than persisting in values.yaml.
   upgradeDbSchema: false
   # Replaces Helm pre-upgrade hook annotations with ArgoCD PreSync hook annotations.

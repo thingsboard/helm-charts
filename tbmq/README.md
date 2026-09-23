@@ -268,8 +268,9 @@ helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
   resources and as the reference for future `helm` commands against this release.
 - `-n <namespace>` must be the same namespace on every later `helm` and `kubectl` command. For PE
   it must be the namespace that holds your license Secret.
-- `--timeout` is how long Helm waits for the schema install hook. The Helm default is 5m; `10m`
-  matches the install Pod's own limit (`installation.activeDeadlineSeconds`, default 600s).
+- `--timeout` is how long Helm waits for the schema install hook (Helm default 5m). Keep it at
+  least as long as the install Pod's own limit, `installation.activeDeadlineSeconds` (see
+  [Global Parameters](#global-parameters) for the default); `10m` covers the default.
 
 ### Step 4: Verify the Install
 
@@ -283,7 +284,7 @@ label), so the selector lists the three app names instead of filtering by releas
 
 The install pod (`my-tbmq-install-pod`) creates the schema, then exits. Its `restartPolicy` is
 `OnFailure`, so a failed container restarts in the same Pod until it succeeds or
-`installation.activeDeadlineSeconds` (default 600s) passes; after that the Pod is marked `Failed`.
+`installation.activeDeadlineSeconds` passes; after that the Pod is marked `Failed`.
 The hook policy is `hook-succeeded,before-hook-creation`: Helm deletes the pod **only when it
 succeeds**. A failed pod is **left in place** so you can inspect logs, and it is cleaned up the
 next time the hook runs (e.g., the next `helm upgrade`) or when you delete it.
@@ -450,7 +451,7 @@ The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
 
    `--timeout` is how long Helm waits for the migration (Helm default 5m). Set it high enough for
    your database size. The migration Job has its own hard limit, `upgrade.activeDeadlineSeconds`
-   (default 3600s).
+   (see [Global Parameters](#global-parameters) for the default).
 
 6. **Verify the migration completed.** The migration runs as a Kubernetes Job named
    `my-tbmq-upgrade-<revision>` and is automatically deleted 5 minutes after it finishes
@@ -812,7 +813,10 @@ the install Pod and upgrade Job to ArgoCD hooks:
 - **Upgrade** — the migration Job becomes a `PreSync` hook. ArgoCD can't tell an install from an
   upgrade, so the Job renders whenever `upgrade.upgradeDbSchema: true`. Set it together with the
   image tag change that bumps the TBMQ version, then remove it after that sync. Leaving it set
-  makes the next sync fail with `database already upgraded to current version`. To scale down
+  makes the next sync fail with `database already upgraded to current version`. **Never set it
+  on the first sync:** the PreSync Job needs ConfigMaps and Secrets that the Sync phase has not
+  created yet, so its Pod waits in `CreateContainerConfigError` until
+  `upgrade.activeDeadlineSeconds` runs out. To scale down
   before the migration as in the [Standard Upgrade Procedure](#standard-upgrade-procedure),
   disable auto-sync self-heal first so ArgoCD doesn't scale the StatefulSets back up.
 - **Timeouts** — the hooks are bounded only by `installation.activeDeadlineSeconds` and
