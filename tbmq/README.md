@@ -550,6 +550,7 @@ license-server admin to clear stale instance bindings).
 | tbmq.statefulSet.annotations            | Annotations applied to the StatefulSet resource (CI/CD, audit, etc.).                                                                                      | { }                                   |
 | tbmq.annotations                        | Annotations applied to broker pods (Prometheus scrape, sidecars, etc.).                                                                                    | { }                                   |
 | tbmq.nodeSelector / tbmq.affinity       | Pod scheduling rules.                                                                                                                                      | { }                                   |
+| tbmq.priorityClassName                  | Optional name of an existing priority class to set on all tbmq-node pods                                                                                   | ""                                    |
 | tbmq.restartPolicy                      | Pod restart policy.                                                                                                                                        | Always                                |
 | **Ports**                               |                                                                                                                                                            |                                       |
 | tbmq.ports                              | Container ports: HTTP 8083, MQTT 1883, MQTTS 8883, MQTT-WS 8084, MQTT-WSS 8085.                                                                            | (see values.yaml)                     |
@@ -587,7 +588,7 @@ The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 | tbmq-ie.livenessProbe           | Default: TCP `http`, initialDelay 120s, period 20s.                                                                                                         |                                       |
 
 > All other `tbmq-ie.*` keys mirror their `tbmq.*` counterparts with the same defaults and behavior:
-> `statefulSet.annotations`, `annotations`, `nodeSelector`, `affinity`, `customEnv`,
+> `statefulSet.annotations`, `annotations`, `priorityClassName`, `nodeSelector`, `affinity`, `customEnv`,
 > `existingConfigMap`, `existingJavaOptsConfigMap`, `existingLogbackConfigMap`,
 > `enableChecksumAnnotations`, `restartPolicy`, `securityContext`, `resources`. The IE Pod does
 > **not** mount PostgreSQL, Redis, or PE license env vars — it only connects to Kafka.
@@ -737,6 +738,7 @@ Controller, etc.).
 | loadbalancer.mqtt.annotations                           | Extra Service annotations. Merged with provider defaults — user values win on conflict.                  | { }                    |
 | loadbalancer.mqtt.mutualTls.enabled                     | Enable application-level mTLS. Requires server cert + key. Disables `tlsTermination`.                    | false                  |
 | loadbalancer.mqtt.mutualTls.configMapName               | ConfigMap with `server.pem` and `mqttserver_key.pem` keys.                                               | "tbmq-node-mqtts-config" |
+| loadbalancer.mqtt.mutualTls.existingSecretName          | Optional secret with `server.pem` and `mqttserver_key.pem` keys, replaces `.configMapName`.              | "" |
 | loadbalancer.mqtt.mutualTls.privateKeyPasswordSecret    | Optional Secret holding the private key password.                                                        | ""                     |
 | loadbalancer.mqtt.mutualTls.privateKeyPasswordSecretKey | Key inside the Secret with the private key password.                                                     | "key_password"         |
 | loadbalancer.mqtt.tlsTermination.enabled                | Enable L4 TLS termination at the load balancer. Supported on AWS NLB only. Ignored if mTLS is enabled.   | false                  |
@@ -750,6 +752,16 @@ To enable application-level mTLS for the MQTT listener:
 
    ```bash
    kubectl create configmap tbmq-node-mqtts-config \
+     --from-file=server.pem=/path/to/server.pem \
+     --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
+     -o yaml --dry-run=client | kubectl apply -f -
+   ```
+
+   Alternatively, store them in a Secret (recommended, since it holds a private key) and reference it
+   via `existingSecretName` in step 3. The Secret must use the same keys, `server.pem` and `mqttserver_key.pem`:
+
+   ```bash
+   kubectl create secret generic tbmq-node-mqtts-config \
      --from-file=server.pem=/path/to/server.pem \
      --from-file=mqttserver_key.pem=/path/to/mqttserver_key.pem \
      -o yaml --dry-run=client | kubectl apply -f -
@@ -772,6 +784,7 @@ To enable application-level mTLS for the MQTT listener:
        mutualTls:
          enabled: true
          configMapName: "tbmq-node-mqtts-config"
+         # existingSecretName: "tbmq-node-mqtts-config"  # use instead of configMapName; takes precedence when set
          privateKeyPasswordSecret: "mqtt-tls-secret"      # omit if not needed
          privateKeyPasswordSecretKey: "key_password"      # omit if not needed
    ```

@@ -30,6 +30,9 @@ spec:
       labels:
         app: {{ include "tbmq.ie.label" . }}
     spec:
+      {{- if $tbmqIe.priorityClassName }}
+      priorityClassName: {{ $tbmqIe.priorityClassName }}
+      {{- end }}
       nodeSelector:
         {{- $tbmqIe.nodeSelector | toYaml | nindent 8 }}
       affinity:

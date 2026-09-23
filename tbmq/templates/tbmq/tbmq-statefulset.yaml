@@ -36,6 +36,9 @@ spec:
       labels:
         app: {{ include "tbmq.node.label" . }}
     spec:
+      {{- if .Values.tbmq.priorityClassName }}
+      priorityClassName: {{ .Values.tbmq.priorityClassName }}
+      {{- end }}
       nodeSelector:
         {{- .Values.tbmq.nodeSelector | toYaml | nindent 8 }}
       affinity:
@@ -136,6 +139,15 @@ spec:
                 path: logback.xml
         {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
         - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
+          {{- if .Values.loadbalancer.mqtt.mutualTls.existingSecretName }}
+          secret:
+            secretName: {{ .Values.loadbalancer.mqtt.mutualTls.existingSecretName }}
+            items:
+              - key: server.pem
+                path: server.pem
+              - key: mqttserver_key.pem
+                path: mqttserver_key.pem
+          {{- else }}
           configMap:
             name: {{ .Values.loadbalancer.mqtt.mutualTls.configMapName }}
             items:
@@ -143,6 +155,7 @@ spec:
                 path: server.pem
               - key: mqttserver_key.pem
                 path: mqttserver_key.pem
+          {{- end }}
         {{- end }}
         - name: {{ $releaseName }}-tbmq-node-logs
           emptyDir: { }
