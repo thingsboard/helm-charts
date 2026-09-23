@@ -826,10 +826,13 @@ the install Pod and upgrade Job to ArgoCD hooks:
   upgrade, so the Job renders whenever `upgrade.upgradeDbSchema: true`. Set it together with the
   image tag change that bumps the TBMQ version, then remove it after that sync. Leaving it set
   makes the next sync fail with `database already upgraded to current version`. **Never set it
-  on the first sync:** the PreSync Job mounts ConfigMaps that the Sync phase has not created yet,
-  so its Pod sits in `Init:0/1` with `FailedMount … configmap … not found` events in
-  `kubectl describe pod` (not a PostgreSQL problem, despite the same `Init:0/1` status) until
-  `upgrade.activeDeadlineSeconds` runs out. To scale down
+  on the first sync:** the PreSync Job needs ConfigMaps and Secrets that the Sync phase has not
+  created yet, so its Pod is stuck until `upgrade.activeDeadlineSeconds` runs out. With the
+  chart's default ConfigMaps it sits in `Init:0/1` with `FailedMount … configmap … not found`
+  events in `kubectl describe pod` (not a PostgreSQL problem, despite the same `Init:0/1` status).
+  With `existingConfigMap` (or both `existingJavaOptsConfigMap` and `existingLogbackConfigMap`)
+  the volumes mount, and the main container fails with `CreateContainerConfigError` on the
+  missing `*-postgres-config` / `*-tbmq-custom-env` / chart-managed Secrets instead. To scale down
   before the migration as in the [Standard Upgrade Procedure](#standard-upgrade-procedure),
   disable auto-sync self-heal first so ArgoCD doesn't scale the StatefulSets back up.
 - **Timeouts** — the hooks are bounded only by `installation.activeDeadlineSeconds` and
