@@ -261,16 +261,18 @@ helm install my-tbmq tbmq-helm-chart/tbmq-cluster \
   -n <namespace> --create-namespace \
   -f values.yaml \
   --set installation.installDbSchema=true \
-  --timeout 10m
+  --timeout 11m
 ```
 
 - `my-tbmq` is the **Helm release name**. Pick any name. It is used as the prefix for all deployed
   resources and as the reference for future `helm` commands against this release.
 - `-n <namespace>` must be the same namespace on every later `helm` and `kubectl` command. For PE
   it must be the namespace that holds your license Secret.
-- `--timeout` is how long Helm waits for the schema install hook (Helm default 5m). Keep it at
-  least as long as the install Pod's own limit, `installation.activeDeadlineSeconds` (see
-  [Global Parameters](#global-parameters) for the default); `10m` covers the default.
+- `--timeout` is how long Helm waits for the schema install hook (Helm default 5m). Make it
+  **longer than** the install Pod's own limit, `installation.activeDeadlineSeconds` (see
+  [Global Parameters](#global-parameters) for the default). The deadline only starts once the
+  Pod is scheduled and the kubelet needs a few more seconds to report the failure, so an equal
+  timeout expires first and hides the real error. `11m` leaves that margin over the default.
 
 ### Step 4: Verify the Install
 
@@ -363,7 +365,7 @@ first client.
   you passed `--set installation.installDbSchema=true` and that the install Pod succeeded. If you
   forgot the flag, run it through an upgrade (the install hook is also bound to `post-upgrade` for
   this recovery):
-  `helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -n <namespace> -f values.yaml --set installation.installDbSchema=true --timeout 10m`
+  `helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -n <namespace> -f values.yaml --set installation.installDbSchema=true --timeout 11m`
 
 ## Updating Configuration
 
@@ -705,7 +707,7 @@ the cluster id is not stored under `/data`. Losing `/data` has a different cost 
 | **Installation**             |                                                                                                                                                                                      |                             |
 | installation.installDbSchema | Initializes the TBMQ DB schema. Pass via `--set` on first install only. The post-install hook is also bound to `post-upgrade` for recovery scenarios.                                | false                       |
 | installation.argocd          | Replaces Helm install/upgrade hooks with ArgoCD `Sync` hook annotations on the install pod. See [Managing the Chart with ArgoCD](#managing-the-chart-with-argocd).                   | false                       |
-| installation.activeDeadlineSeconds | Hard limit on the install Pod's lifetime, including retries. Keep `helm install --timeout` at least this long.                                                                 | 600                         |
+| installation.activeDeadlineSeconds | Hard limit on the install Pod's lifetime, including retries. Keep `helm install --timeout` longer than this (e.g. `11m` for the default).                                     | 600                         |
 | **Upgrade**                  |                                                                                                                                                                                      |                             |
 | upgrade.upgradeDbSchema      | Runs the DB migration during `helm upgrade` (pre-upgrade hook). Ignored on first install (except with `upgrade.argocd`, see below).                                                  | false                       |
 | upgrade.argocd               | Replaces Helm pre-upgrade hooks with ArgoCD `PreSync` hook annotations on the upgrade job. See [Managing the Chart with ArgoCD](#managing-the-chart-with-argocd).                     | false                       |
@@ -821,7 +823,9 @@ the install Pod and upgrade Job to ArgoCD hooks:
 
 - **Install** — the install Pod becomes a `Sync` hook (deleted when it succeeds). Set
   `installation.installDbSchema: true` in the Application's Helm values for the **first sync
-  only**, then remove it. While it is set, every sync re-runs the install Pod.
+  only**, then remove it. While it is set, every sync re-runs the install Pod. A failed install
+  Pod is left in place for its logs and replaced on the next sync
+  (`hook-delete-policy: BeforeHookCreation,HookSucceeded`).
 - **Upgrade** — the migration Job becomes a `PreSync` hook. ArgoCD can't tell an install from an
   upgrade, so the Job renders whenever `upgrade.upgradeDbSchema: true`. Set it together with the
   image tag change that bumps the TBMQ version, then remove it after that sync. Leaving it set

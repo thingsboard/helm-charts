@@ -312,7 +312,7 @@ cd tbmq/docs/minikube
 helm install tbmq ../../ -f minikube-values.yaml \
   --set installation.installDbSchema=true \
   --namespace thingsboard-mqtt-broker \
-  --timeout 10m
+  --timeout 11m
 ```
 
 > Pass `installation.installDbSchema=true` via `--set` on the **first install only**.
@@ -320,9 +320,10 @@ helm install tbmq ../../ -f minikube-values.yaml \
 > `post-install,post-upgrade`, so persisting the flag would re-fire the install
 > Pod on every `helm upgrade` and corrupt an already-populated schema.
 >
-> `--timeout 10m` gives the first install time to pull the TBMQ image. Keep it at
-> least as long as `installation.activeDeadlineSeconds` (see the chart README's
-> Global Parameters for the default); Helm's own default is 5m.
+> `--timeout 11m` gives the first install time to pull the TBMQ image. Keep it
+> longer than `installation.activeDeadlineSeconds` (see the chart README's Global
+> Parameters for the default), so a Pod that hits its deadline is reported as
+> failed instead of Helm timing out first; Helm's own default is 5m.
 
 ### Verify
 

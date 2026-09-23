@@ -15,11 +15,13 @@ annotations:
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
     - kind: fixed
-      description: "Removed the `helm.sh/hook-timeout` annotation from the install Pod and upgrade Job. Helm does not support it, so the documented 300s/600s hook timeouts never applied: Helm waits for hooks only as long as `--timeout` (default 5m). The README now tells you to pass `--timeout 10m` on install and a `--timeout` that covers your migration on upgrade."
+      description: "Removed the `helm.sh/hook-timeout` annotation from the install Pod and upgrade Job. Helm does not support it, so the documented 300s/600s hook timeouts never applied: Helm waits for hooks only as long as `--timeout` (default 5m). The README now tells you to pass `--timeout 11m` on install (longer than the install Pod's 600s deadline) and a `--timeout` that covers your migration on upgrade."
     - kind: added
       description: "`installation.activeDeadlineSeconds` (default 600) and `upgrade.activeDeadlineSeconds` (default 3600) set a hard limit on the install Pod and the migration Job. Before, a failing install Pod or a migration stuck waiting for PostgreSQL kept running after Helm gave up."
     - kind: fixed
       description: "`upgrade.argocd: true` now renders the migration Job. ArgoCD renders with `helm template`, where the release is never an upgrade, so the Job was always skipped. ArgoCD users: remove any persisted `upgrade.upgradeDbSchema: true` from the Application values before syncing 2.3.0. It used to have no effect; now it runs a PreSync migration on every sync, which fails with `database already upgraded to current version` on the same TBMQ version and blocks the sync. Never set it on a first sync either: its Pod is stuck on ConfigMaps and Secrets the Sync phase has not created yet (Init:0/1 with FailedMount for the default ConfigMaps, CreateContainerConfigError with existingConfigMap), until `upgrade.activeDeadlineSeconds` runs out."
+    - kind: fixed
+      description: "With `installation.argocd: true`, the install Pod's ArgoCD delete policy is now `BeforeHookCreation,HookSucceeded`. With `HookSucceeded` alone, a failed install Pod was never replaced, so a retry sync after fixing the values did not re-run the install until the Pod was deleted by hand."
     - kind: changed
       description: "README reorganized for first-time users: every helm command now passes `-n <namespace>`, the PE edits and the PostgreSQL/Kafka/Redis settings moved into Step 2, a single install command, new \"Access TBMQ\" and \"Troubleshooting the Install\" sections, an upgrade procedure that updates the image tags before running `helm upgrade`, and an ArgoCD section."
 home: https://tbmq.io/

@@ -10,7 +10,7 @@ metadata:
   annotations:
     {{- if .Values.installation.argocd }}
     argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
     {{- else }}
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
