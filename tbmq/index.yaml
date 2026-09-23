@@ -4,6 +4,50 @@ entries:
   - annotations:
       artifacthub.io/category: streaming-messaging
       artifacthub.io/changes: |
+        - kind: added
+          description: "tbmq.priorityClassName and tbmq-ie.priorityClassName set a PriorityClass on the broker and Integration Executor StatefulSets (optional, unset by default)."
+        - kind: added
+          description: "loadbalancer.mqtt.mutualTls.existingSecretName loads the MQTT TLS server certificate and private key (server.pem, mqttserver_key.pem) from an existing Secret instead of a ConfigMap. When set, it takes precedence over configMapName."
+        - kind: changed
+          description: "Upgrading from chart 2.1.0: TBMQ stays at 2.4.0, so there is no database migration. Run a plain `helm upgrade` without scaling down and without `upgrade.upgradeDbSchema=true`. Setting the flag makes the pre-upgrade Job fail with `database already upgraded to current version`. The README's Standard Upgrade Procedure now says when the flag applies."
+        - kind: added
+          description: "The chart's own helper images are now configurable via `helperImages.toolbox` and `helperImages.busybox`. They were hardcoded in the templates, which made the chart unusable with a private registry or an air-gapped mirror."
+        - kind: changed
+          description: "Bumped the helper images to current releases: thingsboard/toolbox 1.13.0 -> 1.29.0 and busybox 1.36 -> 1.37.0. Both are drop-in — the toolbox script contract (script-runner.sh / psql-validator.sh under WORKDIR /scripts) is unchanged."
+        - kind: fixed
+          description: "Declared the chart license with the supported `artifacthub.io/license` annotation. The previous `licenses` key is not an Artifact Hub annotation, so the package page showed no license at all."
+        - kind: fixed
+          description: "Corrected the Minikube guide's install Pod note: with `restartPolicy: OnFailure` a failed install does not stop, it keeps retrying in CrashLoopBackOff. The guide now says to read the failed attempt with `kubectl logs --previous` and delete the Pod afterwards."
+        - kind: added
+          description: "Minikube guide: added an MQTT smoke test. It uses the built-in tbmq_websockets_username credential (created at install, no password), and explains that MQTT_BASIC is the only auth provider enabled by default, so a client sending no username at all is rejected with CONNECTION_REFUSED_NOT_AUTHORIZED."
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/maintainers: |
+        - name: dshvaika
+          email: dshvaika@thingsboard.io
+        - name: dlandiak
+          email: dlandiak@thingsboard.io
+      artifacthub.io/prerelease: "false"
+    apiVersion: v2
+    appVersion: 2.4.0
+    created: "2026-09-23T13:10:15.672929633+03:00"
+    description: Helm chart for TBMQ cluster (Community and Professional Editions).
+    digest: bb331c3c5fd2c526e9a75dbb05ca3b01c12d4a61e5d978118c2f16ab3e2a12e4
+    home: https://tbmq.io/
+    icon: https://img.thingsboard.io/thingsboard_blue.svg
+    keywords:
+    - tbmq
+    - mqtt
+    - broker
+    - thingsboard
+    - iot
+    name: tbmq-cluster
+    type: application
+    urls:
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-2.2.0.tgz
+    version: 2.2.0
+  - annotations:
+      artifacthub.io/category: streaming-messaging
+      artifacthub.io/changes: |
         - kind: changed
           description: "Bumped TBMQ to 2.4.0 (CE images: 2.4.0; PE images: 2.4.0PE). No chart value or ConfigMap changes are required — every key the chart sets is still supported by TBMQ 2.4.0, and the new 2.4.0 settings all have application defaults and can be tuned via tbmq.customEnv / tbmq-ie.customEnv."
         - kind: changed
@@ -21,7 +65,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.4.0
-    created: "2026-08-27T20:48:57.287219958+03:00"
+    created: "2026-09-23T13:10:15.669476941+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: 12462b0bb3b65180b38995d5870bbb6a2143416010a943ecc374611dda8e8d03
     home: https://tbmq.io/
@@ -81,7 +125,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.3.0
-    created: "2026-08-27T20:48:57.284396613+03:00"
+    created: "2026-09-23T13:10:15.666539638+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: caf9aea6f2fd520d9f0f16c908c1c7287c07c0ca2808ac118a398e1ade28d142
     home: https://thingsboard.io/products/mqtt-broker/
@@ -139,7 +183,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.2.0
-    created: "2026-08-27T20:48:57.281448083+03:00"
+    created: "2026-09-23T13:10:15.662629596+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -190,7 +234,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-08-27T20:48:57.247295339+03:00"
+    created: "2026-09-23T13:10:15.62740181+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -237,7 +281,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-08-27T20:48:57.215227078+03:00"
+    created: "2026-09-23T13:10:15.592535724+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -284,7 +328,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-08-27T20:48:57.179100138+03:00"
+    created: "2026-09-23T13:10:15.5591861+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -331,7 +375,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-08-27T20:48:57.146505467+03:00"
+    created: "2026-09-23T13:10:15.526457072+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -378,7 +422,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-08-27T20:48:57.114687167+03:00"
+    created: "2026-09-23T13:10:15.494602679+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -425,7 +469,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-08-27T20:48:57.081745803+03:00"
+    created: "2026-09-23T13:10:15.460455595+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -477,7 +521,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-08-27T20:48:57.046710126+03:00"
+    created: "2026-09-23T13:10:15.427051347+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -524,7 +568,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-08-27T20:48:57.011673238+03:00"
+    created: "2026-09-23T13:10:15.395837809+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -576,7 +620,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-08-27T20:48:56.97529797+03:00"
+    created: "2026-09-23T13:10:15.361893416+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -624,7 +668,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-08-27T20:48:56.937721602+03:00"
+    created: "2026-09-23T13:10:15.31692787+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -653,4 +697,4 @@ entries:
     urls:
     - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.1.tgz
     version: 0.0.1
-generated: "2026-08-27T20:48:56.912368621+03:00"
+generated: "2026-09-23T13:10:15.293828599+03:00"
