@@ -1,6 +1,7 @@
 {{- $namespace := .Release.Namespace -}}
 {{- $releaseName := .Release.Name }}
-{{- if and .Release.IsUpgrade .Values.upgrade.upgradeDbSchema }}
+{{- /* ArgoCD renders with `helm template`, where .Release.IsUpgrade is always false. */}}
+{{- if and (or .Release.IsUpgrade .Values.upgrade.argocd) .Values.upgrade.upgradeDbSchema }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -11,12 +12,12 @@ metadata:
     argocd.argoproj.io/hook: PreSync
     {{- else }}
     "helm.sh/hook": pre-upgrade
-    "helm.sh/hook-timeout": "600s"
     {{- end }}
   labels:
     app: upgrade-job
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: {{ .Values.upgrade.activeDeadlineSeconds }}
   ttlSecondsAfterFinished: 300
   template:
     metadata:

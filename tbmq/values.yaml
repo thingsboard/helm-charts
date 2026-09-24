@@ -40,16 +40,32 @@ installation:
   # Replaces Helm install/upgrade hook annotations with ArgoCD Sync hook annotations.
   # Enable when the chart is managed by ArgoCD.
   argocd: false
+  # Hard limit, in seconds, on the install Pod's lifetime (Pod activeDeadlineSeconds). Without it a
+  # failing install Pod (restartPolicy: OnFailure) keeps retrying after Helm stops waiting.
+  # Kept below Helm's default `helm install --timeout` (5m), so the install needs no --timeout flag.
+  # If you raise it (e.g. for slow image pulls), also pass a --timeout comfortably longer than
+  # this: the deadline starts only once the Pod is scheduled, so an equal timeout expires first
+  # and hides the DeadlineExceeded failure.
+  activeDeadlineSeconds: 240
 
 # Controls the upgrade options, including database schema upgrade, edition migration, and ArgoCD support.
 upgrade:
   # Runs the TBMQ database schema migration during `helm upgrade`.
-  # Ignored if the Helm release is not in the "upgrade" state (i.e., on first install).
+  # Ignored if the Helm release is not in the "upgrade" state (i.e., on first install), unless
+  # `argocd` below is true: ArgoCD renders with `helm template` and can't tell an install from an
+  # upgrade, so the migration Job then renders on every sync while this is true. Set it only for
+  # the sync that bumps the TBMQ version, never on the first sync.
   # Pass via --set on `helm upgrade` rather than persisting in values.yaml.
   upgradeDbSchema: false
   # Replaces Helm pre-upgrade hook annotations with ArgoCD PreSync hook annotations.
   # Enable when the chart is managed by ArgoCD.
   argocd: false
+  # Hard limit, in seconds, on the schema migration Job (Job activeDeadlineSeconds), including
+  # retries. When it is exceeded, Kubernetes stops the migration and marks the Job failed.
+  # Kept below Helm's default `helm upgrade --timeout` (5m), so the upgrade needs no --timeout flag.
+  # If a migration needs longer (e.g. slow image pulls), raise it and also pass a --timeout
+  # comfortably longer than this; otherwise Helm gives up first while the Job keeps running.
+  activeDeadlineSeconds: 240
   # Edition the upgrade is migrating FROM. Used only for cross-edition upgrades.
   # Set to "ce" when upgrading from Community Edition to Professional Edition (same TBMQ version).
   # The chart sets FROM_VERSION=ce on the upgrade job, and the PE entrypoint forwards it as

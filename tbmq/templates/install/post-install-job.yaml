@@ -10,11 +10,10 @@ metadata:
   annotations:
     {{- if .Values.installation.argocd }}
     argocd.argoproj.io/hook: Sync
-    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
     {{- else }}
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
-    "helm.sh/hook-timeout": "300s"
     {{- end }}
   labels:
     app: install-job
@@ -33,6 +32,7 @@ spec:
     - name: {{ $releaseName }}-tbmq-node-logs
       emptyDir: { }
   restartPolicy: OnFailure
+  activeDeadlineSeconds: {{ .Values.installation.activeDeadlineSeconds }}
   initContainers:
     - name: wait-for-postgres
       image: {{ include "tbmq.busybox.image" . }}
