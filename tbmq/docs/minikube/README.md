@@ -338,12 +338,6 @@ kubectl wait --for=condition=Ready pod/tbmq-tbmq-ie-0 \
 kubectl get pods -n thingsboard-mqtt-broker
 ```
 
-The broker may show `RESTARTS 1` (occasionally 2) after its very first start: it creates its
-Kafka topics on that start and can use them before Kafka has them ready, logging
-`Failed to initialize broker` with `UNKNOWN_TOPIC_OR_PARTITION` / `GroupIdNotFoundException`
-(see `kubectl logs tbmq-tbmq-node-0 -n thingsboard-mqtt-broker --previous`). It comes up on the
-next start; nothing to fix.
-
 The broker StatefulSet now provisions a 1Gi PVC per Pod for `/data`. On Minikube the
 default `storage-provisioner` addon satisfies it automatically:
 

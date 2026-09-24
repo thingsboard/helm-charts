@@ -371,11 +371,6 @@ first client.
   forgot the flag, run it through an upgrade (the install hook is also bound to `post-upgrade` for
   this recovery):
   `helm upgrade my-tbmq tbmq-helm-chart/tbmq-cluster -n <namespace> -f values.yaml --set installation.installDbSchema=true`
-- **Broker Pod restarts once or twice right after the first install**, and
-  `kubectl logs <broker-pod> -n <namespace> --previous` shows `Failed to initialize broker` with
-  `UNKNOWN_TOPIC_OR_PARTITION` / `GroupIdNotFoundException` → the broker creates its Kafka topics
-  on first start and can use them before Kafka has them ready. It recovers on the next restart; no
-  action needed.
 
 ## Updating Configuration
 
