@@ -4,6 +4,46 @@ entries:
   - annotations:
       artifacthub.io/category: streaming-messaging
       artifacthub.io/changes: |
+        - kind: fixed
+          description: "Removed the `helm.sh/hook-timeout` annotation from the install Pod and upgrade Job. Helm does not support it, so the documented 300s/600s hook timeouts never applied: Helm waits for hooks only as long as `--timeout` (default 5m). Hooks have always been limited by that 5m default, so the new install Pod and migration Job deadlines (below) stay under it and neither command needs `--timeout`. If you raise a deadline, the README tells you to pass a longer `--timeout`."
+        - kind: added
+          description: "`installation.activeDeadlineSeconds` (default 240) and `upgrade.activeDeadlineSeconds` (default 240) set a hard limit on the install Pod and the migration Job. Before, a failing install Pod or a migration stuck waiting for PostgreSQL kept running after Helm gave up. An install or migration that runs longer than the limit (for example because of slow image pulls) is now stopped: raise the value and pass a longer `--timeout`."
+        - kind: fixed
+          description: "`upgrade.argocd: true` now renders the migration Job. ArgoCD renders with `helm template`, where the release is never an upgrade, so the Job was always skipped. ArgoCD users: remove any persisted `upgrade.upgradeDbSchema: true` from the Application values before syncing 2.3.0. It used to have no effect; now it runs a PreSync migration on every sync, which fails with `database already upgraded to current version` on the same TBMQ version and blocks the sync. Never set it on a first sync either: its Pod is stuck on ConfigMaps and Secrets the Sync phase has not created yet (Init:0/1 with FailedMount for the default ConfigMaps, CreateContainerConfigError with existingConfigMap), until `upgrade.activeDeadlineSeconds` runs out."
+        - kind: fixed
+          description: "With `installation.argocd: true`, the install Pod's ArgoCD delete policy is now `BeforeHookCreation,HookSucceeded`. With `HookSucceeded` alone, a failed install Pod was never replaced, so a retry sync after fixing the values did not re-run the install until the Pod was deleted by hand."
+        - kind: changed
+          description: "README reorganized for first-time users: every helm command now passes `-n <namespace>`, the PE edits and the PostgreSQL/Kafka/Redis settings moved into Step 2, a single install command, new \"Access TBMQ\" and \"Troubleshooting the Install\" sections, an upgrade procedure that updates the image tags before running `helm upgrade`, and an ArgoCD section. Troubleshooting now matches what Kubernetes actually does: how to read a failed install Pod's logs, that a migration Job hitting its deadline loses its Pods and logs, and that a leftover `upgrade.fromVersion=ce` fails the next PE version upgrade with `transitioning from CE to PE requires the database to first be upgraded`."
+        - kind: fixed
+          description: "Minikube guide: the PostgreSQL readiness wait also matched PGO's backup Job Pod, which ends as Completed and never becomes Ready, so the wait could time out. It now waits only for the database Pod. The CE → PE step now scales the broker and Integration Executor to 0 before the upgrade and checks the license activation afterwards."
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/maintainers: |
+        - name: dshvaika
+          email: dshvaika@thingsboard.io
+        - name: dlandiak
+          email: dlandiak@thingsboard.io
+      artifacthub.io/prerelease: "false"
+    apiVersion: v2
+    appVersion: 2.4.0
+    created: "2026-09-24T14:53:30.314619477+03:00"
+    description: Helm chart for TBMQ cluster (Community and Professional Editions).
+    digest: 554e19d9c1d484e5bddc67680cd77f911ee2a64f5aecc0b0d3a6c5b99994596e
+    home: https://tbmq.io/
+    icon: https://img.thingsboard.io/thingsboard_blue.svg
+    keywords:
+    - tbmq
+    - mqtt
+    - broker
+    - thingsboard
+    - iot
+    name: tbmq-cluster
+    type: application
+    urls:
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-2.3.0.tgz
+    version: 2.3.0
+  - annotations:
+      artifacthub.io/category: streaming-messaging
+      artifacthub.io/changes: |
         - kind: added
           description: "tbmq.priorityClassName and tbmq-ie.priorityClassName set a PriorityClass on the broker and Integration Executor StatefulSets (optional, unset by default)."
         - kind: added
@@ -29,7 +69,7 @@ entries:
       artifacthub.io/prerelease: "false"
     apiVersion: v2
     appVersion: 2.4.0
-    created: "2026-09-23T13:10:15.672929633+03:00"
+    created: "2026-09-24T14:53:30.311344608+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: bb331c3c5fd2c526e9a75dbb05ca3b01c12d4a61e5d978118c2f16ab3e2a12e4
     home: https://tbmq.io/
@@ -65,7 +105,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.4.0
-    created: "2026-09-23T13:10:15.669476941+03:00"
+    created: "2026-09-24T14:53:30.308354535+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: 12462b0bb3b65180b38995d5870bbb6a2143416010a943ecc374611dda8e8d03
     home: https://tbmq.io/
@@ -125,7 +165,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.3.0
-    created: "2026-09-23T13:10:15.666539638+03:00"
+    created: "2026-09-24T14:53:30.305560831+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: caf9aea6f2fd520d9f0f16c908c1c7287c07c0ca2808ac118a398e1ade28d142
     home: https://thingsboard.io/products/mqtt-broker/
@@ -183,7 +223,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.2.0
-    created: "2026-09-23T13:10:15.662629596+03:00"
+    created: "2026-09-24T14:53:30.302366133+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -234,7 +274,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-09-23T13:10:15.62740181+03:00"
+    created: "2026-09-24T14:53:30.269285421+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -281,7 +321,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-09-23T13:10:15.592535724+03:00"
+    created: "2026-09-24T14:53:30.237138935+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -328,7 +368,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-23T13:10:15.5591861+03:00"
+    created: "2026-09-24T14:53:30.204281202+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -375,7 +415,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-23T13:10:15.526457072+03:00"
+    created: "2026-09-24T14:53:30.172688759+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -422,7 +462,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-23T13:10:15.494602679+03:00"
+    created: "2026-09-24T14:53:30.139974746+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -469,7 +509,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-23T13:10:15.460455595+03:00"
+    created: "2026-09-24T14:53:30.106758498+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -521,7 +561,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-23T13:10:15.427051347+03:00"
+    created: "2026-09-24T14:53:30.07126067+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -568,7 +608,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-23T13:10:15.395837809+03:00"
+    created: "2026-09-24T14:53:30.03277351+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -620,7 +660,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-23T13:10:15.361893416+03:00"
+    created: "2026-09-24T14:53:30.007928716+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -668,7 +708,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-23T13:10:15.31692787+03:00"
+    created: "2026-09-24T14:53:29.977710798+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -697,4 +737,4 @@ entries:
     urls:
     - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.1.tgz
     version: 0.0.1
-generated: "2026-09-23T13:10:15.293828599+03:00"
+generated: "2026-09-24T14:53:29.952217344+03:00"
