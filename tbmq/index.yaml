@@ -4,6 +4,38 @@ entries:
   - annotations:
       artifacthub.io/category: streaming-messaging
       artifacthub.io/changes: |
+        - kind: changed
+          description: "Bumped TBMQ to 2.4.1 (CE images: 2.4.1; PE images: 2.4.1PE). No chart value or ConfigMap changes are required: every key the chart sets is still supported by TBMQ 2.4.1, and the new 2.4.1 settings (node drain `NODE_DRAIN_*`, REST publish `REST_PUBLISH_*`) have application defaults and can be tuned via tbmq.customEnv."
+        - kind: changed
+          description: "Heads-up for TBMQ 2.4.1 upgrades: `MQTT_TOPIC_MAX_SEGMENTS_COUNT` now counts topic segments instead of `/` delimiters. If you set it in tbmq.customEnv, raise it by 1 to keep the previous limit; the default `0` (no limit) is unaffected. See the TBMQ 2.4.1 release notes at https://tbmq.io/docs/releases/."
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/maintainers: |
+        - name: dshvaika
+          email: dshvaika@thingsboard.io
+        - name: dlandiak
+          email: dlandiak@thingsboard.io
+      artifacthub.io/prerelease: "false"
+    apiVersion: v2
+    appVersion: 2.4.1
+    created: "2026-10-08T18:54:34.421226243+03:00"
+    description: Helm chart for TBMQ cluster (Community and Professional Editions).
+    digest: dc402414da387a03249018526c3c9f071bda277ff8474ef4cc8e35cd083c2299
+    home: https://tbmq.io/
+    icon: https://img.thingsboard.io/thingsboard_blue.svg
+    keywords:
+    - tbmq
+    - mqtt
+    - broker
+    - thingsboard
+    - iot
+    name: tbmq-cluster
+    type: application
+    urls:
+    - https://helm.thingsboard.io/tbmq/tbmq-cluster-2.3.1.tgz
+    version: 2.3.1
+  - annotations:
+      artifacthub.io/category: streaming-messaging
+      artifacthub.io/changes: |
         - kind: fixed
           description: "Removed the `helm.sh/hook-timeout` annotation from the install Pod and upgrade Job. Helm does not support it, so the documented 300s/600s hook timeouts never applied: Helm waits for hooks only as long as `--timeout` (default 5m). Hooks have always been limited by that 5m default, so the new install Pod and migration Job deadlines (below) stay under it and neither command needs `--timeout`. If you raise a deadline, the README tells you to pass a longer `--timeout`."
         - kind: added
@@ -25,7 +57,7 @@ entries:
       artifacthub.io/prerelease: "false"
     apiVersion: v2
     appVersion: 2.4.0
-    created: "2026-09-24T14:53:30.314619477+03:00"
+    created: "2026-10-08T18:54:34.41806226+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: 554e19d9c1d484e5bddc67680cd77f911ee2a64f5aecc0b0d3a6c5b99994596e
     home: https://tbmq.io/
@@ -69,7 +101,7 @@ entries:
       artifacthub.io/prerelease: "false"
     apiVersion: v2
     appVersion: 2.4.0
-    created: "2026-09-24T14:53:30.311344608+03:00"
+    created: "2026-10-08T18:54:34.414873982+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: bb331c3c5fd2c526e9a75dbb05ca3b01c12d4a61e5d978118c2f16ab3e2a12e4
     home: https://tbmq.io/
@@ -105,7 +137,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.4.0
-    created: "2026-09-24T14:53:30.308354535+03:00"
+    created: "2026-10-08T18:54:34.411873737+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: 12462b0bb3b65180b38995d5870bbb6a2143416010a943ecc374611dda8e8d03
     home: https://tbmq.io/
@@ -165,7 +197,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.3.0
-    created: "2026-09-24T14:53:30.305560831+03:00"
+    created: "2026-10-08T18:54:34.407872116+03:00"
     description: Helm chart for TBMQ cluster (Community and Professional Editions).
     digest: caf9aea6f2fd520d9f0f16c908c1c7287c07c0ca2808ac118a398e1ade28d142
     home: https://thingsboard.io/products/mqtt-broker/
@@ -223,7 +255,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.2.0
-    created: "2026-09-24T14:53:30.302366133+03:00"
+    created: "2026-10-08T18:54:34.404958705+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -274,7 +306,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-09-24T14:53:30.269285421+03:00"
+    created: "2026-10-08T18:54:34.373308777+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -321,7 +353,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-09-24T14:53:30.237138935+03:00"
+    created: "2026-10-08T18:54:34.338970252+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -368,7 +400,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-24T14:53:30.204281202+03:00"
+    created: "2026-10-08T18:54:34.307157728+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -415,7 +447,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-24T14:53:30.172688759+03:00"
+    created: "2026-10-08T18:54:34.282429204+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -462,7 +494,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-24T14:53:30.139974746+03:00"
+    created: "2026-10-08T18:54:34.255087546+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -509,7 +541,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-24T14:53:30.106758498+03:00"
+    created: "2026-10-08T18:54:34.222531881+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -561,7 +593,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-24T14:53:30.07126067+03:00"
+    created: "2026-10-08T18:54:34.191820311+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -608,7 +640,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-24T14:53:30.03277351+03:00"
+    created: "2026-10-08T18:54:34.159165499+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -660,7 +692,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-24T14:53:30.007928716+03:00"
+    created: "2026-10-08T18:54:34.124138126+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -708,7 +740,7 @@ entries:
       licenses: Apache-2.0
     apiVersion: v2
     appVersion: 2.1.0-SNAPSHOT
-    created: "2026-09-24T14:53:29.977710798+03:00"
+    created: "2026-10-08T18:54:34.096287098+03:00"
     dependencies:
     - name: common
       repository: oci://registry-1.docker.io/bitnamicharts
@@ -737,4 +769,4 @@ entries:
     urls:
     - https://helm.thingsboard.io/tbmq/tbmq-cluster-0.0.1.tgz
     version: 0.0.1
-generated: "2026-09-24T14:53:29.952217344+03:00"
+generated: "2026-10-08T18:54:34.064730806+03:00"
