@@ -175,6 +175,9 @@ tbmq:
   # They override the same variables from the chart's PostgreSQL, Kafka, and Redis ConfigMaps.
   # They do NOT override `export` lines in the `conf` key of `existingConfigMap` or
   # `existingJavaOptsConfigMap`: that file is sourced at container start, after the environment is set.
+  # Nor do they override env vars the chart sets directly on the container: `TB_SERVICE_ID`,
+  # `HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE`, `SPRING_DATASOURCE_PASSWORD`, and, when the matching feature
+  # is enabled, `REDIS_PASSWORD`, `LISTENER_SSL_*` (mTLS), and `TBMQ_LICENSE_*` (PE license).
   #
   # Example usage:
   #
@@ -380,6 +383,7 @@ tbmq-ie:
   # They override the same variables from the chart's Kafka ConfigMap.
   # They do NOT override `export` lines in the `conf` key of `existingConfigMap` or
   # `existingJavaOptsConfigMap`: that file is sourced at container start, after the environment is set.
+  # Nor do they override `TB_SERVICE_ID`, which the chart sets directly on the container.
   #
   # Example usage:
   #
