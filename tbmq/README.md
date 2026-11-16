@@ -416,6 +416,11 @@ The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
      schema to migrate. Do steps 2 and 3 only.
    - **Different `APP VERSION`**: do all the steps.
 
+   TBMQ versions must be upgraded one at a time. To skip a TBMQ version, run this procedure once per
+   version, through a chart version for each (for example chart 2.0.0 (TBMQ 2.3.0) → 2.3.0 (TBMQ
+   2.4.0) → 2.3.1 (TBMQ 2.4.1)). Jumping over one fails the migration with
+   `database version '<version>' is not supported for upgrade`.
+
 2. **Update your `values.yaml`.** Your file pins the image tags and helper image versions from
    when you exported it. Compare it with the new chart's defaults and carry over what changed:
 
@@ -428,6 +433,12 @@ The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
    (`<appVersion>` for CE, `<appVersion>PE` for PE). Otherwise the chart upgrade keeps running the
    old TBMQ images. The canonical PE tags for a chart version are in
    [`values-pe.yaml`](values-pe.yaml) at that chart tag.
+
+   > The migration Job runs as a pre-upgrade hook, before Helm updates the release's ConfigMaps
+   > and Secrets, so it connects with the **current** PostgreSQL, Kafka, and Redis settings,
+   > credentials, and `customEnv` — not the ones in this upgrade. To change those settings, apply
+   > them first in a separate plain `helm upgrade` that keeps your current chart version and image
+   > tags (`--version <current-chart-version>`, no `upgrade.upgradeDbSchema`), then migrate.
 
 3. **Same `APP VERSION` only — run a plain upgrade and stop here:**
 
@@ -603,9 +614,9 @@ v2.3.0 third-party migration described in the
 
 | Component        | TBMQ v2.2.0 (chart 1.x bundled)       | TBMQ v2.3.0 (chart 2.0.0 — bring your own) |
 |------------------|---------------------------------------|--------------------------------------------|
-| **PostgreSQL**   | `bitnami/postgresql` (PostgreSQL 16)  | `postgres:17` (operator or self-managed)   |
+| **PostgreSQL**   | `bitnamilegacy/postgresql:16.4.0`     | `postgres:17` (operator or self-managed)   |
 | **Kafka**        | `bitnamilegacy/kafka:3.7.0` (KRaft)   | `apache/kafka:4.0.0` (official image)      |
-| **Redis/Valkey** | `bitnamilegacy/redis:7.2.5` (cluster) | `valkey/valkey:8.0` (Redis-compatible)     |
+| **Redis/Valkey** | `bitnamilegacy/redis-cluster:7.2.5`   | `valkey/valkey:8.0` (Redis-compatible)     |
 
 Chart 2.0.0 has no `postgresql:`, `kafka:`, or `redis-cluster:` subchart blocks — only top-level
 `postgresql:`, `kafka:`, and `redis:` connection sections that point at your existing or newly
@@ -618,7 +629,10 @@ provisioned infrastructure.
 > `tbmq.persistence.enabled: true`). Chart 1.x had no such template (its `/data` was an `emptyDir`),
 > and `volumeClaimTemplates` is one of the immutable fields on an existing StatefulSet — adding it
 > in place makes `helm upgrade` fail with
-> `StatefulSet ... is invalid: spec: Forbidden: updates to statefulset spec for fields other than ... are forbidden`.
+> `StatefulSet.apps "<release>-tbmq-node" is invalid: spec.volumeClaimTemplates: Invalid value: ...: field is immutable`
+> (older Kubernetes versions word it `spec: Forbidden: updates to statefulset spec for fields other than ...`).
+> The failed upgrade is partial: the Integration Executor StatefulSet is already updated, while the
+> broker stays on the old version.
 > Chart 1.x deployments are CE-only, so disabling persistence on the upgrade is safe (there is no
 > PE license cache to preserve).
 >
@@ -632,7 +646,11 @@ provisioned infrastructure.
 > hits the same immutable-field rule. Take a maintenance window, delete the broker StatefulSet with
 > `kubectl delete statefulset <release>-tbmq-node -n <namespace> --cascade=orphan` (this leaves the
 > running Pod up while the StatefulSet is gone), then `helm upgrade` with
-> `tbmq.persistence.enabled: true` to recreate it with the `volumeClaimTemplate`.
+> `tbmq.persistence.enabled: true` to recreate it with the `volumeClaimTemplate`. The new
+> StatefulSet adopts the running Pods but cannot change them in place (`FailedUpdate … pod updates
+> may not change fields`), so delete the broker Pods one at a time
+> (`kubectl delete pod <release>-tbmq-node-<n> -n <namespace>`, waiting for each to be ready) to
+> recreate them on their PVCs.
 
 #### Two upgrade paths
 
@@ -658,13 +676,28 @@ TBMQ schema and cluster id. For Kafka and Redis you have a choice:
 
 - **Migrate the data.** Choose this if you need to preserve any persisted-but-undelivered MQTT
   messages and the in-cluster MQTT state held outside PostgreSQL. The image transitions
-  (`bitnamilegacy/kafka:3.7.0` → `apache/kafka:4.0.0` and `bitnamilegacy/redis:7.2.5` →
+  (`bitnamilegacy/kafka:3.7.0` → `apache/kafka:4.0.0` and `bitnamilegacy/redis-cluster:7.2.5` →
   `valkey/valkey:8.0`) do not permit direct volume reuse, so plan a logical export/replay rather
   than a PV swap.
 - **Start Kafka and Redis empty.** A valid choice when you accept that any
   persisted-but-undelivered messages are either already delivered or will be dropped. MQTT
   clients reconnect to the new cluster on their own and their subscriptions get re-established as
   they come back online — no operator action required for that.
+
+Run Option B in steps. The migration Job reads the release's current connection settings (see
+[Standard Upgrade Procedure](#standard-upgrade-procedure), step 2), so a single upgrade would
+migrate the old Bitnami database — or, as on chart 1.x, fail on the missing
+`<release>-postgres-secret`:
+
+1. Copy PostgreSQL into the new instance (`pg_dump -Fc` from the Bitnami one, `pg_restore
+   --no-owner` into the new one). Do it now: the next step removes the Bitnami stack.
+2. `helm upgrade` to chart 2.0.0 with your new values, `tbmq.persistence.enabled: false`,
+   `tbmq.statefulSet.replicas: 0`, and `tbmq-ie.statefulSet.replicas: 0`, **without**
+   `upgrade.upgradeDbSchema`. This applies the new connection settings and removes the Bitnami
+   subcharts; TBMQ stays stopped.
+3. `helm upgrade` again with `--set upgrade.upgradeDbSchema=true` and your usual replica counts.
+
+The Bitnami PVCs are not deleted; remove them once you no longer need the old data.
 
 The [Minikube guide](docs/minikube/README.md) walks through provisioning one such stack
 end-to-end (it does not cover Kafka or Redis data migration).
@@ -851,8 +884,9 @@ the install Pod and upgrade Job to ArgoCD hooks:
   only**, then remove it. While it is set, every sync re-runs the install Pod, which fails on the
   populated database and fails the sync — after recreating the default `sysadmin@thingsboard.org`
   account if you had deleted it (see [Step 2](#step-2-prepare-your-valuesyaml)). A failed install
-  Pod is left in place for its logs and replaced on the next sync
-  (`hook-delete-policy: BeforeHookCreation,HookSucceeded`).
+  Pod is left in place for its logs and replaced on the next sync that still sets the flag
+  (`hook-delete-policy: BeforeHookCreation,HookSucceeded`); once you remove the flag, delete it
+  yourself.
 - **Upgrade** — the migration Job becomes a `PreSync` hook. ArgoCD can't tell an install from an
   upgrade, so the Job renders whenever `upgrade.upgradeDbSchema: true`. Set it together with the
   image tag change that bumps the TBMQ version, then remove it after that sync. The Job is always
