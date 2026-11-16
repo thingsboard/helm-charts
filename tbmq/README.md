@@ -983,6 +983,18 @@ To enable application-level mTLS for the MQTT listener:
          privateKeyPasswordSecretKey: "key_password"      # omit if not needed
    ```
 
+This enables MQTTS on port 8883 only. The chart mounts the certificate and key at `/ssl-config`;
+to also serve MQTT over secure WebSockets on port 8085 with them, enable the broker's WSS listener
+through `tbmq.customEnv`:
+
+```yaml
+tbmq:
+  customEnv:
+    LISTENER_WSS_ENABLED: "true"
+    LISTENER_WSS_PEM_CERT: "/ssl-config/server.pem"
+    LISTENER_WSS_PEM_KEY: "/ssl-config/mqttserver_key.pem"
+```
+
 ## Uninstalling
 
 ```bash
