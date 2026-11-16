@@ -95,9 +95,13 @@ At a minimum you need to set:
 The connection settings for PostgreSQL, Kafka, and Redis are described below.
 
 > **Important:** Do not set `installation.installDbSchema: true` in `values.yaml`. Pass it via
-> `--set` on the `helm install` command instead. Persisting it in your values file means the install
-> pod will also run on every subsequent `helm upgrade` (because the post-install hook is also bound
-> to `post-upgrade` to allow recovery from a forgotten flag).
+> `--set` on the `helm install` command instead. The post-install hook is also bound to
+> `post-upgrade` to allow recovery from a forgotten flag, so a persisted flag re-runs the install pod
+> on every `helm upgrade`. On a populated database it fails (`User with email
+> 'sysadmin@thingsboard.org' already present in database!`), and the upgrade fails with
+> `post-upgrade hooks failed`. If you deleted the default `sysadmin@thingsboard.org` account or
+> changed its email, the re-run first recreates it with the default password `sysadmin`, and the
+> account stays after the Pod fails.
 
 #### PostgreSQL
 
@@ -168,10 +172,10 @@ redis:
   usePassword: false
 ```
 
-In `cluster` mode, the chart automatically renders cluster-only keys (`REDIS_NODES`,
-`REDIS_MAX_REDIRECTS`, `REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG`, and the Lettuce topology
-refresh tunables) into the Redis ConfigMap; in `standalone` mode those keys are omitted and only
-`REDIS_HOST`/`REDIS_PORT` are set.
+In `cluster` mode, the chart renders cluster-only keys (`REDIS_NODES`, `REDIS_MAX_REDIRECTS`,
+`REDIS_CLUSTER_USE_DEFAULT_POOL_CONFIG`, and all `REDIS_LETTUCE_*` tunables) into the Redis
+ConfigMap; in `standalone` mode those keys are omitted and `REDIS_HOST`/`REDIS_PORT` are set
+instead. Both modes set `REDIS_CONNECTION_TYPE` and the `CACHE_*` keys.
 
 #### Professional Edition (PE)
 
@@ -289,11 +293,14 @@ The install pod (`my-tbmq-install-pod`) creates the schema, then exits. Its `res
 `OnFailure`, so a failed container restarts in the same Pod until it succeeds or
 `installation.activeDeadlineSeconds` passes; after that the Pod is marked `Failed`.
 The hook policy is `hook-succeeded,before-hook-creation`: Helm deletes the pod **only when it
-succeeds**. A failed pod is **left in place** so you can inspect logs, and it is cleaned up the
-next time the hook runs (e.g., the next `helm upgrade`) or when you delete it.
+succeeds**. A failed pod is **left in place** so you can inspect logs. It is replaced the next
+time the hook runs — the next `helm install`, or a `helm upgrade` that also passes
+`--set installation.installDbSchema=true` — and otherwise stays until you delete it.
 
-The `my-tbmq-tbmq-node-*` (broker) pods block in their `validate-db` init container until the
-schema exists, so they reach `Running` within a minute or two **after** the install pod succeeds.
+The `my-tbmq-tbmq-node-*` (broker) pods wait in their `validate-db` init container for the
+schema, so they reach `Running` within a minute or two **after** the install pod succeeds. The
+wait is bounded: after about 5 minutes without a schema, `validate-db` gives up and the broker
+starts anyway, then crash-loops (see [Troubleshooting the Install](#troubleshooting-the-install)).
 The `my-tbmq-tbmq-ie-*` pods have no PostgreSQL dependency and may already be `Running` before
 the install pod completes.
 
@@ -366,7 +373,8 @@ first client.
   (see [Step 4](#step-4-verify-the-install) for reading the logs), fix it, then
   `helm uninstall my-tbmq -n <namespace>` and run the Step 3 install command again. `helm uninstall`
   leaves the failed install Pod in place; the next install replaces it.
-- **Broker pods stuck in `Init:0/1` (`validate-db`)** → the schema was never created. Check that
+- **Broker pods in `Init:0/1` (`validate-db`) for several minutes, then `CrashLoopBackOff` with
+  `relation "…" does not exist` in their logs** → the schema was never created. Check that
   you passed `--set installation.installDbSchema=true` and that the install Pod succeeded. If you
   forgot the flag, run it through an upgrade (the install hook is also bound to `post-upgrade` for
   this recovery):
@@ -408,6 +416,11 @@ The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
      schema to migrate. Do steps 2 and 3 only.
    - **Different `APP VERSION`**: do all the steps.
 
+   TBMQ versions must be upgraded one at a time. To skip a TBMQ version, run this procedure once per
+   version, through a chart version for each (for example chart 2.0.0 (TBMQ 2.3.0) → 2.3.0 (TBMQ
+   2.4.0) → 2.3.1 (TBMQ 2.4.1)). Jumping over one fails the migration with
+   `database version '<version>' is not supported for upgrade`.
+
 2. **Update your `values.yaml`.** Your file pins the image tags and helper image versions from
    when you exported it. Compare it with the new chart's defaults and carry over what changed:
 
@@ -420,6 +433,12 @@ The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
    (`<appVersion>` for CE, `<appVersion>PE` for PE). Otherwise the chart upgrade keeps running the
    old TBMQ images. The canonical PE tags for a chart version are in
    [`values-pe.yaml`](values-pe.yaml) at that chart tag.
+
+   > The migration Job runs as a pre-upgrade hook, before Helm updates the release's ConfigMaps
+   > and Secrets, so it connects with the **current** PostgreSQL, Kafka, and Redis settings,
+   > credentials, and `customEnv` — not the ones in this upgrade. To change those settings, apply
+   > them first in a separate plain `helm upgrade` that keeps your current chart version and image
+   > tags (`--version <current-chart-version>`, no `upgrade.upgradeDbSchema`), then migrate.
 
 3. **Same `APP VERSION` only — run a plain upgrade and stop here:**
 
@@ -435,20 +454,20 @@ The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
    [Troubleshooting Upgrades](#troubleshooting-upgrades)). The one same-version upgrade that does
    use the flag is the [CE → PE migration](#ce--pe-upgrade-cross-edition-migration).
 
-4. **Scale `tbmq-node` (and optionally `tbmq-ie`) to 0 replicas** so no application is reading or
-   writing while the schema migration runs:
+4. **Upgrades to TBMQ 2.3.0 and earlier only — scale `tbmq-node` and `tbmq-ie` to 0 replicas**
+   so no application is reading or writing while the schema migration runs:
 
    ```bash
    kubectl scale statefulset/my-tbmq-tbmq-node --replicas=0 -n <namespace>
-   # Recommended on TBMQ version bumps (broker ↔ IE protocol coupling):
    kubectl scale statefulset/my-tbmq-tbmq-ie   --replicas=0 -n <namespace>
    ```
 
-   The IE doesn't connect to PostgreSQL itself, so the schema migration doesn't directly affect
-   it. Scaling it down is still recommended on TBMQ version bumps, because the IE communicates
-   with the broker over Kafka and the message contract / API surface can change between releases
-   — leaving the IE running against a freshly upgraded broker (or a broker that's been scaled to
-   zero) can produce noisy errors.
+   Upgrades to TBMQ 2.4.0 and later are rolling upgrades: skip this step. The migration runs while
+   the old pods keep serving, then Kubernetes replaces the pods one at a time, each after the
+   previous one is ready, so the cluster keeps accepting MQTT connections. Which kind each TBMQ
+   version is, is listed under
+   [Downtime](https://tbmq.io/docs/installation/upgrade-instructions/#downtime) in the TBMQ upgrade
+   instructions.
 
 5. **Run the upgrade.** The `upgrade.upgradeDbSchema=true` flag triggers the pre-upgrade Helm hook
    that runs the migration:
@@ -475,8 +494,8 @@ The same steps apply to **CE → newer CE** and **PE → newer PE** upgrades.
    kubectl logs job/my-tbmq-upgrade-<revision> -n <namespace> -f
    ```
 
-   Helm restores both StatefulSets to the chart's declared `replicas` value (default `2`) as part
-   of the upgrade — no manual scale-back is needed.
+   If you scaled the StatefulSets to 0 in step 4, Helm restores them to the chart's declared
+   `replicas` value (default `2`) as part of the upgrade — no manual scale-back is needed.
 
 ### CE → PE Upgrade (Cross-Edition Migration)
 
@@ -528,8 +547,9 @@ version, and fails (see [Troubleshooting Upgrades](#troubleshooting-upgrades)).
 
 The pre-upgrade migration Job spawns a Pod named `my-tbmq-upgrade-<revision>-<random>`. The Job
 itself has `ttlSecondsAfterFinished: 300`, so both Job and Pod are deleted 5 minutes after the
-migration finishes — successful or not. A Job that reaches `upgrade.activeDeadlineSeconds` loses
-its Pods (and their logs) at once. Watch logs while the Job runs, or capture them quickly once it
+migration finishes — successful or not. When the Job reaches `upgrade.activeDeadlineSeconds`,
+Kubernetes deletes the Pod of the attempt still running, with its logs, at once; Pods of earlier
+failed attempts stay until the TTL. Watch logs while the Job runs, or capture them quickly once it
 terminates:
 
 ```bash
@@ -565,8 +585,9 @@ Common causes:
   → the migration Job itself failed. The release is marked `failed` and the StatefulSets are not
   updated. `BackoffLimitExceeded` means all attempts failed: read the attempts' logs (see above)
   before the Job is TTL-reaped. `DeadlineExceeded` means it reached
-  `upgrade.activeDeadlineSeconds`: Kubernetes has already deleted its Pods, so
-  `kubectl describe job my-tbmq-upgrade-<revision> -n <namespace>` is all that is left — most
+  `upgrade.activeDeadlineSeconds`: Kubernetes has already deleted the Pod of the last attempt,
+  so read earlier attempts' Pods if any are left, and
+  `kubectl describe job my-tbmq-upgrade-<revision> -n <namespace>` — most
   often the Pod never got past `wait-for-postgres` (see the first cause). Fix the cause and re-run
   the upgrade with the flag, following the logs this time.
 - **`Upgrade failed: database already upgraded to current version`** → `upgrade.upgradeDbSchema=true`
@@ -593,9 +614,9 @@ v2.3.0 third-party migration described in the
 
 | Component        | TBMQ v2.2.0 (chart 1.x bundled)       | TBMQ v2.3.0 (chart 2.0.0 — bring your own) |
 |------------------|---------------------------------------|--------------------------------------------|
-| **PostgreSQL**   | `bitnami/postgresql` (PostgreSQL 16)  | `postgres:17` (operator or self-managed)   |
+| **PostgreSQL**   | `bitnamilegacy/postgresql:16.4.0`     | `postgres:17` (operator or self-managed)   |
 | **Kafka**        | `bitnamilegacy/kafka:3.7.0` (KRaft)   | `apache/kafka:4.0.0` (official image)      |
-| **Redis/Valkey** | `bitnamilegacy/redis:7.2.5` (cluster) | `valkey/valkey:8.0` (Redis-compatible)     |
+| **Redis/Valkey** | `bitnamilegacy/redis-cluster:7.2.5`   | `valkey/valkey:8.0` (Redis-compatible)     |
 
 Chart 2.0.0 has no `postgresql:`, `kafka:`, or `redis-cluster:` subchart blocks — only top-level
 `postgresql:`, `kafka:`, and `redis:` connection sections that point at your existing or newly
@@ -608,7 +629,10 @@ provisioned infrastructure.
 > `tbmq.persistence.enabled: true`). Chart 1.x had no such template (its `/data` was an `emptyDir`),
 > and `volumeClaimTemplates` is one of the immutable fields on an existing StatefulSet — adding it
 > in place makes `helm upgrade` fail with
-> `StatefulSet ... is invalid: spec: Forbidden: updates to statefulset spec for fields other than ... are forbidden`.
+> `StatefulSet.apps "<release>-tbmq-node" is invalid: spec.volumeClaimTemplates: Invalid value: ...: field is immutable`
+> (older Kubernetes versions word it `spec: Forbidden: updates to statefulset spec for fields other than ...`).
+> The failed upgrade is partial: the Integration Executor StatefulSet is already updated, while the
+> broker stays on the old version.
 > Chart 1.x deployments are CE-only, so disabling persistence on the upgrade is safe (there is no
 > PE license cache to preserve).
 >
@@ -622,7 +646,11 @@ provisioned infrastructure.
 > hits the same immutable-field rule. Take a maintenance window, delete the broker StatefulSet with
 > `kubectl delete statefulset <release>-tbmq-node -n <namespace> --cascade=orphan` (this leaves the
 > running Pod up while the StatefulSet is gone), then `helm upgrade` with
-> `tbmq.persistence.enabled: true` to recreate it with the `volumeClaimTemplate`.
+> `tbmq.persistence.enabled: true` to recreate it with the `volumeClaimTemplate`. The new
+> StatefulSet adopts the running Pods but cannot change them in place (`FailedUpdate … pod updates
+> may not change fields`), so delete the broker Pods one at a time
+> (`kubectl delete pod <release>-tbmq-node-<n> -n <namespace>`, waiting for each to be ready) to
+> recreate them on their PVCs.
 
 #### Two upgrade paths
 
@@ -648,13 +676,28 @@ TBMQ schema and cluster id. For Kafka and Redis you have a choice:
 
 - **Migrate the data.** Choose this if you need to preserve any persisted-but-undelivered MQTT
   messages and the in-cluster MQTT state held outside PostgreSQL. The image transitions
-  (`bitnamilegacy/kafka:3.7.0` → `apache/kafka:4.0.0` and `bitnamilegacy/redis:7.2.5` →
+  (`bitnamilegacy/kafka:3.7.0` → `apache/kafka:4.0.0` and `bitnamilegacy/redis-cluster:7.2.5` →
   `valkey/valkey:8.0`) do not permit direct volume reuse, so plan a logical export/replay rather
   than a PV swap.
 - **Start Kafka and Redis empty.** A valid choice when you accept that any
   persisted-but-undelivered messages are either already delivered or will be dropped. MQTT
   clients reconnect to the new cluster on their own and their subscriptions get re-established as
   they come back online — no operator action required for that.
+
+Run Option B in steps. The migration Job reads the release's current connection settings (see
+[Standard Upgrade Procedure](#standard-upgrade-procedure), step 2), so a single upgrade would
+migrate the old Bitnami database — or, as on chart 1.x, fail on the missing
+`<release>-postgres-secret`:
+
+1. Copy PostgreSQL into the new instance (`pg_dump -Fc` from the Bitnami one, `pg_restore
+   --no-owner` into the new one). Do it now: the next step removes the Bitnami stack.
+2. `helm upgrade` to chart 2.0.0 with your new values, `tbmq.persistence.enabled: false`,
+   `tbmq.statefulSet.replicas: 0`, and `tbmq-ie.statefulSet.replicas: 0`, **without**
+   `upgrade.upgradeDbSchema`. This applies the new connection settings and removes the Bitnami
+   subcharts; TBMQ stays stopped.
+3. `helm upgrade` again with `--set upgrade.upgradeDbSchema=true` and your usual replica counts.
+
+The Bitnami PVCs are not deleted; remove them once you no longer need the old data.
 
 The [Minikube guide](docs/minikube/README.md) walks through provisioning one such stack
 end-to-end (it does not cover Kafka or Redis data migration).
@@ -753,7 +796,7 @@ the cluster id is not stored under `/data`. Losing `/data` has a different cost 
 | **Ports**                               |                                                                                                                                                            |                                       |
 | tbmq.ports                              | Container ports: HTTP 8083, MQTT 1883, MQTTS 8883, MQTT-WS 8084, MQTT-WSS 8085.                                                                            | (see values.yaml)                     |
 | **Configuration**                       |                                                                                                                                                            |                                       |
-| tbmq.customEnv                          | Map of env vars applied to broker pods, install Pod, and upgrade Job. Wins over keys in any `existing*ConfigMap`.                                          | { }                                   |
+| tbmq.customEnv                          | Map of env vars applied to broker pods, install Pod, and upgrade Job. Wins over the chart's PostgreSQL, Kafka, and Redis ConfigMaps, but not over `export` lines in a `conf` key (sourced at container start) or env vars the chart sets on the container itself (`TB_SERVICE_ID`, `HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE`, `SPRING_DATASOURCE_PASSWORD`, `REDIS_PASSWORD`, `LISTENER_SSL_*`, `TBMQ_LICENSE_*`). | { }                                   |
 | tbmq.existingConfigMap                  | One ConfigMap providing both `conf` (Java opts) and `logback` (logging) keys. Highest priority — when set, the chart skips rendering its default ConfigMaps and ignores the two below. Applies to broker pods and the upgrade Job; the install Pod uses a dedicated minimal `*-install-config`. | ""                                    |
 | tbmq.existingJavaOptsConfigMap          | ConfigMap with a `conf` key providing Java options. Used only when `existingConfigMap` is empty.                                                           | ""                                    |
 | tbmq.existingLogbackConfigMap           | ConfigMap with a `logback` key providing logback XML. Used only when `existingConfigMap` is empty.                                                          | ""                                    |
@@ -838,9 +881,12 @@ the install Pod and upgrade Job to ArgoCD hooks:
 
 - **Install** — the install Pod becomes a `Sync` hook (deleted when it succeeds). Set
   `installation.installDbSchema: true` in the Application's Helm values for the **first sync
-  only**, then remove it. While it is set, every sync re-runs the install Pod. A failed install
-  Pod is left in place for its logs and replaced on the next sync
-  (`hook-delete-policy: BeforeHookCreation,HookSucceeded`).
+  only**, then remove it. While it is set, every sync re-runs the install Pod, which fails on the
+  populated database and fails the sync — after recreating the default `sysadmin@thingsboard.org`
+  account if you had deleted it (see [Step 2](#step-2-prepare-your-valuesyaml)). A failed install
+  Pod is left in place for its logs and replaced on the next sync that still sets the flag
+  (`hook-delete-policy: BeforeHookCreation,HookSucceeded`); once you remove the flag, delete it
+  yourself.
 - **Upgrade** — the migration Job becomes a `PreSync` hook. ArgoCD can't tell an install from an
   upgrade, so the Job renders whenever `upgrade.upgradeDbSchema: true`. Set it together with the
   image tag change that bumps the TBMQ version, then remove it after that sync. The Job is always
@@ -876,10 +922,10 @@ Controller, etc.).
 | loadbalancer.http.ssl.enabled                           | Enable HTTPS termination at the load balancer. Honored by `aws`, `azure`, and `gcp` flavors; the `nginx` template does not implement HTTPS termination and ignores this key. | false                  |
 | loadbalancer.http.ssl.certificateRef                    | Cert reference: AWS ACM ARN, Azure `appgw-ssl-certificate` value, GCP `ManagedCertificate` name.        | ""                     |
 | loadbalancer.http.ssl.domains                           | Domains for HTTPS. Required for GCP `ManagedCertificate`.                                                | ["www.example.com"]    |
-| loadbalancer.http.ssl.staticIP                          | GCP-only: static IP name for the HTTP(S) load balancer.                                                  | "tbmq-http-lb-address" |
+| loadbalancer.http.ssl.staticIP                          | GCP-only, used when `http.ssl.enabled`: static IP name for the HTTPS load balancer. With SSL on, the `gcp` flavor also creates the `ManagedCertificate` (named after `certificateRef`) and a `FrontendConfig` named `tbmq-http-fe-config` (not release-prefixed, so only one such release per namespace). | "tbmq-http-lb-address" |
 | loadbalancer.mqtt.enabled                               | Create the MQTT LoadBalancer Service.                                                                    | true                   |
 | loadbalancer.mqtt.annotations                           | Extra Service annotations. Merged with provider defaults — user values win on conflict.                  | { }                    |
-| loadbalancer.mqtt.mutualTls.enabled                     | Enable application-level mTLS. Requires server cert + key. Disables `tlsTermination`.                    | false                  |
+| loadbalancer.mqtt.mutualTls.enabled                     | Enable application-level mTLS. Requires server cert + key and `loadbalancer.mqtt.enabled: true`. Disables `tlsTermination`. | false                  |
 | loadbalancer.mqtt.mutualTls.configMapName               | ConfigMap with `server.pem` and `mqttserver_key.pem` keys.                                               | "tbmq-node-mqtts-config" |
 | loadbalancer.mqtt.mutualTls.existingSecretName          | Optional secret with `server.pem` and `mqttserver_key.pem` keys, replaces `.configMapName`.              | "" |
 | loadbalancer.mqtt.mutualTls.privateKeyPasswordSecret    | Optional Secret holding the private key password.                                                        | ""                     |
@@ -890,6 +936,10 @@ Controller, etc.).
 ## Mutual TLS (mTLS) for MQTT
 
 To enable application-level mTLS for the MQTT listener:
+
+> The chart configures the broker's TLS listener only when `loadbalancer.mqtt.enabled` is also
+> `true`. With the MQTT load balancer disabled (for example when you reach TBMQ through
+> `kubectl port-forward`), `mutualTls.enabled: true` has no effect.
 
 1. Create a Secret holding the server certificate and private key (recommended, since it holds a
    private key). It must use the keys `server.pem` and `mqttserver_key.pem`:
@@ -948,11 +998,11 @@ ConfigMaps, chart-managed Secrets, Ingress, and the load balancer Service). It d
   `redis.existingSecret`, `license.existingSecret`, or a pre-created `tbmq.imagePullSecret` is
   left in place.
 - **Per-pod PVCs created from `volumeClaimTemplate`** — the broker's `tbmq-node-data` PVCs are kept
-  by design (StatefulSet semantics). Delete them by name pattern:
+  by design (StatefulSet semantics). They carry the broker's `app` label, so delete the ones of
+  this release with:
 
   ```bash
-  kubectl get pvc -n <namespace> -o name | grep tbmq-node-data \
-    | xargs -r kubectl delete -n <namespace>
+  kubectl delete pvc -n <namespace> -l app=my-tbmq-tbmq-node
   ```
 
   Or delete the whole namespace if you no longer need anything in it.

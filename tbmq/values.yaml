@@ -171,17 +171,20 @@ tbmq:
   # Higher priority pods can preempt lower priority pods when the cluster is under resource pressure.
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/ for more details.
   priorityClassName: ""
-  # Custom environment variables that are always applied, regardless of configuration source.
-  # These variables will be appended to the container environment and will override any conflicting
-  # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
+  # Custom environment variables added to the container environment.
+  # They override the same variables from the chart's PostgreSQL, Kafka, and Redis ConfigMaps.
+  # They do NOT override `export` lines in the `conf` key of `existingConfigMap` or
+  # `existingJavaOptsConfigMap`: that file is sourced at container start, after the environment is set.
+  # Nor do they override env vars the chart sets directly on the container: `TB_SERVICE_ID`,
+  # `HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE`, `SPRING_DATASOURCE_PASSWORD`, and, when the matching feature
+  # is enabled, `REDIS_PASSWORD`, `LISTENER_SSL_*` (mTLS), and `TBMQ_LICENSE_*` (PE license).
   #
   # Example usage:
   #
   # customEnv:
   #   STATS_PRINT_INTERVAL_MS: "15000"
   #
-  # Even if `existingConfigMap` or `existingJavaOptsConfigMap` define `STATS_PRINT_INTERVAL_MS`,
-  # the value from `customEnv` will take precedence.
+  # If the `conf` key also exports `STATS_PRINT_INTERVAL_MS`, the `conf` value wins.
   #
   # Note: TBMQ 2.4.1 manages MQTT authentication providers (basic, SSL, JWT, HTTP)
   # through the admin REST API, not via env vars. Older configs that set
@@ -191,7 +194,8 @@ tbmq:
   # If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).
   #
   # This has the highest priority and will ignore `existingJavaOptsConfigMap` and `existingLogbackConfigMap`
-  # but does NOT override environment variables set via `customEnv` or `envFrom` sources (e.g., PostgreSQL, Kafka, Redis configurations).
+  # Its `conf` key is sourced at container start, so `export` lines in it override variables from
+  # `customEnv` and from the chart's PostgreSQL, Kafka, and Redis ConfigMaps.
   #
   # If not set, TBMQ will fall back to `existingJavaOptsConfigMap` and `existingLogbackConfigMap`.
   # If none are provided, default configurations will be used.
@@ -375,23 +379,25 @@ tbmq-ie:
   # Higher priority pods can preempt lower priority pods when the cluster is under resource pressure.
   # See https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/ for more details.
   priorityClassName: ""
-  # Custom environment variables that are always applied, regardless of configuration source.
-  # These variables will be appended to the container environment and will override any conflicting
-  # variables set in `existingConfigMap` or `existingJavaOptsConfigMap`.
+  # Custom environment variables added to the container environment.
+  # They override the same variables from the chart's Kafka ConfigMap.
+  # They do NOT override `export` lines in the `conf` key of `existingConfigMap` or
+  # `existingJavaOptsConfigMap`: that file is sourced at container start, after the environment is set.
+  # Nor do they override `TB_SERVICE_ID`, which the chart sets directly on the container.
   #
   # Example usage:
   #
   # customEnv:
   #   TB_SERVICE_INTEGRATIONS_EXCLUDED: "HTTP"
   #
-  # Even if `existingConfigMap` or `existingJavaOptsConfigMap` define `TB_SERVICE_INTEGRATIONS_EXCLUDED`,
-  # the value from `customEnv` will take precedence.
+  # If the `conf` key also exports `TB_SERVICE_INTEGRATIONS_EXCLUDED`, the `conf` value wins.
   customEnv: { }
   # Name of an existing ConfigMap that will override TBMQ-IE Java and Logback configurations.
   # If set, this ConfigMap should contain BOTH Java options (`conf` key) and Logback settings (`logback` key).
   #
   # This has the highest priority and will ignore `existingJavaOptsConfigMap` and `existingLogbackConfigMap`
-  # but does NOT override environment variables set via `customEnv` or `envFrom` sources (e.g., PostgreSQL, Kafka, Redis configurations).
+  # Its `conf` key is sourced at container start, so `export` lines in it override variables from
+  # `customEnv` and from the chart's Kafka ConfigMap.
   #
   # If not set, TBMQ will fall back to `existingJavaOptsConfigMap` and `existingLogbackConfigMap`.
   # If none are provided, default configurations will be used.

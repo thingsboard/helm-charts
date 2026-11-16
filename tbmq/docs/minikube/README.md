@@ -321,7 +321,8 @@ helm install tbmq ../../ -f minikube-values.yaml \
 > Pass `installation.installDbSchema=true` via `--set` on the **first install only**.
 > Do not put it in `minikube-values.yaml` — the post-install hook is bound to
 > `post-install,post-upgrade`, so persisting the flag would re-fire the install
-> Pod on every `helm upgrade` and corrupt an already-populated schema.
+> Pod on every `helm upgrade`. Against an already-populated schema it fails
+> (the admin user already exists) and takes the upgrade down with it.
 
 ### Verify
 
