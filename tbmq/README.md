@@ -98,8 +98,10 @@ The connection settings for PostgreSQL, Kafka, and Redis are described below.
 > `--set` on the `helm install` command instead. The post-install hook is also bound to
 > `post-upgrade` to allow recovery from a forgotten flag, so a persisted flag re-runs the install pod
 > on every `helm upgrade`. On a populated database it fails (`User with email
-> 'sysadmin@thingsboard.org' already present in database!`) without changing any data, and the
-> upgrade fails with `post-upgrade hooks failed`.
+> 'sysadmin@thingsboard.org' already present in database!`), and the upgrade fails with
+> `post-upgrade hooks failed`. If you deleted the default `sysadmin@thingsboard.org` account or
+> changed its email, the re-run first recreates it with the default password `sysadmin`, and the
+> account stays after the Pod fails.
 
 #### PostgreSQL
 
@@ -847,7 +849,8 @@ the install Pod and upgrade Job to ArgoCD hooks:
 - **Install** — the install Pod becomes a `Sync` hook (deleted when it succeeds). Set
   `installation.installDbSchema: true` in the Application's Helm values for the **first sync
   only**, then remove it. While it is set, every sync re-runs the install Pod, which fails on the
-  populated database and fails the sync. A failed install
+  populated database and fails the sync — after recreating the default `sysadmin@thingsboard.org`
+  account if you had deleted it (see [Step 2](#step-2-prepare-your-valuesyaml)). A failed install
   Pod is left in place for its logs and replaced on the next sync
   (`hook-delete-policy: BeforeHookCreation,HookSucceeded`).
 - **Upgrade** — the migration Job becomes a `PreSync` hook. ArgoCD can't tell an install from an
