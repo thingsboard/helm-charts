@@ -227,6 +227,17 @@ license-key
 {{- end }}
 {{- end -}}
 
+{{/*Render the TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG env entry when kafka.existingSecret is set*/}}
+{{- define "tbmq.kafka.env" -}}
+{{- if .Values.kafka.existingSecret }}
+- name: TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.kafka.existingSecret }}
+      key: {{ .Values.kafka.existingSecretConfigKey | default "kafka-config" }}
+{{- end }}
+{{- end -}}
+
 {{/*Return kafka bootstrap servers*/}}
 {{- define "tbmq.kafka.servers" -}}
 {{- .Values.kafka.bootstrapServers -}}

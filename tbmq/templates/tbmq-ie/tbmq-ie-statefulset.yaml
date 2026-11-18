@@ -56,6 +56,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            {{- include "tbmq.kafka.env" . | nindent 12 }}
           envFrom:
             {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}
             - configMapRef:

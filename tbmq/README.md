@@ -127,13 +127,38 @@ postgresql:
 
 #### Kafka
 
-| Parameter              | Description                                                | Default |
-|------------------------|------------------------------------------------------------|---------|
-| kafka.bootstrapServers | Comma-separated `host:port` list of Kafka bootstrap nodes. | ""      |
+| Parameter                     | Description                                                                                                         | Default        |
+|-------------------------------|---------------------------------------------------------------------------------------------------------------------|----------------|
+| kafka.bootstrapServers        | Comma-separated `host:port` list of Kafka bootstrap nodes.                                                          | ""             |
+| kafka.existingSecret          | Existing Secret with extra Kafka client properties, set as `TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG` on the broker and IE. | ""             |
+| kafka.existingSecretConfigKey | Key within `kafka.existingSecret` that holds the properties.                                                         | "kafka-config" |
 
 ```yaml
 kafka:
   bootstrapServers: "kafka-0:9092,kafka-1:9092,kafka-2:9092"
+```
+
+If your Kafka cluster requires TLS or SASL authentication, as managed Kafka services usually do, put the client
+properties in a Secret and reference it with `kafka.existingSecret`. The value is a list of `property:value` pairs
+separated by `;`; escape a `;` inside a value as `\;`. For example, for SASL/PLAIN over TLS:
+
+```bash
+kubectl create secret generic my-kafka-credentials -n <namespace> \
+  --from-literal=kafka-config='security.protocol:SASL_SSL;sasl.mechanism:PLAIN;sasl.jaas.config:org.apache.kafka.common.security.plain.PlainLoginModule required username="USER" password="PASSWORD"\;'
+```
+
+```yaml
+kafka:
+  bootstrapServers: "my-kafka.example.com:9092"
+  existingSecret: "my-kafka-credentials"
+```
+
+The chart sets the Secret's value on the broker and Integration Executor containers, so the credentials stay out of
+`values.yaml` and the chart's ConfigMaps. Pods don't restart when the Secret changes; after you rotate the
+credentials, restart the broker and Integration Executor:
+
+```bash
+kubectl rollout restart statefulset/<release>-tbmq-node statefulset/<release>-tbmq-ie -n <namespace>
 ```
 
 #### Redis / Valkey / Cache
@@ -796,7 +821,7 @@ the cluster id is not stored under `/data`. Losing `/data` has a different cost 
 | **Ports**                               |                                                                                                                                                            |                                       |
 | tbmq.ports                              | Container ports: HTTP 8083, MQTT 1883, MQTTS 8883, MQTT-WS 8084, MQTT-WSS 8085.                                                                            | (see values.yaml)                     |
 | **Configuration**                       |                                                                                                                                                            |                                       |
-| tbmq.customEnv                          | Map of env vars applied to broker pods, install Pod, and upgrade Job. Wins over the chart's PostgreSQL, Kafka, and Redis ConfigMaps, but not over `export` lines in a `conf` key (sourced at container start) or env vars the chart sets on the container itself (`TB_SERVICE_ID`, `HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE`, `SPRING_DATASOURCE_PASSWORD`, `REDIS_PASSWORD`, `LISTENER_SSL_*`, `TBMQ_LICENSE_*`). | { }                                   |
+| tbmq.customEnv                          | Map of env vars applied to broker pods, install Pod, and upgrade Job. Wins over the chart's PostgreSQL, Kafka, and Redis ConfigMaps, but not over `export` lines in a `conf` key (sourced at container start) or env vars the chart sets on the container itself (`TB_SERVICE_ID`, `HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE`, `SPRING_DATASOURCE_PASSWORD`, `REDIS_PASSWORD`, `LISTENER_SSL_*`, `TBMQ_LICENSE_*`, `TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG` with `kafka.existingSecret`). | { }                                   |
 | tbmq.existingConfigMap                  | One ConfigMap providing both `conf` (Java opts) and `logback` (logging) keys. Highest priority — when set, the chart skips rendering its default ConfigMaps and ignores the two below. Applies to broker pods and the upgrade Job; the install Pod uses a dedicated minimal `*-install-config`. | ""                                    |
 | tbmq.existingJavaOptsConfigMap          | ConfigMap with a `conf` key providing Java options. Used only when `existingConfigMap` is empty.                                                           | ""                                    |
 | tbmq.existingLogbackConfigMap           | ConfigMap with a `logback` key providing logback XML. Used only when `existingConfigMap` is empty.                                                          | ""                                    |
@@ -832,7 +857,8 @@ The `tbmq-ie` parameters mirror `tbmq` parameters above. Notable differences:
 > `statefulSet.annotations`, `annotations`, `priorityClassName`, `nodeSelector`, `affinity`, `customEnv`,
 > `existingConfigMap`, `existingJavaOptsConfigMap`, `existingLogbackConfigMap`,
 > `enableChecksumAnnotations`, `restartPolicy`, `securityContext`, `resources`. The IE Pod does
-> **not** mount PostgreSQL, Redis, or PE license env vars — it only connects to Kafka.
+> **not** mount PostgreSQL, Redis, or PE license env vars — it only connects to Kafka, with the same
+> `kafka.bootstrapServers` and `kafka.existingSecret` as the broker.
 
 > **Note:** `tbmq-ie` is referenced in templates with `index .Values "tbmq-ie"` because of the
 > hyphen in the key name. The hyphen does not need escaping on the command line — use the
