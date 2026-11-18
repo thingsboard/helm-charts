@@ -3,7 +3,7 @@ appVersion: 2.4.1
 description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
-version: 2.3.1
+version: 2.3.2
 annotations:
   artifacthub.io/category: streaming-messaging
   artifacthub.io/license: Apache-2.0
@@ -14,10 +14,10 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
-    - kind: changed
-      description: "Bumped TBMQ to 2.4.1 (CE images: 2.4.1; PE images: 2.4.1PE). No chart value or ConfigMap changes are required: every key the chart sets is still supported by TBMQ 2.4.1, and the new 2.4.1 settings (node drain `NODE_DRAIN_*`, REST publish `REST_PUBLISH_*`) have application defaults and can be tuned via tbmq.customEnv."
-    - kind: changed
-      description: "Heads-up for TBMQ 2.4.1 upgrades: `MQTT_TOPIC_MAX_SEGMENTS_COUNT` now counts topic segments instead of `/` delimiters. If you set it in tbmq.customEnv, raise it by 1 to keep the previous limit; the default `0` (no limit) is unaffected. See the TBMQ 2.4.1 release notes at https://tbmq.io/docs/releases/."
+    - kind: fixed
+      description: "GCP: the HTTP load balancer was never created on GKE. The Ingress set `ingressClassName: gce`, but GKE has no IngressClass of that name, so its Ingress controller ignored the Ingress. The chart now selects the controller with the `kubernetes.io/ingress.class: gce` annotation, which `loadbalancer.http.annotations` can override, for example with `gce-internal`."
+    - kind: added
+      description: "`kafka.existingSecret` and `kafka.existingSecretConfigKey`: load extra Kafka client properties, such as the TLS and SASL settings a managed Kafka service requires, from an existing Secret. The chart sets them as TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG on the broker and Integration Executor, so the credentials stay out of values.yaml and the chart's ConfigMaps."
 home: https://tbmq.io/
 icon: https://img.thingsboard.io/thingsboard_blue.svg
 keywords:
