@@ -25,7 +25,8 @@ metadata:
   name: {{ .Release.Name }}-http-lb
   namespace: {{ .Release.Namespace }}
   annotations:
-    {{- $defaults := dict -}}
+    {{- /* GKE picks its Ingress controller by this annotation; it ships no IngressClass, so spec.ingressClassName "gce" matches nothing */ -}}
+    {{- $defaults := dict "kubernetes.io/ingress.class" "gce" -}}
     {{- if .Values.loadbalancer.http.ssl.enabled -}}
       {{- $_ := set $defaults "kubernetes.io/ingress.global-static-ip-name" (printf "%v" .Values.loadbalancer.http.ssl.staticIP) -}}
       {{- $_ = set $defaults "networking.gke.io/managed-certificates" (printf "%v" .Values.loadbalancer.http.ssl.certificateRef) -}}
@@ -36,7 +37,6 @@ metadata:
     {{- $merged := mergeOverwrite $defaults $user -}}
     {{- toYaml $merged | nindent 4 }}
 spec:
-  ingressClassName: "gce"
   rules:
     - http:
         paths:
