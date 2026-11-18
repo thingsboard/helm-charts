@@ -18,6 +18,8 @@ annotations:
       description: "GCP: the HTTP load balancer was never created on GKE. The Ingress set `ingressClassName: gce`, but GKE has no IngressClass of that name, so its Ingress controller ignored the Ingress. The chart now selects the controller with the `kubernetes.io/ingress.class: gce` annotation, which `loadbalancer.http.annotations` can override, for example with `gce-internal`."
     - kind: fixed
       description: "Azure: `helm install` failed with `loadbalancer.type: azure`. The Ingress set `ingressClassName: azure/application-gateway`, the controller name, which Kubernetes rejects as an IngressClass name. The chart now sets `azure-application-gateway`, the IngressClass that the AKS Application Gateway ingress add-on creates."
+    - kind: fixed
+      description: "Logging changes in `existingLogbackConfigMap` or `existingConfigMap` never reached running broker and Integration Executor pods. The chart mounted `logback.xml` with `subPath`, which Kubernetes doesn't update. `/config` is now a projected volume, so a `logback` change applied with `kubectl apply` reaches the pods and TBMQ reloads `logback.xml` without a restart. `conf` changes still need a pod restart."
     - kind: added
       description: "`kafka.existingSecret` and `kafka.existingSecretConfigKey`: load extra Kafka client properties, such as the TLS and SASL settings a managed Kafka service requires, from an existing Secret. The chart sets them as TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG on the broker and Integration Executor, so the credentials stay out of values.yaml and the chart's ConfigMaps."
 home: https://tbmq.io/

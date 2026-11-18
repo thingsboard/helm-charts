@@ -110,11 +110,7 @@ spec:
             {{- .Values.tbmq.resources | toYaml | nindent 12 }}
           volumeMounts:
             - name: {{ printf "%s-tbmq-node-config" $releaseName }}
-              mountPath: /config/thingsboard-mqtt-broker.conf
-              subPath: thingsboard-mqtt-broker.conf
-            - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
-              mountPath: /config/logback.xml
-              subPath: logback.xml
+              mountPath: /config
             {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
             - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
               mountPath: /ssl-config
@@ -126,18 +122,21 @@ spec:
               readOnly: false
       restartPolicy: {{ .Values.tbmq.restartPolicy }}
       volumes:
+        # One projected volume instead of two subPath mounts: Kubernetes doesn't update subPath mounts, so a
+        # projected volume is what lets a changed logback ConfigMap reach the running pods.
         - name: {{ printf "%s-tbmq-node-config" $releaseName }}
-          configMap:
-            name: {{ include "tbmq.configMapName" . }}
-            items:
-              - key: conf
-                path: thingsboard-mqtt-broker.conf
-        - name: {{ printf "%s-tbmq-node-logback-config" $releaseName }}
-          configMap:
-            name: {{ include "tbmq.logbackConfigMapName" . }}
-            items:
-              - key: logback
-                path: logback.xml
+          projected:
+            sources:
+              - configMap:
+                  name: {{ include "tbmq.configMapName" . }}
+                  items:
+                    - key: conf
+                      path: thingsboard-mqtt-broker.conf
+              - configMap:
+                  name: {{ include "tbmq.logbackConfigMapName" . }}
+                  items:
+                    - key: logback
+                      path: logback.xml
         {{- if and .Values.loadbalancer.mqtt.enabled .Values.loadbalancer.mqtt.mutualTls.enabled }}
         - name: {{ printf "%s-tbmq-node-mqtts-config" $releaseName }}
           {{- if .Values.loadbalancer.mqtt.mutualTls.existingSecretName }}
