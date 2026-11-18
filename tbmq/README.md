@@ -154,8 +154,12 @@ kafka:
 ```
 
 The chart sets the Secret's value on the broker and Integration Executor containers, so the credentials stay out of
-`values.yaml` and the chart's ConfigMaps. Pods don't restart when the Secret changes; restart them with
-`kubectl rollout restart statefulset -n <namespace>` after you rotate the credentials.
+`values.yaml` and the chart's ConfigMaps. Pods don't restart when the Secret changes; after you rotate the
+credentials, restart the broker and Integration Executor:
+
+```bash
+kubectl rollout restart statefulset/<release>-tbmq-node statefulset/<release>-tbmq-ie -n <namespace>
+```
 
 #### Redis / Valkey / Cache
 
