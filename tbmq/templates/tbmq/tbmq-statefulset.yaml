@@ -95,6 +95,7 @@ spec:
                   key: {{ include "tbmq.redis.secretKey" . }}
             {{- end }}
             {{- include "tbmq.license.env" . | nindent 12 }}
+            {{- include "tbmq.kafka.env" . | nindent 12 }}
           envFrom:
             {{- include "tbmq.postgres.configuration.ref" . | indent 12 }}
             {{- include "tbmq.kafka.configuration.ref" . | indent 12 }}

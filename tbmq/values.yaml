@@ -177,7 +177,8 @@ tbmq:
   # `existingJavaOptsConfigMap`: that file is sourced at container start, after the environment is set.
   # Nor do they override env vars the chart sets directly on the container: `TB_SERVICE_ID`,
   # `HTTP_LOG_CONTROLLER_ERROR_STACK_TRACE`, `SPRING_DATASOURCE_PASSWORD`, and, when the matching feature
-  # is enabled, `REDIS_PASSWORD`, `LISTENER_SSL_*` (mTLS), and `TBMQ_LICENSE_*` (PE license).
+  # is enabled, `REDIS_PASSWORD`, `LISTENER_SSL_*` (mTLS), `TBMQ_LICENSE_*` (PE license), and
+  # `TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG` (`kafka.existingSecret`).
   #
   # Example usage:
   #
@@ -383,7 +384,8 @@ tbmq-ie:
   # They override the same variables from the chart's Kafka ConfigMap.
   # They do NOT override `export` lines in the `conf` key of `existingConfigMap` or
   # `existingJavaOptsConfigMap`: that file is sourced at container start, after the environment is set.
-  # Nor do they override `TB_SERVICE_ID`, which the chart sets directly on the container.
+  # Nor do they override `TB_SERVICE_ID`, which the chart sets directly on the container, or
+  # `TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG` when `kafka.existingSecret` is set.
   #
   # Example usage:
   #
@@ -542,6 +544,20 @@ kafka:
   # Comma-separated list of Kafka bootstrap servers ("host:port" pairs).
   # Example: "kafka-0:9092,kafka-1:9092,kafka-2:9092"
   bootstrapServers: ""
+  # Name of an existing Kubernetes Secret with extra Kafka client properties, such as the security protocol and
+  # SASL credentials a managed Kafka service requires. The chart sets the value as
+  # `TB_KAFKA_DEFAULT_PRODUCER_CONSUMER_CONFIG` on the broker and Integration Executor containers, so the credentials
+  # stay out of values.yaml and the chart's ConfigMaps. Leave empty for a Kafka cluster without authentication.
+  #
+  # The value is a list of `property:value` pairs separated by `;`. Escape a `;` inside a value as `\;`. Example:
+  #
+  #   kubectl create secret generic my-kafka-credentials -n <namespace> \
+  #     --from-literal=kafka-config='security.protocol:SASL_SSL;sasl.mechanism:PLAIN;sasl.jaas.config:org.apache.kafka.common.security.plain.PlainLoginModule required username="USER" password="PASSWORD"\;'
+  #
+  # Restart the broker and Integration Executor pods after you change the Secret.
+  existingSecret: ""
+  # Key within `existingSecret` that holds the Kafka client properties.
+  existingSecretConfigKey: "kafka-config"
 
 # Load Balancer Configuration
 # This section defines the load balancer settings for TBMQ.
