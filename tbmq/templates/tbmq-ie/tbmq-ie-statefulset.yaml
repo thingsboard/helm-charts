@@ -69,11 +69,7 @@ spec:
             {{- $tbmqIe.resources | toYaml | nindent 12 }}
           volumeMounts:
             - name: {{ printf "%s-tbmq-ie-config" $releaseName }}
-              mountPath: /config/tbmq-integration-executor.conf
-              subPath: tbmq-integration-executor.conf
-            - name: {{ printf "%s-tbmq-ie-logback-config" $releaseName }}
-              mountPath: /config/logback.xml
-              subPath: logback.xml
+              mountPath: /config
             - name: {{ $releaseName }}-tbmq-ie-logs
               mountPath: /var/log/tbmq-integration-executor
             - name: {{ $releaseName }}-tbmq-ie-data
@@ -81,18 +77,21 @@ spec:
               readOnly: false
       restartPolicy: {{ $tbmqIe.restartPolicy }}
       volumes:
+        # One projected volume instead of two subPath mounts: Kubernetes doesn't update subPath mounts, so a
+        # projected volume is what lets a changed logback ConfigMap reach the running pods.
         - name: {{ printf "%s-tbmq-ie-config" $releaseName }}
-          configMap:
-            name: {{ include "tbmq-ie.configMapName" . }}
-            items:
-              - key: conf
-                path: tbmq-integration-executor.conf
-        - name: {{ printf "%s-tbmq-ie-logback-config" $releaseName }}
-          configMap:
-            name: {{ include "tbmq-ie.logbackConfigMapName" . }}
-            items:
-              - key: logback
-                path: logback.xml
+          projected:
+            sources:
+              - configMap:
+                  name: {{ include "tbmq-ie.configMapName" . }}
+                  items:
+                    - key: conf
+                      path: tbmq-integration-executor.conf
+              - configMap:
+                  name: {{ include "tbmq-ie.logbackConfigMapName" . }}
+                  items:
+                    - key: logback
+                      path: logback.xml
         - name: {{ $releaseName }}-tbmq-ie-logs
           emptyDir: { }
         - name: {{ printf "%s-tbmq-ie-data" $releaseName }}
