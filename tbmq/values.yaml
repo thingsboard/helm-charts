@@ -121,7 +121,7 @@ tbmq:
     # Docker image repository for TBMQ node.
     repository: thingsboard/tbmq-node
     # Image tag/version.
-    tag: 2.4.1
+    tag: 2.4.2
   # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
   # Image pull policy.
@@ -187,7 +187,7 @@ tbmq:
   #
   # If the `conf` key also exports `STATS_PRINT_INTERVAL_MS`, the `conf` value wins.
   #
-  # Note: TBMQ 2.4.1 manages MQTT authentication providers (basic, SSL, JWT, HTTP)
+  # Note: TBMQ 2.4.2 manages MQTT authentication providers (basic, SSL, JWT, HTTP)
   # through the admin REST API, not via env vars. Older configs that set
   # `SECURITY_MQTT_*_ENABLED` here had no effect on the running broker.
   customEnv: { }
@@ -338,7 +338,7 @@ tbmq-ie:
     # Docker image repository for TBMQ-IE node.
     repository: thingsboard/tbmq-integration-executor
     # Image tag/version.
-    tag: 2.4.1
+    tag: 2.4.2
   # Kubernetes secret for pulling private images.
   imagePullSecret: regcred
   # Image pull policy.

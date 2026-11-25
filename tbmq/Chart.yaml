@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: 2.4.1
+appVersion: 2.4.2
 description: Helm chart for TBMQ cluster (Community and Professional Editions).
 name: tbmq-cluster
 type: application
@@ -14,6 +14,8 @@ annotations:
       email: dlandiak@thingsboard.io
   artifacthub.io/prerelease: "false"
   artifacthub.io/changes: |
+    - kind: changed
+      description: "Bumped TBMQ to 2.4.2 (CE images: 2.4.2; PE images: 2.4.2PE). No chart value or ConfigMap changes are required: every key the chart sets is still supported by TBMQ 2.4.2, and the new HTTP client pool settings of HTTP authentication and the Integration Executor have application defaults reachable through customEnv."
     - kind: fixed
       description: "GCP: the HTTP load balancer was never created on GKE. The Ingress set `ingressClassName: gce`, but GKE has no IngressClass of that name, so its Ingress controller ignored the Ingress. The chart now selects the controller with the `kubernetes.io/ingress.class: gce` annotation, which `loadbalancer.http.annotations` can override, for example with `gce-internal`."
     - kind: fixed
